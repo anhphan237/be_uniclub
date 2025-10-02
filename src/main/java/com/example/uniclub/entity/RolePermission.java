@@ -3,18 +3,10 @@ package com.example.uniclub.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.io.Serializable;
-
-@Embeddable
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @EqualsAndHashCode
-class RolePermissionId implements Serializable {
-    private Long roleId;
-    private Long permissionId;
-}
-
 @Entity
 @Table(name = "role_permissions")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class RolePermission {
 
     @EmbeddedId
