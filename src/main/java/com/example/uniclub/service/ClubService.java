@@ -1,0 +1,13 @@
+package com.example.uniclub.service;
+
+import com.example.uniclub.dto.request.ClubCreateRequest;
+import com.example.uniclub.dto.response.ClubResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+public interface ClubService {
+    ClubResponse create(ClubCreateRequest req);
+    ClubResponse get(Long id);
+    Page<ClubResponse> list(Pageable pageable);
+    void delete(Long id);
+}

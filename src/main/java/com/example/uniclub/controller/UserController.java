@@ -1,45 +1,46 @@
 package com.example.uniclub.controller;
 
-import com.example.uniclub.entity.User;
+import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.UserCreateRequest;
+import com.example.uniclub.dto.request.UserUpdateRequest;
+import com.example.uniclub.dto.response.UserResponse;
 import com.example.uniclub.service.UserService;
-import org.springframework.http.HttpStatus;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
-    private final UserService service;
-
-    public UserController(UserService service) {
-        this.service = service;
-    }
-
-    @GetMapping
-    public List<User> all() {
-        return service.findAll();
-    }
-
-    @GetMapping("/{id}")
-    public User one(@PathVariable Long id) {
-        return service.findById(id);
-    }
+    private final UserService userService;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public User create(@RequestBody User req) {
-        return service.create(req);
+    public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserCreateRequest req){
+        return ResponseEntity.ok(ApiResponse.ok(userService.create(req)));
     }
 
     @PutMapping("/{id}")
-    public User update(@PathVariable Long id, @RequestBody User req) {
-        return service.update(id, req);
+    public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Long id,
+                                                            @Valid @RequestBody UserUpdateRequest req){
+        return ResponseEntity.ok(ApiResponse.ok(userService.update(id, req)));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<UserResponse>> get(@PathVariable Long id){
+        return ResponseEntity.ok(ApiResponse.ok(userService.get(id)));
+    }
+
+    @GetMapping
+    public ResponseEntity<?> list(Pageable pageable){
+        return ResponseEntity.ok(userService.list(pageable));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        service.delete(id);
+    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id){
+        userService.delete(id);
+        return ResponseEntity.ok(ApiResponse.msg("Deleted"));
     }
 }
