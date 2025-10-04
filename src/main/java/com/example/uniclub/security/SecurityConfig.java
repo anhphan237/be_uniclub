@@ -26,6 +26,10 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    // Thêm 2 handler cho OAuth2 Google
+    private final OAuth2SuccessHandler oauth2SuccessHandler;
+    private final OAuth2FailureHandler oauth2FailureHandler;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -35,11 +39,29 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(reg -> reg
-                        .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/products/**", "/api/clubs/**").permitAll()
+                        .requestMatchers(
+                                "/auth/**",
+                                "/oauth2/**",
+                                "/login/oauth2/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/events/**",
+                                "/api/products/**",
+                                "/api/clubs/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
+                )
+
+                // Bật OAuth2 Login (Google)
+                .oauth2Login(o -> o
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler)
                 );
 
+        // JWT filter
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -49,13 +71,9 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        // Nếu chỉ dùng React local:
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
-        // Nếu sau này cần thêm domain thật, thêm vào list trên.
-
+        config.setAllowedOrigins(List.of("http://localhost:3000")); // thêm domain thật nếu cần
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        // Tuỳ chọn: expose header nếu bạn trả Authorization, Location, v.v.
         config.setExposedHeaders(List.of("Authorization", "Location"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
