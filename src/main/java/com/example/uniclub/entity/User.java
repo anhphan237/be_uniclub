@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.UserStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,8 +22,8 @@ public class User {
     private String fullName;
     private String phone;
 
-    @Enumerated(EnumType.STRING)
-    private UserStatus status = UserStatus.ACTIVE;
+    @Column(nullable = false)
+    private String status = UserStatusEnum.ACTIVE.name();
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "role_id")
