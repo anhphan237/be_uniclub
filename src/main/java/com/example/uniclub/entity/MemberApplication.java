@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.ApplicationStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -23,7 +24,7 @@ public class MemberApplication {
     private Club club;
 
     @Enumerated(EnumType.STRING)
-    private ApplicationStatus status = ApplicationStatus.SUBMITTED;
+    private ApplicationStatusEnum status = ApplicationStatusEnum.SUBMITTED;
 
     private LocalDateTime submittedAt = LocalDateTime.now();
 

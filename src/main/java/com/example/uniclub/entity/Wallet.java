@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,7 +15,7 @@ public class Wallet {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WalletOwnerType ownerType; // USER hoặc CLUB
+    private WalletOwnerTypeEnum ownerType; // USER hoặc CLUB
 
     // Một trong hai field dưới phải khác null (enforce ở service)
     @OneToOne

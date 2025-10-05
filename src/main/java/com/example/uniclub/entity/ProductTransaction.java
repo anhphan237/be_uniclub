@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.ProductTxStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,7 +27,7 @@ public class ProductTransaction {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ProductTxStatus status = ProductTxStatus.RESERVED;
+    private ProductTxStatusEnum status = ProductTxStatusEnum.RESERVED;
 
     @Column(nullable = false)
     private LocalDateTime timestamp = LocalDateTime.now();

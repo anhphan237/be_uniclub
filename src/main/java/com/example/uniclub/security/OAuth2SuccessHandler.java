@@ -2,7 +2,7 @@ package com.example.uniclub.security;
 
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
-import com.example.uniclub.entity.UserStatus;
+import com.example.uniclub.enums.UserStatusEnum;
 
 import com.example.uniclub.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,9 +60,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
                 return userRepo.save(User.builder()
                         .email(email)
-                        .passwordHash("{noop}-")            // không dùng password khi login Google
+                        .passwordHash("{noop}-")
                         .fullName(name)
-                        .status(UserStatus.ACTIVE)           // ✅ dùng enum, không phải String
+                        .status(UserStatusEnum.ACTIVE.getCode())
                         .role(Role.builder().roleId(roleIdForNewUser).build())
                         .build());
             });

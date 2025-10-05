@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.EventTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -23,7 +24,7 @@ public class Event {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    private EventType type = EventType.PUBLIC;
+    private EventTypeEnum type = EventTypeEnum.PUBLIC;
 
     private LocalDate date;
     private LocalTime time;

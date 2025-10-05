@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.ReturnStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,7 +22,7 @@ public class Return {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ReturnStatus status = ReturnStatus.REQUESTED;
+    private ReturnStatusEnum status = ReturnStatusEnum.REQUESTED;
 
     private LocalDateTime processedAt;
 }
