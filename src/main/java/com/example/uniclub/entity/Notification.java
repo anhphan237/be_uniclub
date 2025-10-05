@@ -1,5 +1,7 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.NotificationStatusEnum;
+import com.example.uniclub.enums.NotificationTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,11 +24,11 @@ public class Notification {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private NotificationType type = NotificationType.OTHER;
+    private NotificationTypeEnum type = NotificationTypeEnum.OTHER;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private NotificationStatus status = NotificationStatus.UNREAD;
+    private NotificationStatusEnum status = NotificationStatusEnum.UNREAD;
 
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

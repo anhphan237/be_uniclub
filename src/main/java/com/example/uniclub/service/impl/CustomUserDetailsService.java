@@ -1,6 +1,7 @@
-package com.example.uniclub.security;
+package com.example.uniclub.service.impl;
 
 import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;

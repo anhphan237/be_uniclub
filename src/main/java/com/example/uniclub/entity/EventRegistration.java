@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.RegistrationStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -22,7 +23,7 @@ public class EventRegistration {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    private RegistrationStatus status = RegistrationStatus.PENDING;
+    private RegistrationStatusEnum status = RegistrationStatusEnum.PENDING;
 
     private LocalDateTime registeredAt = LocalDateTime.now();
 }

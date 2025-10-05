@@ -1,5 +1,9 @@
-package com.example.uniclub.security;
+package com.example.uniclub.config;
 
+import com.example.uniclub.security.CustomAuthEntryPoint;
+import com.example.uniclub.security.JwtAuthFilter;
+import com.example.uniclub.security.OAuth2FailureHandler;
+import com.example.uniclub.security.OAuth2SuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +33,7 @@ public class SecurityConfig {
     // Thêm 2 handler cho OAuth2 Google
     private final OAuth2SuccessHandler oauth2SuccessHandler;
     private final OAuth2FailureHandler oauth2FailureHandler;
+    private final CustomAuthEntryPoint customAuthEntryPoint;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -63,6 +68,10 @@ public class SecurityConfig {
 
         // JWT filter
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        http.exceptionHandling(eh -> eh
+                .authenticationEntryPoint(customAuthEntryPoint)
+        );
+
         return http.build();
     }
 
@@ -71,7 +80,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of("http://localhost:3000")); // thêm domain thật nếu cần
+        config.addAllowedOriginPattern("*");
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization", "Location"));
@@ -80,6 +90,7 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+
 
     @Bean
     public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }

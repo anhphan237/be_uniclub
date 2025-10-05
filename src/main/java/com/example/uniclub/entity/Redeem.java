@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.RedeemStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,7 +31,7 @@ public class Redeem {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RedeemStatus status = RedeemStatus.CREATED;
+    private RedeemStatusEnum status = RedeemStatusEnum.CREATED;
 
     @Column(nullable = false)
     private LocalDateTime redeemedAt = LocalDateTime.now();

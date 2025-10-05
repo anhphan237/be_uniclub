@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.PointsTxTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,7 +25,7 @@ public class PointsTransaction {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PointsTxType type;
+    private PointsTxTypeEnum type;
 
     @Column(nullable = false)
     private LocalDateTime timestamp = LocalDateTime.now();
