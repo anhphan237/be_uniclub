@@ -6,6 +6,7 @@ import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.MajorPolicy;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
+import com.example.uniclub.repository.MajorPolicyRepository;
 import com.example.uniclub.service.ClubService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,35 +19,42 @@ import org.springframework.stereotype.Service;
 public class ClubServiceImpl implements ClubService {
 
     private final ClubRepository clubRepo;
+    private final MajorPolicyRepository majorPolicyRepo; // ✅ Thêm dòng này
 
+    // 🟦 Chuyển entity → response DTO
     private ClubResponse toResp(Club c) {
         return ClubResponse.builder()
                 .id(c.getClubId())
                 .name(c.getName())
                 .description(c.getDescription())
-                // 🔄 đổi từ getMajorName() → getPolicyName()
+                // ✅ Lấy tên policy nếu có
                 .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getPolicyName() : null)
                 .build();
     }
 
+    // 🟩 Tạo CLB mới
     @Override
     public ClubResponse create(ClubCreateRequest req) {
-        if (clubRepo.existsByName(req.name()))
+        if (clubRepo.existsByName(req.name())) {
             throw new ApiException(HttpStatus.CONFLICT, "Tên CLB đã tồn tại");
+        }
 
-        // 🔄 Dùng constructor thay vì builder vì MajorPolicy không có @Builder
-        MajorPolicy policy = new MajorPolicy();
-        policy.setId(req.majorPolicyId());
+        // ✅ Lấy entity MajorPolicy đầy đủ từ DB
+        MajorPolicy majorPolicy = majorPolicyRepo.findById(req.majorPolicyId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major Policy không tồn tại"));
 
-        Club c = Club.builder()
+        // ✅ Gán đầy đủ thông tin cho CLB
+        Club club = Club.builder()
                 .name(req.name())
                 .description(req.description())
-                .majorPolicy(policy)
+                .majorPolicy(majorPolicy)
                 .build();
 
-        return toResp(clubRepo.save(c));
+        Club saved = clubRepo.save(club);
+        return toResp(saved);
     }
 
+    // 🟦 Lấy CLB theo ID
     @Override
     public ClubResponse get(Long id) {
         return clubRepo.findById(id)
@@ -54,15 +62,18 @@ public class ClubServiceImpl implements ClubService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club không tồn tại"));
     }
 
+    // 🟦 Phân trang danh sách CLB
     @Override
     public Page<ClubResponse> list(Pageable pageable) {
         return clubRepo.findAll(pageable).map(this::toResp);
     }
 
+    // 🟥 Xóa CLB
     @Override
     public void delete(Long id) {
-        if (!clubRepo.existsById(id))
+        if (!clubRepo.existsById(id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Club không tồn tại");
+        }
         clubRepo.deleteById(id);
     }
 }
