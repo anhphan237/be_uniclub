@@ -6,6 +6,6 @@ public record UserCreateRequest(
         @NotBlank @Email String email,
         @NotBlank String password,
         @NotBlank String fullName,
-        String phone,
+        @NotBlank String phone,
         @NotNull Long roleId
 ) {}

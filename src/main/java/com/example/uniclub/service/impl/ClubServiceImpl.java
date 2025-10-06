@@ -24,7 +24,8 @@ public class ClubServiceImpl implements ClubService {
                 .id(c.getClubId())
                 .name(c.getName())
                 .description(c.getDescription())
-                .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getMajorName() : null)
+                // 🔄 đổi từ getMajorName() → getPolicyName()
+                .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getPolicyName() : null)
                 .build();
     }
 
@@ -33,10 +34,14 @@ public class ClubServiceImpl implements ClubService {
         if (clubRepo.existsByName(req.name()))
             throw new ApiException(HttpStatus.CONFLICT, "Tên CLB đã tồn tại");
 
+        // 🔄 Dùng constructor thay vì builder vì MajorPolicy không có @Builder
+        MajorPolicy policy = new MajorPolicy();
+        policy.setId(req.majorPolicyId());
+
         Club c = Club.builder()
                 .name(req.name())
                 .description(req.description())
-                .majorPolicy(MajorPolicy.builder().id(req.majorPolicyId()).build())
+                .majorPolicy(policy)
                 .build();
 
         return toResp(clubRepo.save(c));
@@ -44,7 +49,8 @@ public class ClubServiceImpl implements ClubService {
 
     @Override
     public ClubResponse get(Long id) {
-        return clubRepo.findById(id).map(this::toResp)
+        return clubRepo.findById(id)
+                .map(this::toResp)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club không tồn tại"));
     }
 

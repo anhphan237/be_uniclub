@@ -16,22 +16,27 @@ public class MajorPolicy {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Tên chuyên ngành
-    @Column(nullable = false, unique = true)
-    private String majorName;
+    @Column(name = "policy_name", nullable = false)
+    private String policyName;
 
-    // Mô tả chi tiết quy định
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    // Số CLB tối đa mà sinh viên của chuyên ngành này có thể tham gia
-    @Column(nullable = false)
-    private int maxClubJoin = 3;
+    @Column(name = "major_id", nullable = false)
+    private Long majorId;
 
-    // Điểm thưởng hoặc tiêu chí đặc biệt
-    private double rewardMultiplier = 1.0;
+    @Column(name = "major_name", nullable = false)
+    private String majorName;
 
-    // Trạng thái hoạt động
+    @Column(name = "max_club_join", nullable = false)
+    private Integer maxClubJoin;
+
+    @Column(name = "reward_multiplier")
+    private Double rewardMultiplier;
+
     @Column(nullable = false)
-    private boolean active = true;
+    private boolean active;
+
+    @Column(nullable = false)
+    private String name; // same as policyName
 }
