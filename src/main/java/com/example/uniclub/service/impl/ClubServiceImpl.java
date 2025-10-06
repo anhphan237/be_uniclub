@@ -19,12 +19,12 @@ public class ClubServiceImpl implements ClubService {
 
     private final ClubRepository clubRepo;
 
-    private ClubResponse toResp(Club c){
+    private ClubResponse toResp(Club c) {
         return ClubResponse.builder()
                 .id(c.getClubId())
                 .name(c.getName())
                 .description(c.getDescription())
-                .majorPolicyName(c.getMajorPolicy()!=null? c.getMajorPolicy().getName(): null)
+                .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getMajorName() : null)
                 .build();
     }
 
@@ -32,11 +32,13 @@ public class ClubServiceImpl implements ClubService {
     public ClubResponse create(ClubCreateRequest req) {
         if (clubRepo.existsByName(req.name()))
             throw new ApiException(HttpStatus.CONFLICT, "Tên CLB đã tồn tại");
+
         Club c = Club.builder()
                 .name(req.name())
                 .description(req.description())
-                .majorPolicy(MajorPolicy.builder().majorPolicyId(req.majorPolicyId()).build())
+                .majorPolicy(MajorPolicy.builder().id(req.majorPolicyId()).build())
                 .build();
+
         return toResp(clubRepo.save(c));
     }
 
