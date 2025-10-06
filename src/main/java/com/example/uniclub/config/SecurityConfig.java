@@ -24,6 +24,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import java.util.List;
 
 @Configuration
@@ -41,12 +42,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // CORS cho frontend
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Tắt CSRF cho REST API
                 .csrf(csrf -> csrf.disable())
+                // Stateless cho JWT
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Xử lý unauthorized
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(customAuthEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        // 🔓 Public APIs
+                        // 🔓 Public endpoints
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -63,29 +68,29 @@ public class SecurityConfig {
                                 "/api/clubs/**"
                         ).permitAll()
 
-                        // 🔒 Protected endpoints by role
-                        .requestMatchers("/api/system/**").hasRole("SYSTEM_MANAGER")
+                        // 🔒 Role-based secured endpoints
+                        .requestMatchers("/api/university/**").hasRole("UNIVERSITY_ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/club/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "SYSTEM_MANAGER")
-                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_MANAGER", "ADMIN")
-                        .requestMatchers("/api/partner/**").hasAnyRole("PARTNER", "ADMIN")
+                        .requestMatchers("/api/club/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
 
-                        // 🔒 All others require login
+                        // 🔒 All other requests require authentication
                         .anyRequest().authenticated()
                 )
 
-                // OAuth2 Login for Google
+                // 🔐 OAuth2 login (Google)
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oauth2SuccessHandler)
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // Add JWT Filter
+                // Thêm JWT Filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // Xác thực với UserDetailsService + BCrypt
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -104,6 +109,7 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
+    // Cấu hình CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
