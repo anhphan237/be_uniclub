@@ -58,6 +58,7 @@ public class AuthService {
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
                 .status(UserStatusEnum.ACTIVE.getCode())
+                .phone(req.phone())
                 .build();
 
         user = userRepository.save(user);
