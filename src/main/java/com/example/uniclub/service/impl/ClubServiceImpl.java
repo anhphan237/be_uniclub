@@ -3,10 +3,12 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.ClubCreateRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.entity.Club;
+import com.example.uniclub.entity.Major;
 import com.example.uniclub.entity.MajorPolicy;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MajorPolicyRepository;
+import com.example.uniclub.repository.MajorRepository;
 import com.example.uniclub.service.ClubService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,7 +21,8 @@ import org.springframework.stereotype.Service;
 public class ClubServiceImpl implements ClubService {
 
     private final ClubRepository clubRepo;
-    private final MajorPolicyRepository majorPolicyRepo; // ✅ Thêm dòng này
+    private final MajorPolicyRepository majorPolicyRepo;
+    private final MajorRepository majorRepo; // 🆕 thêm repository để truy cập Major
 
     // 🟦 Chuyển entity → response DTO
     private ClubResponse toResp(Club c) {
@@ -27,8 +30,8 @@ public class ClubServiceImpl implements ClubService {
                 .id(c.getClubId())
                 .name(c.getName())
                 .description(c.getDescription())
-                // ✅ Lấy tên policy nếu có
                 .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getPolicyName() : null)
+                .majorName(c.getMajor() != null ? c.getMajor().getName() : null) // 🆕 lấy tên chuyên ngành
                 .build();
     }
 
@@ -39,15 +42,20 @@ public class ClubServiceImpl implements ClubService {
             throw new ApiException(HttpStatus.CONFLICT, "Tên CLB đã tồn tại");
         }
 
-        // ✅ Lấy entity MajorPolicy đầy đủ từ DB
+        // ✅ Lấy MajorPolicy từ DB
         MajorPolicy majorPolicy = majorPolicyRepo.findById(req.majorPolicyId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major Policy không tồn tại"));
+
+        // ✅ Lấy Major từ DB
+        Major major = majorRepo.findById(req.majorId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major không tồn tại"));
 
         // ✅ Gán đầy đủ thông tin cho CLB
         Club club = Club.builder()
                 .name(req.name())
                 .description(req.description())
                 .majorPolicy(majorPolicy)
+                .major(major) // 🆕 gán chuyên ngành
                 .build();
 
         Club saved = clubRepo.save(club);

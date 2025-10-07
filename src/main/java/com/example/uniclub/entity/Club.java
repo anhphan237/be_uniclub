@@ -5,7 +5,11 @@ import lombok.*;
 
 @Entity
 @Table(name = "clubs")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Club {
 
     @Id
@@ -20,6 +24,10 @@ public class Club {
     @ManyToOne(optional = false)
     @JoinColumn(name = "major_policy_id")
     private MajorPolicy majorPolicy;
+
+    @ManyToOne
+    @JoinColumn(name = "major_id")
+    private Major major;
 
     @ManyToOne
     @JoinColumn(name = "created_by")
