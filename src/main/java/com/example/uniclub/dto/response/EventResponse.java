@@ -13,6 +13,6 @@ public class EventResponse {
     private String description;
     private EventTypeEnum type;
     private LocalDate date;
-    private LocalTime time;
+    private String time;
     private Long locationId;
 }

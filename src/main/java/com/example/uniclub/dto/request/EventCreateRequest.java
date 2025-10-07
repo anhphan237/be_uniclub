@@ -3,7 +3,6 @@ package com.example.uniclub.dto.request;
 import com.example.uniclub.enums.EventTypeEnum;
 import jakarta.validation.constraints.*;
 import java.time.LocalDate;
-import java.time.LocalTime;
 
 public record EventCreateRequest(
         @NotNull Long clubId,
@@ -11,6 +10,6 @@ public record EventCreateRequest(
         String description,
         @NotNull EventTypeEnum type,
         @NotNull LocalDate date,
-        @NotNull LocalTime time,
+        @NotBlank String time,
         Long locationId
 ) {}
