@@ -42,39 +42,60 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // CORS cho frontend
+                // ✅ Cho phép CORS cho FE
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // Tắt CSRF cho REST API
+                // ✅ Tắt CSRF vì đang dùng JWT
                 .csrf(csrf -> csrf.disable())
-                // Stateless cho JWT
+                // ✅ Stateless (JWT)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Xử lý unauthorized
+                // ✅ Xử lý lỗi 401 Unauthorized
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(customAuthEntryPoint))
+
                 .authorizeHttpRequests(auth -> auth
-                        // 🔓 Public endpoints
+                        // 🔓 Public (không cần đăng nhập)
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**"
                         ).permitAll()
 
-                        // 🔓 Public GET endpoints
+                        // 🔓 GET public endpoints
                         .requestMatchers(HttpMethod.GET,
                                 "/api/events/**",
-                                "/api/products/**",
                                 "/api/clubs/**"
                         ).permitAll()
 
-                        // 🔒 Role-based secured endpoints
+                        // 🧩 USER MANAGEMENT (ADMIN, UNIVERSITY_ADMIN)
+                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 EVENT MANAGEMENT
+                        .requestMatchers(HttpMethod.POST, "/api/events/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/events/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/events/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 CLUB MANAGEMENT
+                        .requestMatchers(HttpMethod.POST, "/api/clubs/**").hasAnyRole("ADMIN", "CLUB_MANAGER", "UNIVERSITY_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/clubs/**").hasAnyRole("ADMIN", "CLUB_MANAGER", "UNIVERSITY_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/clubs/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 LOCATION MANAGEMENT
+                        .requestMatchers("/api/locations/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 UNIVERSITY MANAGEMENT
                         .requestMatchers("/api/university/**").hasRole("UNIVERSITY_ADMIN")
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/club/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 ADMIN DASHBOARD
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🧩 STUDENT ZONE
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
 
-                        // 🔒 All other requests require authentication
+                        // ✅ Mọi route khác cần đăng nhập
                         .anyRequest().authenticated()
                 )
 
@@ -84,13 +105,13 @@ public class SecurityConfig {
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // Thêm JWT Filter
+                // 🔒 JWT Filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // Xác thực với UserDetailsService + BCrypt
+    // ✅ Xác thực qua UserDetailsService
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -109,7 +130,7 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
-    // Cấu hình CORS
+    // ✅ Cấu hình CORS cho FE React/Next.js
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
