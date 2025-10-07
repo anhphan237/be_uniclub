@@ -9,4 +9,5 @@ public interface ClubApplicationService {
     ClubApplication createApplication(String email, String clubName, String description);
     List<ClubApplication> getAllApplications();
     List<ClubApplication> getApplicationsByStatus(ApplicationStatusEnum status);
+    ClubApplication updateStatus(Long id, ApplicationStatusEnum status, String reviewerEmail);
 }

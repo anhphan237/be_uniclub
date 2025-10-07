@@ -53,5 +53,19 @@ public class ClubApplicationController {
                 .map(ClubApplicationMapper.INSTANCE::toResponse)
                 .toList();
     }
+
+    // Cập nhật trạng thái đơn (APPROVED / REJECTED)
+    @PutMapping("/{id}/status")
+    public ClubApplicationResponse updateApplicationStatus(@PathVariable Long id,
+                                                           @RequestParam ApplicationStatusEnum status,
+                                                           HttpServletRequest request) {
+        // Lấy token từ header
+        String authHeader = request.getHeader("Authorization");
+        String token = authHeader.replace("Bearer ", "");
+        String reviewerEmail = jwtUtil.getSubject(token);
+
+        ClubApplication updatedApp = clubApplicationService.updateStatus(id, status, reviewerEmail);
+        return ClubApplicationMapper.INSTANCE.toResponse(updatedApp);
+    }
 }
 
