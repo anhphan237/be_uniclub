@@ -1,6 +1,5 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.config.RabbitMQConfig;
 import com.example.uniclub.entity.ClubApplication;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.ApplicationStatusEnum;
@@ -14,9 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -74,17 +71,17 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
 
         ClubApplication savedApp = clubApplicationRepository.save(app);
 
-        Map<String, Object> message = new HashMap<>();
-        message.put("applicationId", savedApp.getApplicationId());
-        message.put("clubName", savedApp.getClubName());
-        message.put("status", savedApp.getStatus().name());
-        message.put("reviewedBy", reviewer.getEmail());
-
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.CLUB_APP_EXCHANGE,
-                RabbitMQConfig.CLUB_APP_ROUTING_KEY,
-                message
-        );
+//        Map<String, Object> message = new HashMap<>();
+//        message.put("applicationId", savedApp.getApplicationId());
+//        message.put("clubName", savedApp.getClubName());
+//        message.put("status", savedApp.getStatus().name());
+//        message.put("reviewedBy", reviewer.getEmail());
+//
+//        rabbitTemplate.convertAndSend(
+//                RabbitMQConfig.CLUB_APP_EXCHANGE,
+//                RabbitMQConfig.CLUB_APP_ROUTING_KEY,
+//                message
+//        );
 
         return savedApp;
     }
