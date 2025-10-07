@@ -20,16 +20,16 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
 
-    private EventResponse toResp(Event e){
+    private EventResponse toResp(Event e) {
         return EventResponse.builder()
                 .id(e.getEventId())
-                .clubId(e.getClub()!=null? e.getClub().getClubId(): null)
+                .clubId(e.getClub() != null ? e.getClub().getClubId() : null)
                 .name(e.getName())
                 .description(e.getDescription())
                 .type(e.getType())
                 .date(e.getDate())
                 .time(e.getTime())
-                .locationId(e.getLocation()!=null? e.getLocation().getLocationId(): null)
+                .locationId(e.getLocation() != null ? e.getLocation().getLocationId() : null)
                 .build();
     }
 
@@ -41,15 +41,18 @@ public class EventServiceImpl implements EventService {
                 .description(req.description())
                 .type(req.type())
                 .date(req.date())
-                .time(req.time())
-                .location(req.locationId()==null? null : Location.builder().locationId(req.locationId()).build())
+                .time(req.time()) // không cần convert nữa
+                .location(req.locationId() == null ? null :
+                        Location.builder().locationId(req.locationId()).build())
                 .build();
+
         return toResp(eventRepo.save(e));
     }
 
     @Override
     public EventResponse get(Long id) {
-        return eventRepo.findById(id).map(this::toResp)
+        return eventRepo.findById(id)
+                .map(this::toResp)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại"));
     }
 
@@ -60,8 +63,9 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public void delete(Long id) {
-        if (!eventRepo.existsById(id))
+        if (!eventRepo.existsById(id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại");
+        }
         eventRepo.deleteById(id);
     }
 }

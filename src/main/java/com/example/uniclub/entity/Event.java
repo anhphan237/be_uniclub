@@ -4,12 +4,16 @@ import com.example.uniclub.enums.EventTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
-import java.time.LocalTime;
 
 @Entity
 @Table(name = "events")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Event {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long eventId;
@@ -27,7 +31,9 @@ public class Event {
     private EventTypeEnum type = EventTypeEnum.PUBLIC;
 
     private LocalDate date;
-    private LocalTime time;
+
+    @Column(nullable = false)
+    private String time;
 
     @ManyToOne
     @JoinColumn(name = "location_id")
