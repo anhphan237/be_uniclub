@@ -42,16 +42,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // CORS cho frontend
+                // 🌐 CORS for frontend
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // Tắt CSRF cho REST API
+                // ❌ Disable CSRF for REST APIs
                 .csrf(csrf -> csrf.disable())
-                // Stateless cho JWT
+                // 🧱 Stateless sessions for JWT
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Xử lý unauthorized
+                // 🚫 Handle unauthorized access
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(customAuthEntryPoint))
+                // 🔐 Define access rules
                 .authorizeHttpRequests(auth -> auth
-                        // 🔓 Public endpoints
+
+                        // ✅ Public (no auth required)
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -61,36 +63,53 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        // 🔓 Public GET endpoints
+                        // ✅ Public GET endpoints (for viewing only)
                         .requestMatchers(HttpMethod.GET,
                                 "/api/events/**",
-                                "/api/products/**",
                                 "/api/clubs/**"
                         ).permitAll()
 
-                        // 🔒 Role-based secured endpoints
-                        .requestMatchers("/api/university/**").hasRole("UNIVERSITY_ADMIN")
+                        // 🧩 ROLE-BASED SECURED ENDPOINTS
+
+                        // 🧑‍💻 ADMIN – IT team (system maintenance only)
+                        // Manage accounts, fix bugs, view system logs, etc.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/club/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
-                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+
+                        // 🏛 UNIVERSITY_STAFF – has power over clubs/events
+                        // Create new clubs, approve or create events, manage reports
+                        .requestMatchers("/api/university/**")
+                        .hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
+
+                        // 👨‍💼 CLUB_LEADER – manage own club, propose events
+                        // Can request event creation (pending approval)
+                        .requestMatchers("/api/club/**")
+                        .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+
+                        // 👥 MEMBER – join events, view attendance
+                        .requestMatchers("/api/member/**")
+                        .hasAnyRole("MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+
+                        // 🎓 STUDENT – browse clubs/events, apply to join
+                        .requestMatchers("/api/student/**")
+                        .hasAnyRole("STUDENT", "MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
                         // 🔒 All other requests require authentication
                         .anyRequest().authenticated()
                 )
 
-                // 🔐 OAuth2 login (Google)
+                // 🔐 OAuth2 login (Google, etc.)
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oauth2SuccessHandler)
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // Thêm JWT Filter
+                // 🧩 Add JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // Xác thực với UserDetailsService + BCrypt
+    // 🔐 Authentication manager (UserDetailsService + BCrypt)
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -109,7 +128,7 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
-    // Cấu hình CORS
+    // 🌍 CORS configuration
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
