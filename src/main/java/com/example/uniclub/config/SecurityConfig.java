@@ -42,17 +42,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ Cho phép CORS cho FE
+                // 🌐 CORS for frontend
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // ✅ Tắt CSRF vì đang dùng JWT
+                // ❌ Disable CSRF for REST APIs
                 .csrf(csrf -> csrf.disable())
-                // ✅ Stateless (JWT)
+                // 🧱 Stateless sessions for JWT
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // ✅ Xử lý lỗi 401 Unauthorized
+                // 🚫 Handle unauthorized access
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(customAuthEntryPoint))
-
+                // 🔐 Define access rules
                 .authorizeHttpRequests(auth -> auth
-                        // 🔓 Public (không cần đăng nhập)
+
+                        // ✅ Public (no auth required)
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -64,54 +65,53 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
 
-                        // 🔓 GET public endpoints
+                        // ✅ Public GET endpoints (for viewing only)
                         .requestMatchers(HttpMethod.GET,
                                 "/api/events/**",
                                 "/api/clubs/**"
                         ).permitAll()
 
-                        // 🧩 USER MANAGEMENT (ADMIN, UNIVERSITY_ADMIN)
-                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+                        // 🧩 ROLE-BASED SECURED ENDPOINTS
 
-                        // 🧩 EVENT MANAGEMENT
-                        .requestMatchers(HttpMethod.POST, "/api/events/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/events/**").hasAnyRole("CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/events/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+                        // 🧑‍💻 ADMIN – IT team (system maintenance only)
+                        // Manage accounts, fix bugs, view system logs, etc.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // 🧩 CLUB MANAGEMENT
-                        .requestMatchers(HttpMethod.POST, "/api/clubs/**").hasAnyRole("ADMIN", "CLUB_MANAGER", "UNIVERSITY_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/clubs/**").hasAnyRole("ADMIN", "CLUB_MANAGER", "UNIVERSITY_ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/clubs/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+                        // 🏛 UNIVERSITY_STAFF – has power over clubs/events
+                        // Create new clubs, approve or create events, manage reports
+                        .requestMatchers("/api/university/**")
+                        .hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
 
-                        // 🧩 LOCATION MANAGEMENT
-                        .requestMatchers("/api/locations/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
+                        // 👨‍💼 CLUB_LEADER – manage own club, propose events
+                        // Can request event creation (pending approval)
+                        .requestMatchers("/api/club/**")
+                        .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
-                        // 🧩 UNIVERSITY MANAGEMENT
-                        .requestMatchers("/api/university/**").hasRole("UNIVERSITY_ADMIN")
+                        // 👥 MEMBER – join events, view attendance
+                        .requestMatchers("/api/member/**")
+                        .hasAnyRole("MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
-                        // 🧩 ADMIN DASHBOARD
-                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "UNIVERSITY_ADMIN")
-
-                        // 🧩 STUDENT ZONE
-                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_MANAGER", "ADMIN", "UNIVERSITY_ADMIN")
+                        // 🎓 STUDENT – browse clubs/events, apply to join
+                        .requestMatchers("/api/student/**")
+                        .hasAnyRole("STUDENT", "MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
                         // ✅ Mọi route khác cần đăng nhập
                         .anyRequest().authenticated()
                 )
 
-                // 🔐 OAuth2 login (Google)
+                // 🔐 OAuth2 login (Google, etc.)
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oauth2SuccessHandler)
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // 🔒 JWT Filter
+                // 🧩 Add JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ✅ Xác thực qua UserDetailsService
+    // 🔐 Authentication manager (UserDetailsService + BCrypt)
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -130,7 +130,7 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
-    // ✅ Cấu hình CORS cho FE React/Next.js
+    // 🌍 CORS configuration
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
