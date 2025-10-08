@@ -24,6 +24,7 @@ public class User {
 
     @Column(nullable = false)
     private String status = UserStatusEnum.ACTIVE.name();
+
     @Column(nullable = false)
     private boolean staff = false;
 

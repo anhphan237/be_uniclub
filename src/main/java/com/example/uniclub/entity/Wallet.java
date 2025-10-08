@@ -1,6 +1,7 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,18 +16,17 @@ public class Wallet {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WalletOwnerTypeEnum ownerType; // USER hoặc CLUB
+    private WalletOwnerTypeEnum ownerType;
 
-    // Một trong hai field dưới phải khác null (enforce ở service)
     @OneToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", unique = true)
+    @JsonIgnore
     private User user;
 
     @OneToOne
     @JoinColumn(name = "club_id")
     private Club club;
 
-    // Có thể dùng như "cache hiển thị nhanh"; số dư chuẩn nên = sum(points_transactions.amount)
     @Column(nullable = false)
     private Integer balancePoints = 0;
 }
