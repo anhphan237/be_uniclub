@@ -13,4 +13,6 @@ public interface MemberApplicationService {
     MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req);
 
     List<MemberApplicationResponse> findAll();
+
+    List<MemberApplicationResponse> findApplicationsByEmail(String email);
 }
