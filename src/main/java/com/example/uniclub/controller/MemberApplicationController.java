@@ -45,11 +45,16 @@ public class MemberApplicationController {
         MemberApplicationResponse res = service.updateStatusByEmail(email, id, req);
         return ResponseEntity.ok(res);
     }
-    // ✅  Xem danh sách tất cả đơn ứng tuyển
+    // ✅ Xem danh sách đơn ứng tuyển
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
-    public ResponseEntity<List<MemberApplicationResponse>> getAllApplications() {
-        return ResponseEntity.ok(service.findAll());
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT','MEMBER')")
+    public ResponseEntity<List<MemberApplicationResponse>> getApplications(
+            @AuthenticationPrincipal UserDetails principal) {
+
+        String email = principal.getUsername();
+        List<MemberApplicationResponse> res = service.findApplicationsByEmail(email);
+        return ResponseEntity.ok(res);
     }
+
 
 }
