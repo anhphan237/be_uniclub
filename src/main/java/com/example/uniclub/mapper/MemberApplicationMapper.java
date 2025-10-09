@@ -5,16 +5,17 @@ import com.example.uniclub.entity.MemberApplication;
 
 public class MemberApplicationMapper {
     public static MemberApplicationResponse toResponse(MemberApplication app) {
-        return new MemberApplicationResponse(
-                app.getApplicationId(),
-                app.getUser() != null ? app.getUser().getUserId() : null,
-                app.getUser() != null ? app.getUser().getFullName() : null,
-                app.getClub() != null ? app.getClub().getClubId() : null,
-                app.getClub() != null ? app.getClub().getName() : null,
-                app.getStatus(),
-                app.getReason(),
-                app.getSubmittedAt(),
-                app.getUpdatedAt()
-        );
+        return MemberApplicationResponse.builder()
+                .applicationId(app.getApplicationId())
+                .userId(app.getUser().getUserId())
+                .userName(app.getUser().getFullName())
+                .clubId(app.getClub().getClubId())
+                .clubName(app.getClub().getName())
+                .status(app.getStatus())
+                .reason(app.getReason())
+                .reviewedBy(app.getReviewedBy() != null ? app.getReviewedBy().getFullName() : null)
+                .submittedAt(app.getSubmittedAt())
+                .updatedAt(app.getUpdatedAt())
+                .build();
     }
 }

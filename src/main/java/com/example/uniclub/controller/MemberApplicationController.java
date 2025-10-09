@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -44,4 +45,11 @@ public class MemberApplicationController {
         MemberApplicationResponse res = service.updateStatusByEmail(email, id, req);
         return ResponseEntity.ok(res);
     }
+    // ✅  Xem danh sách tất cả đơn ứng tuyển
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
+    public ResponseEntity<List<MemberApplicationResponse>> getAllApplications() {
+        return ResponseEntity.ok(service.findAll());
+    }
+
 }

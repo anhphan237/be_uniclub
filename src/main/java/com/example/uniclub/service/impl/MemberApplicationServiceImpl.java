@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -70,5 +71,14 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         repo.save(app);
         return MemberApplicationMapper.toResponse(app);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberApplicationResponse> findAll() {
+        return repo.findAll()
+                .stream()
+                .map(MemberApplicationMapper::toResponse)
+                .toList();
     }
 }
