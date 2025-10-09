@@ -3,14 +3,11 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.LoginRequest;
 import com.example.uniclub.dto.request.RegisterRequest;
 import com.example.uniclub.dto.response.AuthResponse;
-import com.example.uniclub.entity.User;
-import com.example.uniclub.entity.Wallet;
+import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.UserStatusEnum;
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.repository.RoleRepository;
-import com.example.uniclub.repository.UserRepository;
-import com.example.uniclub.repository.WalletRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -21,15 +18,19 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class AuthServiceImpl {
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final WalletRepository walletRepository;
+    private final ClubRepository clubRepository;
+    private final MembershipRepository membershipRepository;
     private final PasswordEncoder passwordEncoder;
 
     public AuthResponse login(LoginRequest req) {
@@ -41,12 +42,33 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(user.getEmail());
 
+        Long clubId = null;
+        List<Long> clubIds = null;
+
+        String roleName = user.getRole().getRoleName();
+
+        // ✅ CLUB_LEADER → có 1 clubId
+        if ("CLUB_LEADER".equals(roleName)) {
+            clubId = clubRepository.findByLeader_UserId(user.getUserId())
+                    .map(Club::getClubId)
+                    .orElse(null);
+        }
+        // ✅ MEMBER → có list clubIds
+        else if ("MEMBER".equals(roleName)) {
+            clubIds = membershipRepository.findAllByUser_UserId(user.getUserId())
+                    .stream()
+                    .map(m -> m.getClub().getClubId())
+                    .toList();
+        }
+
         return AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole() != null ? user.getRole().getRoleName() : null)
+                .role(roleName)
+                .clubId(clubId)
+                .clubIds(clubIds)
                 .build();
     }
 
@@ -61,9 +83,10 @@ public class AuthService {
                 .fullName(req.fullName())
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
-                .status(UserStatusEnum.ACTIVE.getCode())
+                .status(UserStatusEnum.ACTIVE.name())
                 .phone(req.phone())
                 .build();
+
         user = userRepository.save(user);
 
         Wallet wallet = Wallet.builder()
@@ -80,7 +103,7 @@ public class AuthService {
                 .userId(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole() != null ? user.getRole().getRoleName() : null)
+                .role(user.getRole().getRoleName())
                 .build();
     }
 }

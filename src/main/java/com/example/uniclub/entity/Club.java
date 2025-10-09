@@ -21,6 +21,11 @@ public class Club {
 
     private String description;
 
+    // ✅ Thêm quan hệ leader (trưởng CLB)
+    @ManyToOne
+    @JoinColumn(name = "leader_id")
+    private User leader;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "major_policy_id")
     private MajorPolicy majorPolicy;

@@ -3,7 +3,7 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.request.LoginRequest;
 import com.example.uniclub.dto.request.RegisterRequest;
 import com.example.uniclub.dto.response.AuthResponse;
-import com.example.uniclub.service.impl.AuthService;
+import com.example.uniclub.service.impl.AuthServiceImpl;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,15 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class AuthController {
 
-    private final AuthService authService;
+    private final AuthServiceImpl authServiceImpl;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
-        return ResponseEntity.ok(authService.login(req));
+        return ResponseEntity.ok(authServiceImpl.login(req));
     }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(req));
+        return ResponseEntity.status(HttpStatus.CREATED).body(authServiceImpl.register(req));
     }
 }
