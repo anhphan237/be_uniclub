@@ -1,7 +1,13 @@
 package com.example.uniclub.service;
 
-import com.example.uniclub.entity.MemberApplication;
+import com.example.uniclub.dto.request.MemberApplicationCreateRequest;
+import com.example.uniclub.dto.request.MemberApplicationStatusUpdateRequest;
+import com.example.uniclub.dto.response.MemberApplicationResponse;
 
 public interface MemberApplicationService {
-    MemberApplication createApplication(String email, Long clubId);
+
+    // dùng email để xác định user
+    MemberApplicationResponse createByEmail(String email, MemberApplicationCreateRequest req);
+
+    MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req);
 }

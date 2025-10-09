@@ -1,6 +1,6 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.request.MembershipCreateRequest;
+import com.example.uniclub.dto.request.MemberCreateRequest;
 import com.example.uniclub.dto.response.MembershipResponse;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Membership;
@@ -33,7 +33,7 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     @Override
-    public MembershipResponse create(MembershipCreateRequest req) {
+    public MembershipResponse create(MemberCreateRequest req) {
         User user = userRepo.findById(req.userId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User không tồn tại"));
         Club club = clubRepo.findById(req.clubId())

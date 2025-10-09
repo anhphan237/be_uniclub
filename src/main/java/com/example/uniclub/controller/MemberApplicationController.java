@@ -1,31 +1,47 @@
 package com.example.uniclub.controller;
 
-import com.example.uniclub.entity.MemberApplication;
-import com.example.uniclub.security.JwtUtil;
+import com.example.uniclub.dto.request.MemberApplicationCreateRequest;
+import com.example.uniclub.dto.request.MemberApplicationStatusUpdateRequest;
+import com.example.uniclub.dto.response.MemberApplicationResponse;
 import com.example.uniclub.service.MemberApplicationService;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/member-applications")
 @RequiredArgsConstructor
+@RequestMapping("/api/member-applications")
 public class MemberApplicationController {
 
-    private final MemberApplicationService memberApplicationService;
-    private final JwtUtil jwtUtil;
+    private final MemberApplicationService service;
 
+    // ✅ Sinh viên nộp đơn
     @PostMapping
-    public MemberApplication createApplication(HttpServletRequest request,
-                                               @RequestParam Long clubId) {
-        // Lấy token từ header
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.replace("Bearer ", "");
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<MemberApplicationResponse> create(
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody MemberApplicationCreateRequest req) {
 
-        // Lấy email từ token
-        String email = jwtUtil.getSubject(token);
+        // lấy email của user từ JWT principal
+        String email = principal.getUsername();
+        MemberApplicationResponse res = service.createByEmail(email, req);
+        return ResponseEntity.ok(res);
+    }
 
-        // Gọi service xử lý
-        return memberApplicationService.createApplication(email, clubId);
+    // ✅ Duyệt / từ chối đơn
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
+    public ResponseEntity<MemberApplicationResponse> updateStatus(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal,
+            @Valid @RequestBody MemberApplicationStatusUpdateRequest req) {
+
+        String email = principal.getUsername();
+        MemberApplicationResponse res = service.updateStatusByEmail(email, id, req);
+        return ResponseEntity.ok(res);
     }
 }
