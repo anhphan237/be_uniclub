@@ -30,20 +30,21 @@ public class MembershipController {
         return ResponseEntity.ok(ApiResponse.msg("Deleted"));
     }
 
-    // 🔹 Leader xem member theo clubId (chỉ được xem CLB mình quản lý)
+    // 🔹 Leader / Staff / Admin xem member theo clubId
     @GetMapping("/club/{clubId}")
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<?>> getMembersByClub(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMembersByClub(principal, clubId)));
     }
 
-    // 🔹 Leader xem member CLB của chính mình (khỏi truyền clubId)
+    // 🔹 Leader / Staff / Admin xem member CLB của chính mình
     @GetMapping("/my-club")
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<?>> getMembersOfMyClub(
             @AuthenticationPrincipal CustomUserDetails principal) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMembersOfMyClub(principal)));
     }
+
 }
