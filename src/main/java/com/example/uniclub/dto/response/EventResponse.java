@@ -1,11 +1,15 @@
 package com.example.uniclub.dto.response;
 
+import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.EventTypeEnum;
 import lombok.*;
 import java.time.LocalDate;
-import java.time.LocalTime;
 
-@Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class EventResponse {
     private Long id;
     private Long clubId;
@@ -14,5 +18,8 @@ public class EventResponse {
     private EventTypeEnum type;
     private LocalDate date;
     private String time;
+    private EventStatusEnum status;
     private Long locationId;
+    private String checkInCode;
+
 }

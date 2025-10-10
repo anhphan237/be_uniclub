@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.EventTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
@@ -38,4 +39,12 @@ public class Event {
     @ManyToOne
     @JoinColumn(name = "location_id")
     private Location location;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String checkInCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EventStatusEnum status = EventStatusEnum.PENDING;
+
 }
