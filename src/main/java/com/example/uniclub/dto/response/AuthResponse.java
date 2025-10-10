@@ -6,19 +6,22 @@ import java.util.List;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Builder
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(JsonInclude.Include.NON_NULL) // ✅ ẩn mọi field có giá trị null khỏi JSON
 public class AuthResponse {
+
     private String token;
     private Long userId;
     private String email;
     private String fullName;
     private String role;
 
-    private Long clubId;          // dùng cho CLUB_LEADER
-    private List<Long> clubIds;   // dùng cho MEMBER
-    private Boolean staff;
+    // ✅ các field liên quan tới CLB
+    private Long clubId;
+    private List<Long> clubIds;
 
+    // ✅ chỉ xuất hiện khi không null (MEMBER hoặc staff CLB)
+    private Boolean staff;
 }

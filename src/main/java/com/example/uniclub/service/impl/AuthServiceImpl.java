@@ -46,31 +46,39 @@ public class AuthServiceImpl {
 
         Long clubId = null;
         List<Long> clubIds = null;
-        Boolean isClubStaff = false; // ✅ flag staff trong CLB
+        Boolean isClubStaff = null; // ✅ null = không hiển thị field nếu không phải MEMBER
 
         if ("CLUB_LEADER".equals(roleName)) {
             clubId = clubRepository.findByLeader_UserId(user.getUserId())
                     .map(Club::getClubId)
                     .orElse(null);
-        } else if ("MEMBER".equals(roleName)) {
+        }
+        else if ("MEMBER".equals(roleName)) {
             var memberships = membershipRepository.findAllByUser_UserId(user.getUserId());
             clubIds = memberships.stream()
                     .map(m -> m.getClub().getClubId())
                     .toList();
-            // ✅ kiểm tra nếu có ít nhất 1 membership là staff
-            isClubStaff = memberships.stream().anyMatch(Membership::isStaff);
+
+            // ✅ chỉ nếu có ít nhất 1 membership là staff thì staff = true
+            boolean hasStaffRole = memberships.stream().anyMatch(Membership::isStaff);
+            isClubStaff = hasStaffRole;
         }
 
-        return AuthResponse.builder()
+        // ✅ Chỉ thêm staff nếu là MEMBER
+        AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(roleName)
                 .clubId(clubId)
-                .clubIds(clubIds)
-                .staff(isClubStaff) // ✅ trả về true nếu là staff hỗ trợ CLB
-                .build();
+                .clubIds(clubIds);
+
+        if (isClubStaff != null) {
+            responseBuilder.staff(isClubStaff);
+        }
+
+        return responseBuilder.build();
     }
 
     // ✅ Đăng ký
@@ -106,13 +114,18 @@ public class AuthServiceImpl {
 
         String token = jwtUtil.generateToken(user.getEmail());
 
-        return AuthResponse.builder()
+        AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole().getRoleName())
-                .staff(false) // ✅ mặc định là member thường
-                .build();
+                .role(user.getRole().getRoleName());
+
+        // ✅ Nếu role là MEMBER → staff mặc định = false
+        if ("MEMBER".equalsIgnoreCase(user.getRole().getRoleName())) {
+            responseBuilder.staff(false);
+        }
+
+        return responseBuilder.build();
     }
 }
