@@ -2,11 +2,17 @@ package com.example.uniclub.dto.response;
 
 import lombok.*;
 
-@Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class MembershipResponse {
-    private Long id;
-    private Long userId;
-    private Long clubId;
-    private String level;
-    private String state;
+
+    private Long membershipId; // ✅ cần có để builder hiểu
+    private Long userId;       // id của thành viên
+    private Long clubId;       // id CLB
+    private String level;      // BASIC, SILVER, GOLD
+    private String state;      // trạng thái tham gia
+    private boolean staff;     // true nếu là staff CLB
 }

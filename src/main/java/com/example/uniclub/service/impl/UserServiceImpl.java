@@ -25,9 +25,9 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
 
-    // ==============================
-    // 🔹 Dùng cho ADMIN / STAFF
-    // ==============================
+    // ==========================================
+    // 🔹 Dùng cho ADMIN / STAFF (CRUD User)
+    // ==========================================
 
     private UserResponse toResp(User u) {
         return UserResponse.builder()
@@ -45,13 +45,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse create(UserCreateRequest req) {
+        // ✅ Kiểm tra email & MSSV trùng
         if (userRepo.existsByEmail(req.email()))
             throw new ApiException(HttpStatus.CONFLICT, "Email đã tồn tại");
 
         if (req.studentCode() != null && userRepo.existsByStudentCode(req.studentCode()))
             throw new ApiException(HttpStatus.CONFLICT, "Mã số sinh viên đã tồn tại");
 
-        User u = User.builder()
+        // ✅ Tạo mới user
+        User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
@@ -62,20 +64,30 @@ public class UserServiceImpl implements UserService {
                 .role(Role.builder().roleId(req.roleId()).build())
                 .build();
 
-        return toResp(userRepo.save(u));
+        return toResp(userRepo.save(user));
     }
 
     @Override
     public UserResponse update(Long id, UserUpdateRequest req) {
-        var u = userRepo.findById(id)
+        User user = userRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User không tồn tại"));
 
-        if (req.fullName() != null) u.setFullName(req.fullName());
-        if (req.phone() != null) u.setPhone(req.phone());
-        if (req.bio() != null) u.setBio(req.bio());
-        if (req.majorName() != null) u.setMajorName(req.majorName());
+        // ✅ Chỉ cập nhật trường nào có giá trị mới
+        if (req.fullName() != null && !req.fullName().isBlank())
+            user.setFullName(req.fullName());
 
-        return toResp(userRepo.save(u));
+        if (req.phone() != null && !req.phone().isBlank())
+            user.setPhone(req.phone());
+
+        if (req.bio() != null && !req.bio().isBlank())
+            user.setBio(req.bio());
+
+        if (req.majorName() != null && !req.majorName().isBlank()) {
+            validateMajor(req.majorName());
+            user.setMajorName(req.majorName());
+        }
+
+        return toResp(userRepo.save(user));
     }
 
     @Override
@@ -87,7 +99,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse get(Long id) {
-        return userRepo.findById(id).map(this::toResp)
+        return userRepo.findById(id)
+                .map(this::toResp)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User không tồn tại"));
     }
 
@@ -96,10 +109,9 @@ public class UserServiceImpl implements UserService {
         return userRepo.findAll(pageable).map(this::toResp);
     }
 
-
-    // ==============================
+    // ==========================================
     // 🔹 Dùng cho STUDENT / MEMBER / CLUB_LEADER
-    // ==============================
+    // ==========================================
 
     /** ✅ Lấy hồ sơ của chính người dùng (qua email đăng nhập) */
     public User getProfile(String email) {
@@ -112,7 +124,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng"));
 
-        // Cập nhật các trường có giá trị mới
+        // ✅ Cập nhật linh hoạt (chỉ update trường có giá trị)
         if (req.getPhone() != null && !req.getPhone().isBlank())
             user.setPhone(req.getPhone());
 
@@ -120,22 +132,28 @@ public class UserServiceImpl implements UserService {
             user.setBio(req.getBio());
 
         if (req.getMajorName() != null && !req.getMajorName().isBlank()) {
-            Set<String> validMajors = Set.of(
-                    "Software Engineering", "Artificial Intelligence", "Information Assurance",
-                    "Data Science", "Business Administration", "Digital Marketing",
-                    "Graphic Design", "Multimedia Communication", "Hospitality Management",
-                    "International Business", "Finance and Banking",
-                    "Japanese Language", "Korean Language",
-                    // cho phép viết tắt
-                    "SE", "AI", "IA", "DS", "BA", "DM", "GD", "MC", "HM", "IB", "FB", "JP", "KR"
-            );
-
-            if (!validMajors.contains(req.getMajorName()))
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Ngành học không hợp lệ");
-
+            validateMajor(req.getMajorName());
             user.setMajorName(req.getMajorName());
         }
 
         return userRepo.save(user);
+    }
+
+    // ==========================================
+    // 🔹 Hàm dùng chung kiểm tra chuyên ngành
+    // ==========================================
+    private void validateMajor(String majorName) {
+        Set<String> validMajors = Set.of(
+                "Software Engineering", "Artificial Intelligence", "Information Assurance",
+                "Data Science", "Business Administration", "Digital Marketing",
+                "Graphic Design", "Multimedia Communication", "Hospitality Management",
+                "International Business", "Finance and Banking",
+                "Japanese Language", "Korean Language",
+                // viết tắt
+                "SE", "AI", "IA", "DS", "BA", "DM", "GD", "MC", "HM", "IB", "FB", "JP", "KR"
+        );
+
+        if (!validMajors.contains(majorName))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ngành học không hợp lệ");
     }
 }

@@ -8,12 +8,14 @@ import com.example.uniclub.entity.Location;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.EventRepository;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
 import java.util.UUID;
 
 @Service
@@ -32,14 +34,14 @@ public class EventServiceImpl implements EventService {
                 .date(e.getDate())
                 .time(e.getTime())
                 .status(e.getStatus())
-                .checkInCode(e.getCheckInCode()) // ✅ trả về mã check-in
+                .checkInCode(e.getCheckInCode())
                 .locationId(e.getLocation() != null ? e.getLocation().getLocationId() : null)
                 .build();
     }
 
     @Override
     public EventResponse create(EventCreateRequest req) {
-        String randomCode = generateCheckInCode();
+        String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
         Event e = Event.builder()
                 .club(Club.builder().clubId(req.clubId()).build())
@@ -49,16 +51,12 @@ public class EventServiceImpl implements EventService {
                 .date(req.date())
                 .time(req.time())
                 .status(EventStatusEnum.PENDING)
-                .checkInCode(randomCode) // ✅ Tự động sinh mã
+                .checkInCode(randomCode)
                 .location(req.locationId() == null ? null :
                         Location.builder().locationId(req.locationId()).build())
                 .build();
 
         return toResp(eventRepo.save(e));
-    }
-
-    private String generateCheckInCode() {
-        return "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
     @Override
@@ -73,13 +71,25 @@ public class EventServiceImpl implements EventService {
         return eventRepo.findAll(pageable).map(this::toResp);
     }
 
+    // ✅ cập nhật status chỉ cho UNIVERSITY_STAFF
     @Override
-    public EventResponse updateStatus(Long id, EventStatusEnum status) {
+    public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
+        var user = principal.getUser();
+
+        if (!"UNIVERSITY_STAFF".equals(user.getRole().getRoleName())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ UNIVERSITY_STAFF mới được duyệt sự kiện.");
+        }
+
         Event event = eventRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại"));
 
+        if (status == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Trạng thái không hợp lệ.");
+        }
+
         event.setStatus(status);
         eventRepo.save(event);
+
         return toResp(event);
     }
 

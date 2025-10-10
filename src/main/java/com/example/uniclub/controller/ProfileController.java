@@ -12,8 +12,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * ✅ Controller cho STUDENT / MEMBER / CLUB_LEADER
- * - Cho phép người dùng xem và cập nhật hồ sơ cá nhân của chính mình
+ * ✅ Cho phép tất cả người dùng đăng nhập (mọi role)
+ * xem và cập nhật hồ sơ cá nhân của chính mình.
  */
 @RestController
 @RequestMapping("/api/users/profile")
@@ -22,9 +22,9 @@ public class ProfileController {
 
     private final UserServiceImpl userService;
 
-    // ✅ Lấy thông tin profile của chính mình
+    // ✅ Xem thông tin profile của chính mình
     @GetMapping
-    @PreAuthorize("hasAnyRole('STUDENT','MEMBER','CLUB_LEADER')")
+    @PreAuthorize("isAuthenticated()") // 🔓 cho phép tất cả role đã đăng nhập
     public ResponseEntity<ApiResponse<User>> getProfile(
             @AuthenticationPrincipal UserDetails principal) {
 
@@ -33,9 +33,9 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
-    // ✅ Cập nhật profile (phone, major, bio)
+    // ✅ Cập nhật profile của chính mình
     @PutMapping
-    @PreAuthorize("hasAnyRole('STUDENT','MEMBER','CLUB_LEADER')")
+    @PreAuthorize("isAuthenticated()") // 🔓 cho phép tất cả role đã đăng nhập
     public ResponseEntity<ApiResponse<User>> updateProfile(
             @AuthenticationPrincipal UserDetails principal,
             @RequestBody ProfileUpdateRequest req) {
