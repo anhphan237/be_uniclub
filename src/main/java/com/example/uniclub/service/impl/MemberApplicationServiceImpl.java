@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -108,4 +109,18 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .map(MemberApplicationMapper::toResponse)
                 .toList();
     }
+    // ✅ Lấy danh sách đơn theo CLB (leader, staff, admin)
+
+    @Transactional(readOnly = true)
+    public List<MemberApplicationResponse> getByClubId(Long clubId) {
+        // Kiểm tra CLB tồn tại
+        var club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        return repo.findAllByClub_ClubId(clubId)
+                .stream()
+                .map(MemberApplicationMapper::toResponse)
+                .toList();
+    }
+
 }

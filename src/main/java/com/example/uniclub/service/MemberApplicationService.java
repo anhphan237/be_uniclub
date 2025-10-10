@@ -15,4 +15,7 @@ public interface MemberApplicationService {
     List<MemberApplicationResponse> findAll();
 
     List<MemberApplicationResponse> findApplicationsByEmail(String email);
+
+    List<MemberApplicationResponse> getByClubId(Long clubId);
+
 }
