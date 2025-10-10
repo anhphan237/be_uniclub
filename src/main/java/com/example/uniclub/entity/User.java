@@ -6,7 +6,11 @@ import lombok.*;
 
 @Entity
 @Table(name = "users")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
     @Id
@@ -34,4 +38,14 @@ public class User {
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Wallet wallet;
+
+    // ✅ Thông tin hồ sơ mở rộng
+    @Column(name = "student_code", nullable = false, unique = true)
+    private String studentCode; // MSSV (duy nhất, không thể đổi)
+
+    @Column(name = "major_name")
+    private String majorName;   // Chuyên ngành
+
+    @Column(name = "bio", length = 500)
+    private String bio;         // Giới thiệu bản thân (optional)
 }

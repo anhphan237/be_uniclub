@@ -7,5 +7,11 @@ public record RegisterRequest(
         @NotBlank String password,
         @NotBlank String fullName,
         @NotBlank String phone,
-        @NotNull String roleName
+        @NotNull String roleName,
+
+        // ✅ MSSV bắt buộc và duy nhất
+        @NotBlank String studentCode,
+
+        // ✅ Chuyên ngành có thể cập nhật sau
+        String majorName
 ) {}

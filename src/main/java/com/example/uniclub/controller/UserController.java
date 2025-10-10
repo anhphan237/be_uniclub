@@ -1,46 +1,52 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
-import com.example.uniclub.dto.request.UserCreateRequest;
-import com.example.uniclub.dto.request.UserUpdateRequest;
-import com.example.uniclub.dto.response.UserResponse;
-import com.example.uniclub.service.UserService;
-import jakarta.validation.Valid;
+import com.example.uniclub.dto.request.ProfileUpdateRequest;
+import com.example.uniclub.entity.User;
+import com.example.uniclub.service.impl.UserServiceImpl;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * ✅ Controller cho người dùng (STUDENT / MEMBER / CLUB_LEADER)
+ * - PUT /api/users/profile → cập nhật thông tin
+ * - GET /api/users/profile → lấy thông tin hiện tại
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
-    private final UserService userService;
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<UserResponse>> create(@Valid @RequestBody UserCreateRequest req){
-        return ResponseEntity.ok(ApiResponse.ok(userService.create(req)));
+    private final UserServiceImpl userService;
+
+    /**
+     * ✅ Cập nhật thông tin hồ sơ cá nhân
+     */
+    @PutMapping("/profile")
+    @PreAuthorize("hasAnyRole('STUDENT','MEMBER','CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<User>> updateProfile(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestBody ProfileUpdateRequest req) {
+
+        String email = principal.getUsername();
+        User updated = userService.updateProfile(email, req);
+        return ResponseEntity.ok(ApiResponse.ok(updated));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> update(@PathVariable Long id,
-                                                            @Valid @RequestBody UserUpdateRequest req){
-        return ResponseEntity.ok(ApiResponse.ok(userService.update(id, req)));
-    }
+    /**
+     * ✅ Lấy thông tin hồ sơ cá nhân (hiển thị khi vào trang Profile)
+     */
+    @GetMapping("/profile")
+    @PreAuthorize("hasAnyRole('STUDENT','MEMBER','CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<User>> getProfile(
+            @AuthenticationPrincipal UserDetails principal) {
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> get(@PathVariable Long id){
-        return ResponseEntity.ok(ApiResponse.ok(userService.get(id)));
-    }
-
-    @GetMapping
-    public ResponseEntity<?> list(Pageable pageable){
-        return ResponseEntity.ok(userService.list(pageable));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id){
-        userService.delete(id);
-        return ResponseEntity.ok(ApiResponse.msg("Deleted"));
+        String email = principal.getUsername();
+        User profile = userService.getProfile(email);
+        return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 }
