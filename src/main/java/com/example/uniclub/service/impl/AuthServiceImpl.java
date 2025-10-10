@@ -33,6 +33,7 @@ public class AuthServiceImpl {
     private final MembershipRepository membershipRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // ✅ Đăng nhập
     public AuthResponse login(LoginRequest req) {
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.email(), req.password()));
@@ -41,24 +42,17 @@ public class AuthServiceImpl {
         var user = cud.getUser();
 
         String token = jwtUtil.generateToken(user.getEmail());
+        String roleName = user.getRole().getRoleName();
 
         Long clubId = null;
         List<Long> clubIds = null;
 
-        String roleName = user.getRole().getRoleName();
-
-        // ✅ CLUB_LEADER → có 1 clubId
         if ("CLUB_LEADER".equals(roleName)) {
             clubId = clubRepository.findByLeader_UserId(user.getUserId())
-                    .map(Club::getClubId)
-                    .orElse(null);
-        }
-        // ✅ MEMBER → có list clubIds
-        else if ("MEMBER".equals(roleName)) {
+                    .map(Club::getClubId).orElse(null);
+        } else if ("MEMBER".equals(roleName)) {
             clubIds = membershipRepository.findAllByUser_UserId(user.getUserId())
-                    .stream()
-                    .map(m -> m.getClub().getClubId())
-                    .toList();
+                    .stream().map(m -> m.getClub().getClubId()).toList();
         }
 
         return AuthResponse.builder()
@@ -72,19 +66,26 @@ public class AuthServiceImpl {
                 .build();
     }
 
+    // ✅ Đăng ký
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
-            throw new ApiException(HttpStatus.CONFLICT, "Email has existed");
+            throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
+        }
+
+        if (userRepository.existsByStudentCode(req.studentCode())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
         }
 
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
+                .phone(req.phone())
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
                 .status(UserStatusEnum.ACTIVE.name())
-                .phone(req.phone())
+                .studentCode(req.studentCode()) // ✅ Bắt buộc
+                .majorName(req.majorName())     // ✅ Có thể null
                 .build();
 
         user = userRepository.save(user);

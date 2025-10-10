@@ -2,7 +2,6 @@ package com.example.uniclub.dto.response;
 
 import com.example.uniclub.enums.MemberApplyStatusEnum;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Getter
@@ -21,4 +20,9 @@ public class MemberApplicationResponse {
     private String reviewedBy;
     private LocalDateTime submittedAt;
     private LocalDateTime updatedAt;
+
+    // ✅ Thêm thông tin profile người dùng
+    private String studentCode;
+    private String majorName;
+    private String bio;
 }
