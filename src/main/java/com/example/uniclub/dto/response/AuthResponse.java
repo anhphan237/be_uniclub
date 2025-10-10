@@ -19,4 +19,6 @@ public class AuthResponse {
 
     private Long clubId;          // dùng cho CLUB_LEADER
     private List<Long> clubIds;   // dùng cho MEMBER
+    private Boolean staff;
+
 }

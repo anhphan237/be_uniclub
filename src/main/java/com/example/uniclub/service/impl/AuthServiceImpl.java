@@ -46,13 +46,19 @@ public class AuthServiceImpl {
 
         Long clubId = null;
         List<Long> clubIds = null;
+        Boolean isClubStaff = false; // ✅ flag staff trong CLB
 
         if ("CLUB_LEADER".equals(roleName)) {
             clubId = clubRepository.findByLeader_UserId(user.getUserId())
-                    .map(Club::getClubId).orElse(null);
+                    .map(Club::getClubId)
+                    .orElse(null);
         } else if ("MEMBER".equals(roleName)) {
-            clubIds = membershipRepository.findAllByUser_UserId(user.getUserId())
-                    .stream().map(m -> m.getClub().getClubId()).toList();
+            var memberships = membershipRepository.findAllByUser_UserId(user.getUserId());
+            clubIds = memberships.stream()
+                    .map(m -> m.getClub().getClubId())
+                    .toList();
+            // ✅ kiểm tra nếu có ít nhất 1 membership là staff
+            isClubStaff = memberships.stream().anyMatch(Membership::isStaff);
         }
 
         return AuthResponse.builder()
@@ -63,6 +69,7 @@ public class AuthServiceImpl {
                 .role(roleName)
                 .clubId(clubId)
                 .clubIds(clubIds)
+                .staff(isClubStaff) // ✅ trả về true nếu là staff hỗ trợ CLB
                 .build();
     }
 
@@ -84,8 +91,8 @@ public class AuthServiceImpl {
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
                 .status(UserStatusEnum.ACTIVE.name())
-                .studentCode(req.studentCode()) // ✅ Bắt buộc
-                .majorName(req.majorName())     // ✅ Có thể null
+                .studentCode(req.studentCode())
+                .majorName(req.majorName())
                 .build();
 
         user = userRepository.save(user);
@@ -105,6 +112,7 @@ public class AuthServiceImpl {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .role(user.getRole().getRoleName())
+                .staff(false) // ✅ mặc định là member thường
                 .build();
     }
 }
