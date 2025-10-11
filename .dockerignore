@@ -1,0 +1,6 @@
+target
+.git
+.gitignore
+.idea
+node_modules
+*.iml
