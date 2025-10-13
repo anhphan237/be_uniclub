@@ -5,7 +5,11 @@ import lombok.*;
 
 @Entity
 @Table(name = "roles")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Role {
 
     @Id
@@ -15,5 +19,6 @@ public class Role {
     @Column(nullable = false, unique = true)
     private String roleName;
 
+    @Column(length = 255)
     private String description;
 }

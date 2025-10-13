@@ -1,55 +1,66 @@
 package com.example.uniclub.security;
 
+import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.List;
 
-/**
- * CustomUserDetails dùng để ánh xạ thông tin người dùng từ entity User
- * sang định dạng mà Spring Security có thể hiểu (UserDetails).
- */
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CustomUserDetails implements UserDetails {
 
-    private final User user;
+    private Long userId;
+    private String email;
+    private String password;
+    private Collection<? extends GrantedAuthority> authorities;
+    private Role role; // để dễ truy cập role nếu cần
 
-    public CustomUserDetails(User user) {
-        this.user = user;
+    // ✅ Constructor tiện lợi để tạo từ entity User
+    public static CustomUserDetails fromUser(User user, Collection<? extends GrantedAuthority> authorities) {
+        return CustomUserDetails.builder()
+                .userId(user.getUserId())
+                .email(user.getEmail())
+                .password(user.getPasswordHash())
+                .authorities(authorities)
+                .role(user.getRole())
+                .build();
     }
 
+    // ✅ Thêm hàm getId() để dùng trong Controller / Service
+    public Long getId() {
+        return userId;
+    }
+
+    // ✅ Thêm hàm getUser() để tương thích với các service cũ (như AuthServiceImpl)
     public User getUser() {
-        return user;
+        User u = new User();
+        u.setUserId(this.userId);
+        u.setEmail(this.email);
+        u.setRole(this.role);
+        return u;
     }
 
-    /**
-     * Trả về danh sách quyền của người dùng.
-     * Bắt buộc phải có tiền tố "ROLE_" để Spring Security nhận diện đúng.
-     */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // ✅ Lấy tên role, nếu null thì mặc định là STUDENT
-        String roleName = (user.getRole() != null && user.getRole().getRoleName() != null)
-                ? user.getRole().getRoleName()
-                : "STUDENT";
-
-        // ✅ Trả về quyền hợp lệ theo format ROLE_<ROLE_NAME>
-        return List.of(new SimpleGrantedAuthority("ROLE_" + roleName));
+        return authorities;
     }
 
-    /**
-     * Các phương thức bắt buộc của UserDetails
-     */
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return password;
     }
 
     @Override
     public String getUsername() {
-        return user.getEmail();
+        return email;
     }
 
     @Override

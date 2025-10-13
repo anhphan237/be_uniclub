@@ -1,22 +1,18 @@
 package com.example.uniclub.repository;
 
-import com.example.uniclub.entity.*;
+import com.example.uniclub.entity.Membership;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
-    boolean existsByUserAndClub(User user, Club club);
-    Optional<Membership> findByUserAndClub(User user, Club club);
+    boolean existsByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
 
-    List<Membership> findAllByUser_UserId(Long userId);
+    List<Membership> findByUser_UserId(Long userId);
 
-    // 🔹 Thêm hàm này để list tất cả member theo clubId
-    List<Membership> findAllByClub_ClubId(Long clubId);
-
-    List<Membership> findAllByClub_ClubIdAndStaffTrue(Long clubId);
-
-    boolean existsByUser_UserIdAndStaffTrue(Long userId);
+    Optional<Membership> findByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
 }

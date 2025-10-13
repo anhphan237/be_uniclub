@@ -46,25 +46,27 @@ public class AuthServiceImpl {
 
         Long clubId = null;
         List<Long> clubIds = null;
-        Boolean isClubStaff = null; // ✅ null = không hiển thị field nếu không phải MEMBER
+        Boolean isClubStaff = null;
 
+        // 🔹 Nếu là CLB Leader → tìm clubId của họ
         if ("CLUB_LEADER".equals(roleName)) {
             clubId = clubRepository.findByLeader_UserId(user.getUserId())
                     .map(Club::getClubId)
                     .orElse(null);
         }
-        else if ("MEMBER".equals(roleName)) {
-            var memberships = membershipRepository.findAllByUser_UserId(user.getUserId());
+        // 🔹 Nếu là STUDENT → kiểm tra membership (đóng vai trò MEMBER cũ)
+        else if ("STUDENT".equals(roleName)) {
+            var memberships = membershipRepository.findByUser_UserId(user.getUserId());
             clubIds = memberships.stream()
                     .map(m -> m.getClub().getClubId())
                     .toList();
 
-            // ✅ chỉ nếu có ít nhất 1 membership là staff thì staff = true
+            // ✅ Nếu student có bất kỳ membership nào có staff=true → isClubStaff = true
             boolean hasStaffRole = memberships.stream().anyMatch(Membership::isStaff);
             isClubStaff = hasStaffRole;
         }
 
-        // ✅ Chỉ thêm staff nếu là MEMBER
+        // ✅ Tạo AuthResponse
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
@@ -121,8 +123,8 @@ public class AuthServiceImpl {
                 .fullName(user.getFullName())
                 .role(user.getRole().getRoleName());
 
-        // ✅ Nếu role là MEMBER → staff mặc định = false
-        if ("MEMBER".equalsIgnoreCase(user.getRole().getRoleName())) {
+        // ✅ Nếu role là STUDENT → staff mặc định = false
+        if ("STUDENT".equalsIgnoreCase(user.getRole().getRoleName())) {
             responseBuilder.staff(false);
         }
 

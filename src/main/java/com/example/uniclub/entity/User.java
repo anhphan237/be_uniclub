@@ -3,6 +3,8 @@ package com.example.uniclub.entity;
 import com.example.uniclub.enums.UserStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -29,7 +31,6 @@ public class User {
     @Column(nullable = false)
     private String status = UserStatusEnum.ACTIVE.name();
 
-    // 🧩 Avatar URL (Google / Upload)
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
@@ -48,4 +49,8 @@ public class User {
 
     @Column(name = "bio", length = 500)
     private String bio;
+
+    // 🧩 Liên kết đến membership (student có thể tham nhiều CLB)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Membership> memberships = new ArrayList<>();
 }
