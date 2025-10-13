@@ -43,8 +43,14 @@ public class Event {
     @Column(nullable = false, unique = true, length = 50)
     private String checkInCode;
 
+    // 🟢 Số lượng check-in hiện tại
+    @Column(nullable = false)
+    private Integer currentCheckInCount = 0;
+
+    // 🟢 Giới hạn số lượng check-in (tối đa)
+    private Integer maxCheckInCount;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EventStatusEnum status = EventStatusEnum.PENDING;
-
 }

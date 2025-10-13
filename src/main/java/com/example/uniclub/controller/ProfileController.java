@@ -44,4 +44,16 @@ public class ProfileController {
         User updated = userService.updateProfile(email, req);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
+    // ✅ Cập nhật avatar URL thủ công (nếu không dùng Google)
+    @PatchMapping("/avatar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<User>> updateAvatar(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam String avatarUrl) {
+
+        String email = principal.getUsername();
+        User updated = userService.updateAvatar(email, avatarUrl);
+        return ResponseEntity.ok(ApiResponse.ok(updated));
+    }
+
 }

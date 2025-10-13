@@ -10,5 +10,8 @@ public class ProfileUpdateRequest {
     private String majorName;    // ✅ Có thể cập nhật
     private String phone;        // ✅ Có thể cập nhật
     @Size(max = 500)
-    private String bio;          // ✅ Có thể cập nhật
+    private String bio;
+    private String avatarUrl;
+
+    // ✅ Có thể cập nhật
 }

@@ -25,7 +25,7 @@ import java.util.UUID;
 public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
-    private final ClubRepository clubRepo; // ✅ thêm dòng này
+    private final ClubRepository clubRepo;
 
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
@@ -57,6 +57,9 @@ public class EventServiceImpl implements EventService {
                 .checkInCode(randomCode)
                 .location(req.locationId() == null ? null :
                         Location.builder().locationId(req.locationId()).build())
+                // 👇 Nếu bạn muốn cho phép nhập maxCheckInCount
+                .maxCheckInCount(req.maxCheckInCount() != null ? req.maxCheckInCount() : null)
+                .currentCheckInCount(0)
                 .build();
 
         return toResp(eventRepo.save(e));
@@ -85,10 +88,6 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại"));
 
-        if (status == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Trạng thái không hợp lệ.");
-        }
-
         event.setStatus(status);
         eventRepo.save(event);
 
@@ -110,7 +109,6 @@ public class EventServiceImpl implements EventService {
         eventRepo.deleteById(id);
     }
 
-    // ✅ Hàm mới: Lấy danh sách Event theo ClubId
     @Override
     public List<EventResponse> getByClubId(Long clubId) {
         var club = clubRepo.findById(clubId)
@@ -120,5 +118,22 @@ public class EventServiceImpl implements EventService {
                 .stream()
                 .map(this::toResp)
                 .toList();
+    }
+
+    // 🟢 Hàm mới: xử lý check-in theo mã code
+    public String checkIn(String code) {
+        Event event = eventRepo.findByCheckInCode(code)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Mã check-in không tồn tại"));
+
+        // kiểm tra giới hạn
+        if (event.getMaxCheckInCount() != null &&
+                event.getCurrentCheckInCount() >= event.getMaxCheckInCount()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Sự kiện đã đủ số lượng người tham dự!");
+        }
+
+        event.setCurrentCheckInCount(event.getCurrentCheckInCount() + 1);
+        eventRepo.save(event);
+
+        return "✅ Check-in thành công! (Tổng: " + event.getCurrentCheckInCount() + ")";
     }
 }

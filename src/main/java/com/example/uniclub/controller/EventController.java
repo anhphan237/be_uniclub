@@ -6,6 +6,7 @@ import com.example.uniclub.dto.request.EventStatusUpdateRequest;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
+import com.example.uniclub.service.impl.EventServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -54,10 +55,11 @@ public class EventController {
         ));
     }
 
-    // ✅ Check-in theo mã code
-    @GetMapping("/checkin/{code}")
-    public ResponseEntity<ApiResponse<EventResponse>> checkInByCode(@PathVariable String code) {
-        return ResponseEntity.ok(ApiResponse.ok(eventService.findByCheckInCode(code)));
+    // ✅ Check-in bằng mã code (quét QR)
+    @PostMapping("/check-in")
+    public ResponseEntity<ApiResponse<String>> checkIn(@RequestParam String code) {
+        String message = ((EventServiceImpl) eventService).checkIn(code);
+        return ResponseEntity.ok(ApiResponse.msg(message));
     }
 
     // ✅ Xóa sự kiện — dành cho ADMIN hoặc CLUB_LEADER
@@ -67,6 +69,8 @@ public class EventController {
         eventService.delete(id);
         return ResponseEntity.ok(ApiResponse.msg("Deleted"));
     }
+
+    // ✅ Lấy danh sách Event theo CLB
     @GetMapping("/club/{clubId}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_STAFF','MEMBER','STUDENT')")
     public ResponseEntity<List<EventResponse>> getByClubId(@PathVariable Long clubId) {

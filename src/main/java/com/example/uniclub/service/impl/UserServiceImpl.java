@@ -156,4 +156,12 @@ public class UserServiceImpl implements UserService {
         if (!validMajors.contains(majorName))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Ngành học không hợp lệ");
     }
+    // ✅ Cập nhật avatar URL
+    public User updateAvatar(String email, String avatarUrl) {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        user.setAvatarUrl(avatarUrl);
+        return userRepo.save(user);
+    }
+
 }

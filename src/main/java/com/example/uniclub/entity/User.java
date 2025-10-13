@@ -29,6 +29,9 @@ public class User {
     @Column(nullable = false)
     private String status = UserStatusEnum.ACTIVE.name();
 
+    // 🧩 Avatar URL (Google / Upload)
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "role_id")
@@ -37,13 +40,12 @@ public class User {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Wallet wallet;
 
-    // ✅ Thông tin hồ sơ mở rộng
     @Column(name = "student_code", nullable = false, unique = true)
-    private String studentCode; // MSSV (duy nhất, không thể đổi)
+    private String studentCode; // MSSV
 
     @Column(name = "major_name")
-    private String majorName;   // Chuyên ngành
+    private String majorName;
 
     @Column(name = "bio", length = 500)
-    private String bio;         // Giới thiệu bản thân (optional)
+    private String bio;
 }

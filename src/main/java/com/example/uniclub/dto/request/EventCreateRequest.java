@@ -11,5 +11,7 @@ public record EventCreateRequest(
         @NotNull EventTypeEnum type,
         @NotNull LocalDate date,
         @NotBlank String time,
-        Long locationId
+        Long locationId,
+        @Positive(message = "maxCheckInCount phải là số dương")
+        Integer maxCheckInCount
 ) {}
