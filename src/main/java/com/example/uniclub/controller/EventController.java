@@ -14,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/events")
 @RequiredArgsConstructor
@@ -64,5 +66,11 @@ public class EventController {
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
         eventService.delete(id);
         return ResponseEntity.ok(ApiResponse.msg("Deleted"));
+    }
+    @GetMapping("/club/{clubId}")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_STAFF','MEMBER','STUDENT')")
+    public ResponseEntity<List<EventResponse>> getByClubId(@PathVariable Long clubId) {
+        List<EventResponse> res = eventService.getByClubId(clubId);
+        return ResponseEntity.ok(res);
     }
 }

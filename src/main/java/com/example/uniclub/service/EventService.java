@@ -7,6 +7,8 @@ import com.example.uniclub.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface EventService {
     EventResponse create(EventCreateRequest req);
     EventResponse get(Long id);
@@ -14,4 +16,5 @@ public interface EventService {
     EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status);
     EventResponse findByCheckInCode(String code);
     void delete(Long id);
+    List<EventResponse> getByClubId(Long clubId);
 }

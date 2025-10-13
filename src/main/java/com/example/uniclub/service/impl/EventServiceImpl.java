@@ -7,6 +7,7 @@ import com.example.uniclub.entity.Event;
 import com.example.uniclub.entity.Location;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
+import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
+    private final ClubRepository clubRepo; // ✅ thêm dòng này
 
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
@@ -71,7 +74,6 @@ public class EventServiceImpl implements EventService {
         return eventRepo.findAll(pageable).map(this::toResp);
     }
 
-    // ✅ cập nhật status chỉ cho UNIVERSITY_STAFF
     @Override
     public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
         var user = principal.getUser();
@@ -106,5 +108,17 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại");
         }
         eventRepo.deleteById(id);
+    }
+
+    // ✅ Hàm mới: Lấy danh sách Event theo ClubId
+    @Override
+    public List<EventResponse> getByClubId(Long clubId) {
+        var club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club không tồn tại"));
+
+        return eventRepo.findByClub_ClubId(clubId)
+                .stream()
+                .map(this::toResp)
+                .toList();
     }
 }

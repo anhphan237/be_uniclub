@@ -22,6 +22,23 @@ public class MembershipServiceImpl implements MembershipService {
     private final UserRepository userRepository;
     private final ClubRepository clubRepository;
 
+    // ==============================
+    // 🔹 Helper method để tránh lặp code
+    // ==============================
+    private MembershipResponse toResponse(Membership m) {
+        return MembershipResponse.builder()
+                .membershipId(m.getMembershipId())
+                .userId(m.getUser().getUserId())
+                .clubId(m.getClub().getClubId())
+                .level(m.getLevel())
+                .state(m.getState())
+                .staff(m.isStaff())
+                .joinedDate(m.getJoinedAt() != null ? m.getJoinedAt().toLocalDate() : null)
+                .fullName(m.getUser().getFullName())
+                .studentCode(m.getUser().getStudentCode())
+                .build();
+    }
+
     // ✅ Tạo mới thành viên CLB
     @Override
     public MembershipResponse create(MemberCreateRequest req) {
@@ -43,15 +60,7 @@ public class MembershipServiceImpl implements MembershipService {
                 .build();
 
         membership = membershipRepository.save(membership);
-
-        return MembershipResponse.builder()
-                .membershipId(membership.getMembershipId())
-                .userId(user.getUserId())
-                .clubId(club.getClubId())
-                .level(membership.getLevel())
-                .state(membership.getState())
-                .staff(membership.isStaff())
-                .build();
+        return toResponse(membership);
     }
 
     // ✅ Xoá thành viên khỏi CLB
@@ -101,15 +110,9 @@ public class MembershipServiceImpl implements MembershipService {
             throw new ApiException(HttpStatus.FORBIDDEN, "You can only view members of your own club.");
         }
 
-        return membershipRepository.findAllByClub_ClubId(clubId).stream()
-                .map(m -> MembershipResponse.builder()
-                        .membershipId(m.getMembershipId())
-                        .userId(m.getUser().getUserId())
-                        .clubId(m.getClub().getClubId())
-                        .level(m.getLevel())
-                        .state(m.getState())
-                        .staff(m.isStaff())
-                        .build())
+        return membershipRepository.findAllByClub_ClubId(clubId)
+                .stream()
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -121,15 +124,9 @@ public class MembershipServiceImpl implements MembershipService {
         var myClub = clubRepository.findByLeader_UserId(leader.getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a leader of any club."));
 
-        return membershipRepository.findAllByClub_ClubId(myClub.getClubId()).stream()
-                .map(m -> MembershipResponse.builder()
-                        .membershipId(m.getMembershipId())
-                        .userId(m.getUser().getUserId())
-                        .clubId(m.getClub().getClubId())
-                        .level(m.getLevel())
-                        .state(m.getState())
-                        .staff(m.isStaff())
-                        .build())
+        return membershipRepository.findAllByClub_ClubId(myClub.getClubId())
+                .stream()
+                .map(this::toResponse)
                 .toList();
     }
 }

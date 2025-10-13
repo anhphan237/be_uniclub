@@ -22,7 +22,7 @@ public class ClubServiceImpl implements ClubService {
 
     private final ClubRepository clubRepo;
     private final MajorPolicyRepository majorPolicyRepo;
-    private final MajorRepository majorRepo; // 🆕 thêm repository để truy cập Major
+    private final MajorRepository majorRepo;
 
     // 🟦 Chuyển entity → response DTO
     private ClubResponse toResp(Club c) {
@@ -31,7 +31,10 @@ public class ClubServiceImpl implements ClubService {
                 .name(c.getName())
                 .description(c.getDescription())
                 .majorPolicyName(c.getMajorPolicy() != null ? c.getMajorPolicy().getPolicyName() : null)
-                .majorName(c.getMajor() != null ? c.getMajor().getName() : null) // 🆕 lấy tên chuyên ngành
+                .majorName(c.getMajor() != null ? c.getMajor().getName() : null)
+                // ✅ Thêm hai dòng sau để hiển thị leader
+                .leaderId(c.getLeader() != null ? c.getLeader().getUserId() : null)
+                .leaderName(c.getLeader() != null ? c.getLeader().getFullName() : null)
                 .build();
     }
 
@@ -42,20 +45,17 @@ public class ClubServiceImpl implements ClubService {
             throw new ApiException(HttpStatus.CONFLICT, "Tên CLB đã tồn tại");
         }
 
-        // ✅ Lấy MajorPolicy từ DB
         MajorPolicy majorPolicy = majorPolicyRepo.findById(req.majorPolicyId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major Policy không tồn tại"));
 
-        // ✅ Lấy Major từ DB
         Major major = majorRepo.findById(req.majorId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major không tồn tại"));
 
-        // ✅ Gán đầy đủ thông tin cho CLB
         Club club = Club.builder()
                 .name(req.name())
                 .description(req.description())
                 .majorPolicy(majorPolicy)
-                .major(major) // 🆕 gán chuyên ngành
+                .major(major)
                 .build();
 
         Club saved = clubRepo.save(club);

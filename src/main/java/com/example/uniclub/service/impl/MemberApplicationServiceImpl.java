@@ -12,11 +12,11 @@ import com.example.uniclub.mapper.MemberApplicationMapper;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MemberApplicationRepository;
 import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MemberApplicationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -40,7 +40,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         Club club = clubRepo.findById(req.clubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // Kiểm tra nếu đã có đơn active
         if (repo.existsByUser_UserIdAndClub_ClubIdAndActiveFlagTrue(user.getUserId(), club.getClubId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You already have an active application for this club");
         }
@@ -58,7 +57,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         return MemberApplicationMapper.toResponse(app);
     }
 
-    // ✅ Cập nhật trạng thái đơn (chỉ Leader, Staff, Admin)
+    // ✅ Duyệt / từ chối đơn
     @Override
     @Transactional
     public MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req) {
@@ -77,7 +76,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         return MemberApplicationMapper.toResponse(app);
     }
 
-    // ✅ Xem tất cả (admin / staff / leader)
+    // ✅ Admin / Staff xem tất cả
     @Override
     @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findAll() {
@@ -87,7 +86,8 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .toList();
     }
 
-    // ✅ Xem theo email (student / member → chỉ thấy của mình)
+    // ✅ Xem theo email (student → của mình, leader/staff → tất cả)
+    @Override
     @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findApplicationsByEmail(String email) {
         User user = userRepo.findByEmail(email)
@@ -95,7 +95,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         String role = user.getRole().getRoleName();
 
-        // Nếu là student hoặc member → chỉ xem đơn của chính mình
         if (role.equals("STUDENT") || role.equals("MEMBER")) {
             return repo.findByUser(user)
                     .stream()
@@ -103,24 +102,37 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                     .toList();
         }
 
-        // Nếu là leader / staff / admin → xem tất cả
         return repo.findAll()
                 .stream()
                 .map(MemberApplicationMapper::toResponse)
                 .toList();
     }
-    // ✅ Lấy danh sách đơn theo CLB (leader, staff, admin)
 
+    // ✅ Xem danh sách đơn ứng tuyển theo CLB (Leader, Staff, Admin)
+    @Override
     @Transactional(readOnly = true)
-    public List<MemberApplicationResponse> getByClubId(Long clubId) {
-        // Kiểm tra CLB tồn tại
+    public List<MemberApplicationResponse> getByClubId(CustomUserDetails principal, Long clubId) {
+        var user = principal.getUser();
+
         var club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
+        String role = user.getRole().getRoleName();
+
+        // ✅ Nếu là CLUB_LEADER → chỉ xem CLB của chính mình
+        if (role.equals("CLUB_LEADER")) {
+            var myClub = clubRepo.findByLeader_UserId(user.getUserId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a leader of any club."));
+
+            if (!myClub.getClubId().equals(clubId)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "You can only view applications of your own club.");
+            }
+        }
+
+        // ✅ Admin / Staff có thể xem mọi CLB
         return repo.findAllByClub_ClubId(clubId)
                 .stream()
                 .map(MemberApplicationMapper::toResponse)
                 .toList();
     }
-
 }
