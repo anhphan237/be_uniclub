@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * ✅ Controller dành cho ADMIN hoặc STAFF quản lý người dùng
- * Bao gồm: tạo, cập nhật, xoá, xem 1 user hoặc toàn bộ danh sách user
  */
 @RestController
 @RequestMapping("/api/users")
@@ -31,7 +30,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.create(req)));
     }
 
-    // ✅ Cập nhật thông tin user (ADMIN/STAFF)
+    // ✅ Cập nhật thông tin user
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> update(
@@ -40,21 +39,21 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.update(id, req)));
     }
 
-    // ✅ Lấy thông tin 1 user (ADMIN/STAFF)
+    // ✅ Lấy thông tin 1 user
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(userService.get(id)));
     }
 
-    // ✅ Lấy danh sách user (ADMIN/STAFF)
+    // ✅ Lấy danh sách user
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping
     public ResponseEntity<?> list(Pageable pageable) {
         return ResponseEntity.ok(userService.list(pageable));
     }
 
-    // ✅ Xoá user (ADMIN/STAFF)
+    // ✅ Xoá user
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
