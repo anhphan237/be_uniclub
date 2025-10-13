@@ -23,10 +23,13 @@ public class CustomAuthEntryPoint implements AuthenticationEntryPoint {
 
         Map<String, Object> body = new HashMap<>();
         body.put("error", "Unauthorized");
+        body.put("code", "AUTH_401");
         body.put("message", "You are not registered or your access token is invalid");
         body.put("path", request.getServletPath());
+        body.put("timestamp", System.currentTimeMillis());
 
         new ObjectMapper().writeValue(response.getOutputStream(), body);
+
+        System.out.println("⚠️ Unauthorized access attempt to: " + request.getServletPath());
     }
 }
-

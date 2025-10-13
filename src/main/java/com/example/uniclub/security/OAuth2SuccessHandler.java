@@ -3,7 +3,6 @@ package com.example.uniclub.security;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.UserStatusEnum;
-
 import com.example.uniclub.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,48 +41,52 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         try {
             OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
             String email = oauthUser.getAttribute("email");
-            String name  = oauthUser.getAttribute("name");
+            String name = oauthUser.getAttribute("name");
+            String picture = oauthUser.getAttribute("picture");
 
             if (email == null) {
                 log.error("OAuth2 login: thiếu email trong profile Google");
-                response.sendRedirect(redirectFailUrl);
+                response.sendRedirect(redirectFailUrl + "?error=no_email");
                 return;
             }
 
+            // ✅ Chỉ cho phép các email trong danh sách domain hợp lệ (fpt.edu.vn hoặc gmail.com)
+            if (!isAllowedEmail(email)) {
+                log.warn("❌ Email không hợp lệ hoặc không thuộc domain sinh viên: {}", email);
+                response.sendRedirect(redirectFailUrl + "?error=invalid_domain");
+                return;
+            }
+
+            // 🔍 Tìm user theo email, nếu chưa có thì tạo mới
             Optional<User> userOpt = userRepo.findByEmail(email);
-
-            // Nếu chưa có user thì tạo mới
             User user = userOpt.orElseGet(() -> {
-                boolean isSchool = isSchoolEmail(email);
-                // TODO: map roleId theo DB của bạn. Ví dụ Student = 5L
-                Long roleIdForNewUser = 5L;
-
+                Long roleIdForStudent = 5L; // role STUDENT
                 return userRepo.save(User.builder()
                         .email(email)
                         .passwordHash("{noop}-")
                         .fullName(name)
                         .status(UserStatusEnum.ACTIVE.getCode())
-                        .role(Role.builder().roleId(roleIdForNewUser).build())
+                        .role(Role.builder().roleId(roleIdForStudent).build())
+
                         .build());
             });
 
-            // ⚠️ JwtUtil của bạn nhận 1 tham số → dùng email
+            // 🔑 Sinh JWT token và redirect về FE
             String token = jwtUtil.generateToken(user.getEmail());
-
-            String redirect = redirectSuccessUrl + "?token=" + token;
-            response.sendRedirect(redirect);
+            response.sendRedirect(redirectSuccessUrl + "?token=" + token);
 
         } catch (Exception e) {
             log.error("OAuth2 success handler lỗi: ", e);
-            response.sendRedirect(redirectFailUrl);
+            response.sendRedirect(redirectFailUrl + "?error=exception");
         }
     }
 
-    private boolean isSchoolEmail(String email) {
+    // 🧠 Chấp nhận cả FPT domain và Gmail
+    private boolean isAllowedEmail(String email) {
         if (schoolDomains == null || schoolDomains.isBlank()) return false;
         String lower = email.toLowerCase();
-        for (String d : schoolDomains.split(",")) {
-            if (lower.endsWith(d.trim().toLowerCase())) return true;
+        for (String domain : schoolDomains.split(",")) {
+            if (lower.endsWith(domain.trim().toLowerCase())) return true;
         }
         return false;
     }

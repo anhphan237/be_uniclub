@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import java.io.IOException;
 
 @Component
@@ -29,7 +30,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             try {
                 String email = jwtUtil.getSubject(token);
-
                 if (email != null && jwtUtil.validateToken(token)
                         && SecurityContextHolder.getContext().getAuthentication() == null) {
 
@@ -40,7 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             } catch (Exception ex) {
-                // Có thể log hoặc bỏ qua để không chặn request public
+                // Có thể log lỗi JWT để debug
             }
         }
         chain.doFilter(request, response);
