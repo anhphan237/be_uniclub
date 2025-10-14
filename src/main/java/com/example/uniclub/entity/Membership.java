@@ -2,6 +2,8 @@ package com.example.uniclub.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -34,5 +36,6 @@ public class Membership {
 
     private boolean staff = false; // ✅ true = staff hỗ trợ CLB, false = member thường
 
-    private LocalDateTime joinedAt = LocalDateTime.now();
+    @Column(name = "joined_date")
+    private LocalDate joinedDate;
 }

@@ -1,11 +1,9 @@
 package com.example.uniclub.service;
 
-import com.example.uniclub.entity.Membership;
+import com.example.uniclub.dto.response.MembershipResponse;
 import java.util.List;
 
 public interface MembershipService {
-
-    List<Membership> getMyMemberships(Long userId);
-
+    List<MembershipResponse> getMyMemberships(Long userId);
     boolean isMemberOfClub(Long userId, Long clubId);
 }

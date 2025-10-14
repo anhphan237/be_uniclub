@@ -50,6 +50,7 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // 🌐 Public endpoints (Swagger, Auth)
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -60,13 +61,23 @@ public class SecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**"
                         ).permitAll()
+
+                        // ✅ Cho phép mọi user đã đăng nhập truy cập /api/users/profile/**
+                        .requestMatchers("/api/users/profile/**").authenticated()
+
+                        // 🔒 Chỉ ADMIN & STAFF được quản lý người dùng chung
+                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
+
+                        // 📅 Cho phép public xem danh sách event và club
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
-                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF") // ✅ Added
+
+                        // 🧩 Phân quyền còn lại
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/club/**").hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
-                        .requestMatchers("/api/member/**").hasAnyRole("MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
-                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "MEMBER", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+                        .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+
+                        // ✅ Các API khác yêu cầu đăng nhập
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(o -> o
