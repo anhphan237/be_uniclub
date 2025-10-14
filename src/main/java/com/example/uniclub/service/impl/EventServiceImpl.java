@@ -11,6 +11,7 @@ import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
+import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
     private final ClubRepository clubRepo;
+    private final NotificationService notificationService;
 
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
@@ -57,19 +59,26 @@ public class EventServiceImpl implements EventService {
                 .checkInCode(randomCode)
                 .location(req.locationId() == null ? null :
                         Location.builder().locationId(req.locationId()).build())
-                // 👇 Nếu bạn muốn cho phép nhập maxCheckInCount
-                .maxCheckInCount(req.maxCheckInCount() != null ? req.maxCheckInCount() : null)
+                .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
                 .build();
 
-        return toResp(eventRepo.save(e));
+        eventRepo.save(e);
+
+        // 📨 Gửi thông báo đến staff để duyệt
+        var club = clubRepo.findById(req.clubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+        String staffEmail = "uniclub.contacts@gmail.com"; // hoặc query staff thực tế
+        notificationService.sendEventApprovalRequest(staffEmail, club.getName(), req.name());
+
+        return toResp(e);
     }
 
     @Override
     public EventResponse get(Long id) {
         return eventRepo.findById(id)
                 .map(this::toResp)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
     }
 
     @Override
@@ -82,14 +91,19 @@ public class EventServiceImpl implements EventService {
         var user = principal.getUser();
 
         if (!"UNIVERSITY_STAFF".equals(user.getRole().getRoleName())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ UNIVERSITY_STAFF mới được duyệt sự kiện.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only University Staff can approve events.");
         }
 
         Event event = eventRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         event.setStatus(status);
         eventRepo.save(event);
+
+        // 📨 Gửi thông báo kết quả duyệt cho leader
+        var leaderEmail = event.getClub().getLeader().getEmail();
+        boolean approved = status == EventStatusEnum.APPROVED;
+        notificationService.sendEventApprovalResult(leaderEmail, event.getName(), approved);
 
         return toResp(event);
     }
@@ -97,14 +111,14 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse findByCheckInCode(String code) {
         Event event = eventRepo.findByCheckInCode(code)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Mã check-in không hợp lệ"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Invalid check-in code"));
         return toResp(event);
     }
 
     @Override
     public void delete(Long id) {
         if (!eventRepo.existsById(id)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Event không tồn tại");
+            throw new ApiException(HttpStatus.NOT_FOUND, "Event not found");
         }
         eventRepo.deleteById(id);
     }
@@ -112,7 +126,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<EventResponse> getByClubId(Long clubId) {
         var club = clubRepo.findById(clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
         return eventRepo.findByClub_ClubId(clubId)
                 .stream()
@@ -120,20 +134,18 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
-    // 🟢 Hàm mới: xử lý check-in theo mã code
     public String checkIn(String code) {
         Event event = eventRepo.findByCheckInCode(code)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Mã check-in không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Check-in code not found"));
 
-        // kiểm tra giới hạn
         if (event.getMaxCheckInCount() != null &&
                 event.getCurrentCheckInCount() >= event.getMaxCheckInCount()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Sự kiện đã đủ số lượng người tham dự!");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event already full!");
         }
 
         event.setCurrentCheckInCount(event.getCurrentCheckInCount() + 1);
         eventRepo.save(event);
 
-        return "✅ Check-in thành công! (Tổng: " + event.getCurrentCheckInCount() + ")";
+        return "✅ Check-in successful! (" + event.getCurrentCheckInCount() + ")";
     }
 }
