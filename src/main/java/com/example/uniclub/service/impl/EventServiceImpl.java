@@ -5,13 +5,16 @@ import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.entity.Location;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.EventRepository;
+import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
 import com.example.uniclub.service.NotificationService;
+import com.example.uniclub.service.RewardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +30,9 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
     private final ClubRepository clubRepo;
+    private final UserRepository userRepo;
     private final NotificationService notificationService;
+    private final RewardService rewardService;
 
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
@@ -134,18 +139,36 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
-    public String checkIn(String code) {
+    // ✅ Khi student check-in event
+    public String checkIn(CustomUserDetails principal, String code) {
         Event event = eventRepo.findByCheckInCode(code)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Check-in code not found"));
 
+        // kiểm tra giới hạn người tham gia
         if (event.getMaxCheckInCount() != null &&
                 event.getCurrentCheckInCount() >= event.getMaxCheckInCount()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event already full!");
         }
 
+        // cập nhật số lượng check-in
         event.setCurrentCheckInCount(event.getCurrentCheckInCount() + 1);
         eventRepo.save(event);
 
-        return "✅ Check-in successful! (" + event.getCurrentCheckInCount() + ")";
+        // 🟢 Cộng điểm thưởng
+        User user = principal.getUser();
+        int rewardPoints = 10; // mỗi sự kiện +10 điểm
+        int totalPoints = user.getWallet().getBalancePoints() + rewardPoints;
+        user.getWallet().setBalancePoints(totalPoints);
+        userRepo.save(user);
+
+        // 📨 Gửi email thưởng điểm
+        rewardService.sendCheckInRewardEmail(user.getUserId(), event.getName(), rewardPoints, totalPoints);
+
+        // 🏆 Kiểm tra milestone
+        if (totalPoints == 100 || totalPoints == 200 || totalPoints == 500) {
+            rewardService.sendMilestoneEmail(user.getUserId(), totalPoints);
+        }
+
+        return "✅ Check-in successful! You’ve earned " + rewardPoints + " UniPoints. Total: " + totalPoints;
     }
 }
