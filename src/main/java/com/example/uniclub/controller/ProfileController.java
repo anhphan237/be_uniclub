@@ -15,10 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
-/**
- * ✅ Quản lý hồ sơ cá nhân (Profile Controller)
- * Cho phép người dùng đã đăng nhập xem, chỉnh sửa và cập nhật avatar
- */
+
 @RestController
 @RequestMapping("/api/users/profile")
 @RequiredArgsConstructor

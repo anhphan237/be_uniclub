@@ -13,6 +13,7 @@ import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MemberApplicationRepository;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.security.CustomUserDetails;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MemberApplicationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,8 +30,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     private final MemberApplicationRepository repo;
     private final ClubRepository clubRepo;
     private final UserRepository userRepo;
+    private final EmailService emailService; // ✅ Thêm email service
 
-    // ✅ Sinh viên nộp đơn
+    // ✅ Student applies
     @Override
     @Transactional
     public MemberApplicationResponse createByEmail(String email, MemberApplicationCreateRequest req) {
@@ -54,10 +56,22 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .build();
 
         repo.save(app);
+
+        // ✉️ Notify student after applying
+        emailService.sendEmail(
+                user.getEmail(),
+                "Your UniClub Application Has Been Received",
+                """
+                <p>Dear <b>%s</b>,</p>
+                <p>Thank you for applying to join <b>%s</b>! Your application has been received and is currently under review.</p>
+                <p>We’ll notify you once it’s been approved or declined.</p>
+                """.formatted(user.getFullName(), club.getName())
+        );
+
         return MemberApplicationMapper.toResponse(app);
     }
 
-    // ✅ Duyệt / từ chối đơn
+    // ✅ Approve / Reject
     @Override
     @Transactional
     public MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req) {
@@ -73,10 +87,37 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         app.setUpdatedAt(LocalDateTime.now());
 
         repo.save(app);
+
+        // ✅ Notify applicant about status update
+        String studentEmail = app.getUser().getEmail();
+        String clubName = app.getClub().getName();
+
+        if (req.getStatus().name().equals("APPROVED")) {
+            emailService.sendEmail(
+                    studentEmail,
+                    "Welcome to UniClub 🎉 Your Application Has Been Approved!",
+                    """
+                    <p>Dear <b>%s</b>,</p>
+                    <p>Congratulations! Your application to join <b>%s</b> has been <b style='color:green;'>approved</b>.</p>
+                    <p>We’re excited to have you as part of our community. Let’s start your UniClub journey!</p>
+                    """.formatted(app.getUser().getFullName(), clubName)
+            );
+        } else if (req.getStatus().name().equals("REJECTED")) {
+            emailService.sendEmail(
+                    studentEmail,
+                    "Update on Your UniClub Application",
+                    """
+                    <p>Dear <b>%s</b>,</p>
+                    <p>We appreciate your interest in <b>%s</b>, but unfortunately, your application has been <b style='color:red;'>declined</b> at this time.</p>
+                    <p>You’re always welcome to apply again in the future. Thank you for your enthusiasm!</p>
+                    """.formatted(app.getUser().getFullName(), clubName)
+            );
+        }
+
         return MemberApplicationMapper.toResponse(app);
     }
 
-    // ✅ Admin / Staff xem tất cả
+    // ✅ Admin / Staff view all
     @Override
     @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findAll() {
@@ -86,7 +127,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .toList();
     }
 
-    // ✅ Xem theo email (student → của mình, leader/staff → tất cả)
+    // ✅ View by email (student → self, leader/staff → all)
     @Override
     @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findApplicationsByEmail(String email) {
@@ -95,7 +136,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         String role = user.getRole().getRoleName();
 
-        if (role.equals("STUDENT") || role.equals("MEMBER")) {
+        if (role.equals("STUDENT")) {
             return repo.findByUser(user)
                     .stream()
                     .map(MemberApplicationMapper::toResponse)
@@ -108,7 +149,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .toList();
     }
 
-    // ✅ Xem danh sách đơn ứng tuyển theo CLB (Leader, Staff, Admin)
+    // ✅ View by club
     @Override
     @Transactional(readOnly = true)
     public List<MemberApplicationResponse> getByClubId(CustomUserDetails principal, Long clubId) {
@@ -119,7 +160,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         String role = user.getRole().getRoleName();
 
-        // ✅ Nếu là CLUB_LEADER → chỉ xem CLB của chính mình
         if (role.equals("CLUB_LEADER")) {
             var myClub = clubRepo.findByLeader_UserId(user.getUserId())
                     .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a leader of any club."));
@@ -129,7 +169,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
             }
         }
 
-        // ✅ Admin / Staff có thể xem mọi CLB
         return repo.findAllByClub_ClubId(clubId)
                 .stream()
                 .map(MemberApplicationMapper::toResponse)

@@ -24,26 +24,22 @@ public class EventController {
 
     private final EventService eventService;
 
-    // ✅ Tạo sự kiện — dành cho ADMIN hoặc CLUB_LEADER
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<EventResponse>> create(@Valid @RequestBody EventCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.create(req)));
     }
 
-    // ✅ Lấy 1 sự kiện
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<EventResponse>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.get(id)));
     }
 
-    // ✅ Danh sách sự kiện (phân trang)
     @GetMapping
     public ResponseEntity<?> list(Pageable pageable) {
         return ResponseEntity.ok(eventService.list(pageable));
     }
 
-    // ✅ Cập nhật trạng thái sự kiện (chỉ UNIVERSITY_STAFF)
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<EventResponse>> updateStatus(
@@ -55,14 +51,12 @@ public class EventController {
         ));
     }
 
-    // ✅ Check-in bằng mã code (quét QR)
     @PostMapping("/check-in")
     public ResponseEntity<ApiResponse<String>> checkIn(@RequestParam String code) {
         String message = ((EventServiceImpl) eventService).checkIn(code);
         return ResponseEntity.ok(ApiResponse.msg(message));
     }
 
-    // ✅ Xóa sự kiện — dành cho ADMIN hoặc CLUB_LEADER
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
@@ -70,11 +64,9 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.msg("Deleted"));
     }
 
-    // ✅ Lấy danh sách Event theo CLB
     @GetMapping("/club/{clubId}")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_STAFF','MEMBER','STUDENT')")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<List<EventResponse>> getByClubId(@PathVariable Long clubId) {
-        List<EventResponse> res = eventService.getByClubId(clubId);
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(eventService.getByClubId(clubId));
     }
 }

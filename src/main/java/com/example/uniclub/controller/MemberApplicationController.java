@@ -22,50 +22,38 @@ public class MemberApplicationController {
 
     private final MemberApplicationService service;
 
-    // ✅ Sinh viên nộp đơn
     @PostMapping
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<MemberApplicationResponse> create(
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody MemberApplicationCreateRequest req) {
-
         String email = principal.getUsername();
-        MemberApplicationResponse res = service.createByEmail(email, req);
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(service.createByEmail(email, req));
     }
 
-    // ✅ Duyệt / từ chối đơn
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<MemberApplicationResponse> updateStatus(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody MemberApplicationStatusUpdateRequest req) {
-
         String email = principal.getUsername();
-        MemberApplicationResponse res = service.updateStatusByEmail(email, id, req);
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(service.updateStatusByEmail(email, id, req));
     }
 
-    // ✅ Xem danh sách đơn ứng tuyển (theo role)
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT','MEMBER')")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<List<MemberApplicationResponse>> getApplications(
             @AuthenticationPrincipal UserDetails principal) {
-
         String email = principal.getUsername();
-        List<MemberApplicationResponse> res = service.findApplicationsByEmail(email);
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(service.findApplicationsByEmail(email));
     }
 
-    // ✅ Xem danh sách đơn ứng tuyển theo ClubId (Leader, Staff, Admin)
     @GetMapping("/club/{clubId}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<List<MemberApplicationResponse>> getByClubId(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long clubId) {
-
-        List<MemberApplicationResponse> res = service.getByClubId(principal, clubId);
-        return ResponseEntity.ok(res);
+        return ResponseEntity.ok(service.getByClubId(principal, clubId));
     }
 }
