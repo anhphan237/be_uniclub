@@ -50,7 +50,7 @@ public class User {
     @Column(name = "bio", length = 500)
     private String bio;
 
-    // 🧩 Liên kết đến membership (student có thể tham nhiều CLB)
+    // Liên kết đến membership (student có thể tham nhiều CLB)
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Membership> memberships = new ArrayList<>();
 }
