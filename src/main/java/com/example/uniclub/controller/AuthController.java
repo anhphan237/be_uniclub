@@ -35,7 +35,6 @@ public class AuthController {
     // ==========================
     // 🔹 Login/Register truyền thống
     // ==========================
-
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
         return ResponseEntity.ok(authServiceImpl.login(req));
@@ -47,7 +46,7 @@ public class AuthController {
     }
 
     // ==========================
-    // 🔹 Login bằng Google OAuth (Cách 2)
+    // 🔹 Login bằng Google OAuth
     // ==========================
     @PostMapping("/google")
     public ResponseEntity<?> loginWithGoogle(@RequestBody Map<String, String> body) {
@@ -98,5 +97,23 @@ public class AuthController {
                 "fullName", user.getFullName(),
                 "avatar", picture
         )));
+    }
+
+    // ==========================
+    // 🔹 Forgot Password & Reset Password
+    // ==========================
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody Map<String, String> req) {
+        String email = req.get("email");
+        authServiceImpl.sendResetPasswordEmail(email);
+        return ResponseEntity.ok(ApiResponse.msg("Reset password link has been sent to your email."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<String>> resetPassword(@RequestBody Map<String, String> req) {
+        String token = req.get("token");
+        String newPassword = req.get("password");
+        authServiceImpl.resetPassword(token, newPassword);
+        return ResponseEntity.ok(ApiResponse.msg("Your password has been successfully reset."));
     }
 }
