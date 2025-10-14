@@ -52,10 +52,15 @@ public class EventController {
     }
 
     @PostMapping("/check-in")
-    public ResponseEntity<ApiResponse<String>> checkIn(@RequestParam String code) {
-        String message = ((EventServiceImpl) eventService).checkIn(code);
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<String>> checkIn(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String code) {
+
+        String message = ((EventServiceImpl) eventService).checkIn(principal, code);
         return ResponseEntity.ok(ApiResponse.msg(message));
     }
+
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
