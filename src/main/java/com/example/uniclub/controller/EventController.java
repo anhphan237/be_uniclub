@@ -61,7 +61,6 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.msg(message));
     }
 
-
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
@@ -74,4 +73,10 @@ public class EventController {
     public ResponseEntity<List<EventResponse>> getByClubId(@PathVariable Long clubId) {
         return ResponseEntity.ok(eventService.getByClubId(clubId));
     }
+    @GetMapping("/code/{code}")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
+    public ResponseEntity<ApiResponse<EventResponse>> getByCheckInCode(@PathVariable String code) {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.findByCheckInCode(code)));
+    }
+
 }
