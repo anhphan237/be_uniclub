@@ -1,15 +1,16 @@
 package com.example.uniclub.controller;
 
+import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.ClubApplicationResponse;
-import com.example.uniclub.entity.ClubApplication;
-import com.example.uniclub.enums.ApplicationStatusEnum;
-import com.example.uniclub.mapper.ClubApplicationMapper;
-import com.example.uniclub.security.JwtUtil;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubApplicationService;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
@@ -18,54 +19,45 @@ import java.util.List;
 public class ClubApplicationController {
 
     private final ClubApplicationService clubApplicationService;
-    private final JwtUtil jwtUtil;
 
+    // 🟢 Sinh viên nộp đơn online
+    @PreAuthorize("hasRole('STUDENT')")
     @PostMapping
-    public ClubApplicationResponse createApplication(HttpServletRequest request,
-                                                     @RequestParam String clubName,
-                                                     @RequestParam(required = false) String description) {
-        // Lấy token từ header
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.replace("Bearer ", "");
-
-        String email = jwtUtil.getSubject(token);
-
-        ClubApplication clubApplication =
-                clubApplicationService.createApplication(email, clubName, description);
-
-        return ClubApplicationMapper.INSTANCE.toResponse(clubApplication);
+    public ResponseEntity<ApiResponse<ClubApplicationResponse>> createOnline(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @Valid @RequestBody ClubApplicationCreateRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubApplicationService.createOnline(user.getUserId(), req)
+        ));
     }
 
-    // Xem tất cả đơn
-    @GetMapping
-    public List<ClubApplicationResponse> getAllApplications() {
-        return clubApplicationService.getAllApplications()
-                .stream()
-                .map(ClubApplicationMapper.INSTANCE::toResponse)
-                .toList();
+    // 🟦 Staff nhập đơn offline đã được duyệt
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PostMapping("/offline")
+    public ResponseEntity<ApiResponse<ClubApplicationResponse>> createOffline(
+            @AuthenticationPrincipal CustomUserDetails staff,
+            @Valid @RequestBody ClubApplicationOfflineRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubApplicationService.createOffline(staff.getUserId(), req)
+        ));
     }
 
-    // Xem đơn theo status (SUBMITTED/APPROVED/REJECTED)
-    @GetMapping("/status/{status}")
-    public List<ClubApplicationResponse> getApplicationsByStatus(@PathVariable ApplicationStatusEnum status) {
-        return clubApplicationService.getApplicationsByStatus(status)
-                .stream()
-                .map(ClubApplicationMapper.INSTANCE::toResponse)
-                .toList();
+    // 🟡 Staff lấy danh sách đơn chờ duyệt
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @GetMapping("/pending")
+    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getPending() {
+        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getPending()));
     }
 
-    // Cập nhật trạng thái đơn (APPROVED / REJECTED)
-    @PutMapping("/{id}/status")
-    public ClubApplicationResponse updateApplicationStatus(@PathVariable Long id,
-                                                           @RequestParam ApplicationStatusEnum status,
-                                                           HttpServletRequest request) {
-        // Lấy token từ header
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.replace("Bearer ", "");
-        String reviewerEmail = jwtUtil.getSubject(token);
-
-        ClubApplication updatedApp = clubApplicationService.updateStatus(id, status, reviewerEmail);
-        return ClubApplicationMapper.INSTANCE.toResponse(updatedApp);
+    // 🔵 Staff duyệt / từ chối đơn online
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PutMapping("/{id}/decide")
+    public ResponseEntity<ApiResponse<ClubApplicationResponse>> decide(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails staff,
+            @Valid @RequestBody ClubApplicationDecisionRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubApplicationService.decide(id, staff.getUserId(), req)
+        ));
     }
 }
-

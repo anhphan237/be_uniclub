@@ -1,7 +1,9 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.ClubCreateRequest;
+import com.example.uniclub.dto.request.ClubApplicationOfflineRequest;
 import com.example.uniclub.dto.response.ClubResponse;
+import com.example.uniclub.entity.ClubApplication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -10,4 +12,8 @@ public interface ClubService {
     ClubResponse get(Long id);
     Page<ClubResponse> list(Pageable pageable);
     void delete(Long id);
+
+    // 🆕 Dành cho ClubApplication
+    void createFromOnlineApplication(ClubApplication app);
+    void createFromOfflineApplication(ClubApplication app, ClubApplicationOfflineRequest req);
 }

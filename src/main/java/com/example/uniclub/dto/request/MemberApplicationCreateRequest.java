@@ -1,8 +1,13 @@
 package com.example.uniclub.dto.request;
 
-import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 
-public record MemberApplicationCreateRequest(
-        @NotNull Long clubId,
-        String reason
-) {}
+/**
+ * Used when a student submits a new membership application.
+ */
+@Data
+public class MemberApplicationCreateRequest {
+    private Long clubId;
+    private String motivation;
+    private String attachmentUrl;
+}

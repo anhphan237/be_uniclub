@@ -7,21 +7,25 @@ import com.example.uniclub.entity.User;
 public class MemberApplicationMapper {
 
     public static MemberApplicationResponse toResponse(MemberApplication app) {
-        User user = app.getUser();
+        User user = app.getApplicant();
 
         return MemberApplicationResponse.builder()
                 .applicationId(app.getApplicationId())
-                .userId(user.getUserId())
-                .userName(user.getFullName())
                 .clubId(app.getClub().getClubId())
                 .clubName(app.getClub().getName())
-                .status(app.getStatus())
-                .reason(app.getReason())
-                .reviewedBy(app.getReviewedBy() != null ? app.getReviewedBy().getFullName() : null)
-                .submittedAt(app.getSubmittedAt())
+                .applicantId(user.getUserId())
+                .applicantName(user.getFullName())
+                .applicantEmail(user.getEmail())
+                .status(app.getStatus().name()) // Enum to String
+                .motivation(app.getMotivation())
+                .attachmentUrl(app.getAttachmentUrl())
+                .note(app.getNote())
+                .handledById(app.getHandledBy() != null ? app.getHandledBy().getUserId() : null)
+                .handledByName(app.getHandledBy() != null ? app.getHandledBy().getFullName() : null)
+                .createdAt(app.getCreatedAt())
                 .updatedAt(app.getUpdatedAt())
 
-                // ✅ Map thêm thông tin profile
+                // ✅ thêm thông tin user
                 .studentCode(user.getStudentCode())
                 .majorName(user.getMajorName())
                 .bio(user.getBio())

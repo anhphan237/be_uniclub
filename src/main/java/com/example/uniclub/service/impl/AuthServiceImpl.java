@@ -56,10 +56,18 @@ public class AuthServiceImpl {
         Boolean isClubStaff = null;
 
         if ("CLUB_LEADER".equals(roleName)) {
-            clubId = clubRepository.findByLeader_UserId(user.getUserId())
-                    .map(Club::getClubId)
+            var leaderMembership = membershipRepository.findByUser_UserId(user.getUserId())
+                    .stream()
+                    .filter(Membership::isStaff) // ✅ Dựa vào staff=true
+                    .findFirst()
                     .orElse(null);
-        } else if ("STUDENT".equals(roleName)) {
+
+            if (leaderMembership != null) {
+                clubId = leaderMembership.getClub().getClubId();
+            }
+        }
+
+        else if ("STUDENT".equals(roleName)) {
             var memberships = membershipRepository.findByUser_UserId(user.getUserId());
             clubIds = memberships.stream()
                     .map(m -> m.getClub().getClubId())

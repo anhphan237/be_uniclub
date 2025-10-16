@@ -1,16 +1,9 @@
 package com.example.uniclub.dto.request;
 
-import com.example.uniclub.enums.MemberApplyStatusEnum;
-import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Getter
-@Setter
+@Data
 public class MemberApplicationStatusUpdateRequest {
-
-    @NotNull(message = "Status cannot be null")
-    private MemberApplyStatusEnum status;
-
-    private String reason; // optional: lý do duyệt hoặc từ chối
+    private String status;   // e.g. "APPROVED", "REJECTED"
+    private String note;
 }

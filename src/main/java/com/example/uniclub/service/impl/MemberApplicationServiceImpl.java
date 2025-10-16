@@ -3,175 +3,186 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.MemberApplicationCreateRequest;
 import com.example.uniclub.dto.request.MemberApplicationStatusUpdateRequest;
 import com.example.uniclub.dto.response.MemberApplicationResponse;
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.MemberApplication;
-import com.example.uniclub.entity.User;
-import com.example.uniclub.enums.MemberApplyStatusEnum;
+import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.mapper.MemberApplicationMapper;
-import com.example.uniclub.repository.ClubRepository;
-import com.example.uniclub.repository.MemberApplicationRepository;
-import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
-import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MemberApplicationService;
+import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class MemberApplicationServiceImpl implements MemberApplicationService {
 
-    private final MemberApplicationRepository repo;
-    private final ClubRepository clubRepo;
+    private final MemberApplicationRepository appRepo;
     private final UserRepository userRepo;
-    private final EmailService emailService; // ✅ Thêm email service
+    private final ClubRepository clubRepo;
+    private final MembershipRepository membershipRepo;
+    private final NotificationService notificationService;
 
-    // ✅ Student applies
+    // ✅ Student submits application
     @Override
     @Transactional
     public MemberApplicationResponse createByEmail(String email, MemberApplicationCreateRequest req) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-
-        Club club = clubRepo.findById(req.clubId())
+        Club club = clubRepo.findById(req.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        if (repo.existsByUser_UserIdAndClub_ClubIdAndActiveFlagTrue(user.getUserId(), club.getClubId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You already have an active application for this club");
+        if (membershipRepo.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You are already a member of this club");
         }
 
+        boolean duplicate = appRepo.findAll().stream()
+                .anyMatch(a -> a.getApplicant().getUserId().equals(user.getUserId())
+                        && a.getClub().getClubId().equals(req.getClubId())
+                        && a.getStatus() == MemberApplicationStatusEnum.PENDING);
+        if (duplicate)
+            throw new ApiException(HttpStatus.CONFLICT, "You already have a pending application for this club");
+
         MemberApplication app = MemberApplication.builder()
-                .user(user)
                 .club(club)
-                .reason(req.reason())
-                .status(MemberApplyStatusEnum.PENDING)
-                .activeFlag(true)
-                .submittedAt(LocalDateTime.now())
+                .applicant(user)
+                .motivation(req.getMotivation())
+                .attachmentUrl(req.getAttachmentUrl())
+                .status(MemberApplicationStatusEnum.PENDING)
+                .createdAt(LocalDateTime.now())
                 .build();
 
-        repo.save(app);
-
-        // ✉️ Notify student after applying
-        emailService.sendEmail(
-                user.getEmail(),
-                "Your UniClub Application Has Been Received",
-                """
-                <p>Dear <b>%s</b>,</p>
-                <p>Thank you for applying to join <b>%s</b>! Your application has been received and is currently under review.</p>
-                <p>We’ll notify you once it’s been approved or declined.</p>
-                """.formatted(user.getFullName(), club.getName())
-        );
-
-        return MemberApplicationMapper.toResponse(app);
+        MemberApplication saved = appRepo.save(app);
+        notificationService.sendApplicationSubmitted(user.getEmail(), club.getName());
+        return mapToResponse(saved);
     }
 
-    // ✅ Approve / Reject
+    // ✅ Leader / Admin update status
     @Override
     @Transactional
     public MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req) {
-        User reviewer = userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Reviewer not found"));
+        User actor = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        MemberApplication app = repo.findById(applicationId)
+        MemberApplication app = appRepo.findById(applicationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
 
-        app.setStatus(req.getStatus());
-        app.setReviewedBy(reviewer);
-        app.setReason(req.getReason());
-        app.setUpdatedAt(LocalDateTime.now());
-
-        repo.save(app);
-
-        // ✅ Notify applicant about status update
-        String studentEmail = app.getUser().getEmail();
-        String clubName = app.getClub().getName();
-
-        if (req.getStatus().name().equals("APPROVED")) {
-            emailService.sendEmail(
-                    studentEmail,
-                    "Welcome to UniClub 🎉 Your Application Has Been Approved!",
-                    """
-                    <p>Dear <b>%s</b>,</p>
-                    <p>Congratulations! Your application to join <b>%s</b> has been <b style='color:green;'>approved</b>.</p>
-                    <p>We’re excited to have you as part of our community. Let’s start your UniClub journey!</p>
-                    """.formatted(app.getUser().getFullName(), clubName)
-            );
-        } else if (req.getStatus().name().equals("REJECTED")) {
-            emailService.sendEmail(
-                    studentEmail,
-                    "Update on Your UniClub Application",
-                    """
-                    <p>Dear <b>%s</b>,</p>
-                    <p>We appreciate your interest in <b>%s</b>, but unfortunately, your application has been <b style='color:red;'>declined</b> at this time.</p>
-                    <p>You’re always welcome to apply again in the future. Thank you for your enthusiasm!</p>
-                    """.formatted(app.getUser().getFullName(), clubName)
-            );
+        // permission check (leader or staff)
+        if (!isClubLeaderOrVice(actor.getUserId(), app.getClub().getClubId()) && !hasAdminRole(actor)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
-        return MemberApplicationMapper.toResponse(app);
+        MemberApplicationStatusEnum newStatus = MemberApplicationStatusEnum.valueOf(req.getStatus().toUpperCase());
+        app.setStatus(newStatus);
+        app.setNote(req.getNote());
+        app.setUpdatedAt(LocalDateTime.now());
+        app.setHandledBy(actor);
+
+        if (newStatus == MemberApplicationStatusEnum.APPROVED) {
+            if (membershipRepo.existsByUser_UserIdAndClub_ClubId(
+                    app.getApplicant().getUserId(), app.getClub().getClubId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "User is already a member");
+            }
+            Membership m = Membership.builder()
+                    .user(app.getApplicant())
+                    .club(app.getClub())
+                    .clubRole(ClubRoleEnum.MEMBER)
+                    .state(MembershipStateEnum.ACTIVE)
+                    .joinedDate(LocalDate.now())
+                    .staff(false)
+                    .build();
+            membershipRepo.save(m);
+            notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), true);
+        }
+
+        if (newStatus == MemberApplicationStatusEnum.REJECTED) {
+            notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), false);
+        }
+
+        MemberApplication saved = appRepo.save(app);
+        return mapToResponse(saved);
     }
 
     // ✅ Admin / Staff view all
     @Override
-    @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findAll() {
-        return repo.findAll()
-                .stream()
-                .map(MemberApplicationMapper::toResponse)
-                .toList();
+        return appRepo.findAll().stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
-    // ✅ View by email (student → self, leader/staff → all)
+    // ✅ Student / Leader view by email
     @Override
-    @Transactional(readOnly = true)
     public List<MemberApplicationResponse> findApplicationsByEmail(String email) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String role = user.getRole().getRoleName();
+        boolean isLeader = membershipRepo.findByUser_UserId(user.getUserId()).stream()
+                .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER);
 
-        if (role.equals("STUDENT")) {
-            return repo.findByUser(user)
-                    .stream()
-                    .map(MemberApplicationMapper::toResponse)
-                    .toList();
+        if (isLeader || hasAdminRole(user)) {
+            return appRepo.findAll().stream()
+                    .filter(a -> a.getClub() != null)
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
+        } else {
+            return appRepo.findAll().stream()
+                    .filter(a -> Objects.equals(a.getApplicant().getUserId(), user.getUserId()))
+                    .map(this::mapToResponse)
+                    .collect(Collectors.toList());
         }
-
-        return repo.findAll()
-                .stream()
-                .map(MemberApplicationMapper::toResponse)
-                .toList();
     }
 
-    // ✅ View by club
+    // ✅ Get by clubId (leader / staff)
     @Override
-    @Transactional(readOnly = true)
     public List<MemberApplicationResponse> getByClubId(CustomUserDetails principal, Long clubId) {
-        var user = principal.getUser();
-
-        var club = clubRepo.findById(clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-
-        String role = user.getRole().getRoleName();
-
-        if (role.equals("CLUB_LEADER")) {
-            var myClub = clubRepo.findByLeader_UserId(user.getUserId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a leader of any club."));
-
-            if (!myClub.getClubId().equals(clubId)) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "You can only view applications of your own club.");
-            }
+        Long userId = principal.getId();
+        if (!isClubLeaderOrVice(userId, clubId) && !hasAdminRole(principal.getUser())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
-        return repo.findAllByClub_ClubId(clubId)
-                .stream()
-                .map(MemberApplicationMapper::toResponse)
-                .toList();
+        return appRepo.findAll().stream()
+                .filter(a -> a.getClub().getClubId().equals(clubId))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // 🔧 Helper mapping
+    private MemberApplicationResponse mapToResponse(MemberApplication app) {
+        return MemberApplicationResponse.builder()
+                .applicationId(app.getApplicationId())
+                .clubId(app.getClub().getClubId())
+                .clubName(app.getClub().getName())
+                .applicantId(app.getApplicant().getUserId())
+                .applicantName(app.getApplicant().getFullName())
+                .applicantEmail(app.getApplicant().getEmail())
+                .status(app.getStatus().name())
+                .motivation(app.getMotivation())
+                .attachmentUrl(app.getAttachmentUrl())
+                .note(app.getNote())
+                .handledById(app.getHandledBy() != null ? app.getHandledBy().getUserId() : null)
+                .handledByName(app.getHandledBy() != null ? app.getHandledBy().getFullName() : null)
+                .createdAt(app.getCreatedAt())
+                .updatedAt(app.getUpdatedAt())
+                .build();
+    }
+
+    private boolean isClubLeaderOrVice(Long userId, Long clubId) {
+        return membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId)
+                .map(m -> m.getClubRole() == ClubRoleEnum.LEADER ||
+                        m.getClubRole() == ClubRoleEnum.VICE_LEADER)
+                .orElse(false);
+    }
+
+    private boolean hasAdminRole(User user) {
+        if (user == null || user.getRole() == null) return false;
+        String role = user.getRole().getRoleName();
+        return role.equals("ADMIN") || role.equals("UNIVERSITY_STAFF");
     }
 }

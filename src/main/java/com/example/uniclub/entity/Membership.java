@@ -1,21 +1,20 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.ClubRoleEnum;
+import com.example.uniclub.enums.MembershipStateEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
-
+@Builder(toBuilder = true)
 @Entity
 @Table(name = "memberships",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id","club_id"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "club_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class Membership {
 
     @Id
@@ -24,18 +23,27 @@ public class Membership {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id")
-    @JsonIgnore
     private User user;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "club_id")
     private Club club;
 
-    private String level;  // e.g., BASIC, SILVER, GOLD
-    private String state;  // active, inactive, suspended
+    // ✅ Vai trò hành chính trong CLB
+    @Enumerated(EnumType.STRING)
+    @Column(name = "club_role", nullable = false, length = 30)
+    private ClubRoleEnum clubRole = ClubRoleEnum.MEMBER;
 
-    private boolean staff = false; // ✅ true = staff hỗ trợ CLB, false = member thường
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private MembershipStateEnum state = MembershipStateEnum.PENDING;
+
+    @Column(nullable = false)
+    private boolean staff = false;
 
     @Column(name = "joined_date")
     private LocalDate joinedDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 }

@@ -9,5 +9,5 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     boolean existsByName(String name);
 
     // ✅ Tìm club theo userId của leader
-    Optional<Club> findByLeader_UserId(Long leaderId);
+    Optional<Club> findByClubId(Long id);
 }
