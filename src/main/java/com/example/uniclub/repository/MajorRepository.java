@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MajorRepository extends JpaRepository<Major, Long> {
-    boolean existsByName(String name);
+    boolean existsByName(String name); // ✅ thêm dòng này
 }

@@ -1,8 +1,8 @@
 package com.example.uniclub.dto.response;
 
-import lombok.Builder;
-import lombok.Data;
-
+import com.example.uniclub.enums.ClubApplicationStatusEnum;
+import com.example.uniclub.enums.ApplicationSourceTypeEnum;
+import lombok.*;
 import java.time.LocalDateTime;
 
 @Data
@@ -11,11 +11,15 @@ public class ClubApplicationResponse {
     private Long applicationId;
     private String clubName;
     private String description;
+    private String category;
 
-    private SimpleUser submittedBy;
-    private SimpleUser reviewedBy;
+    private SimpleUser submittedBy; // Người nộp đơn (student)
+    private SimpleUser reviewedBy;  // Người duyệt (staff)
 
-    private String status;
+    private ClubApplicationStatusEnum status;
+    private ApplicationSourceTypeEnum sourceType;
+    private String rejectReason;
+
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
 

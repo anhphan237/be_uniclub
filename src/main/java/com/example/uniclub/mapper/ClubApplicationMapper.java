@@ -12,11 +12,13 @@ public interface ClubApplicationMapper {
 
     ClubApplicationMapper INSTANCE = org.mapstruct.factory.Mappers.getMapper(ClubApplicationMapper.class);
 
-    @Mapping(source = "submittedBy", target = "submittedBy", qualifiedByName = "userToSimpleUser")
+    // Map entity -> DTO, chú ý đổi proposer -> submittedBy
+    @Mapping(source = "proposer", target = "submittedBy", qualifiedByName = "userToSimpleUser")
     @Mapping(source = "reviewedBy", target = "reviewedBy", qualifiedByName = "userToSimpleUser")
     @Mapping(source = "status", target = "status")
     ClubApplicationResponse toResponse(ClubApplication app);
 
+    // Chuyển User entity sang SimpleUser DTO
     @Named("userToSimpleUser")
     default ClubApplicationResponse.SimpleUser userToSimpleUser(User user) {
         if (user == null) return null;
@@ -26,5 +28,3 @@ public interface ClubApplicationMapper {
                 .build();
     }
 }
-
-

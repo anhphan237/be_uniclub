@@ -1,55 +1,55 @@
 package com.example.uniclub.entity;
 
-import com.example.uniclub.enums.MemberApplyStatusEnum;
+import com.example.uniclub.enums.MemberApplicationStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "member_applications",
-        uniqueConstraints = @UniqueConstraint(name = "uk_member_app_unique_active",
-                columnNames = {"user_id", "club_id", "active_flag"}))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+        indexes = {
+                @Index(columnList = "status"),
+                @Index(columnList = "createdAt")
+        })
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class MemberApplication {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long applicationId;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User user;
-
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @ManyToOne(optional = false)
     @JoinColumn(name = "club_id")
     private Club club;
 
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "applicant_id")
+    private User applicant;
+
+    @ManyToOne
+    @JoinColumn(name = "handled_by")
+    private User handledBy;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private MemberApplyStatusEnum status = MemberApplyStatusEnum.PENDING;
+    private MemberApplicationStatusEnum status = MemberApplicationStatusEnum.PENDING;
 
-    @Column(columnDefinition = "text")
-    private String reason;
+    @Column(length = 1000)
+    private String motivation;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reviewed_by")
-    private User reviewedBy;
+    @Column(length = 500)
+    private String attachmentUrl;
 
-    @Column(name = "active_flag", nullable = false)
-    private Boolean activeFlag = true;
+    @Column(length = 1000)
+    private String note;
 
-    private LocalDateTime submittedAt;
+    @Column(nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    void prePersist() {
-        submittedAt = LocalDateTime.now();
-        updatedAt = submittedAt;
-        if (status == null) status = MemberApplyStatusEnum.PENDING;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }

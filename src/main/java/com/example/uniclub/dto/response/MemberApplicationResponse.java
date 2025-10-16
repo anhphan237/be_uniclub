@@ -1,27 +1,26 @@
 package com.example.uniclub.dto.response;
 
-import com.example.uniclub.enums.MemberApplyStatusEnum;
-import lombok.*;
+import lombok.Builder;
+import lombok.Data;
 import java.time.LocalDateTime;
 
-@Getter
-@Setter
+@Data
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
 public class MemberApplicationResponse {
     private Long applicationId;
-    private Long userId;
-    private String userName;
     private Long clubId;
     private String clubName;
-    private MemberApplyStatusEnum status;
-    private String reason;
-    private String reviewedBy;
-    private LocalDateTime submittedAt;
+    private Long applicantId;
+    private String applicantName;
+    private String applicantEmail;
+    private String status;
+    private String motivation;
+    private String attachmentUrl;
+    private String note;
+    private Long handledById;
+    private String handledByName;
+    private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
-    // ✅ Thêm thông tin profile người dùng
     private String studentCode;
     private String majorName;
     private String bio;

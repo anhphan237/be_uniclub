@@ -1,14 +1,13 @@
 package com.example.uniclub.entity;
 
-import com.example.uniclub.enums.ApplicationStatusEnum;
+import com.example.uniclub.enums.ClubApplicationStatusEnum;
+import com.example.uniclub.enums.ApplicationSourceTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "club_applications",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"club_name", "status"}))
+@Table(name = "club_applications")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,24 +19,31 @@ public class ClubApplication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long applicationId;
 
-    @Column(nullable = false)
-    private String clubName;  // tên CLB xin mở
+    @ManyToOne
+    @JoinColumn(name = "proposer_id")
+    private User proposer; // Người nộp đơn (chỉ có khi ONLINE)
 
-    private String description; // mô tả CLB
+    @Column(nullable = false, unique = true)
+    private String clubName;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "submitted_by")
-    private User submittedBy;  // người nộp đơn (Club Manager)
+    private String description;
+    private String category;
+    private String proposerReason;
 
     @Enumerated(EnumType.STRING)
-    private ApplicationStatusEnum status;
+    @Column(nullable = false)
+    private ClubApplicationStatusEnum status = ClubApplicationStatusEnum.PENDING;
 
-    private LocalDateTime submittedAt = LocalDateTime.now();
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ApplicationSourceTypeEnum sourceType = ApplicationSourceTypeEnum.ONLINE;
+
+    private String rejectReason;
 
     @ManyToOne
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 
+    private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime reviewedAt;
 }
-

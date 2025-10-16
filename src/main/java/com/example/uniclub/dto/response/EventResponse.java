@@ -21,5 +21,6 @@ public class EventResponse {
     private EventStatusEnum status;
     private Long locationId;
     private String checkInCode;
-
+    private Integer maxCheckInCount;
+    private Integer currentCheckInCount;
 }

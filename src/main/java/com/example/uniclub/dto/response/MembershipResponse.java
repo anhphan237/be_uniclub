@@ -1,24 +1,27 @@
 package com.example.uniclub.dto.response;
 
-import lombok.*;
+import com.example.uniclub.enums.ClubRoleEnum;
+import com.example.uniclub.enums.MembershipStateEnum;
+import lombok.Builder;
+import lombok.Data;
 
 import java.time.LocalDate;
 
-
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Data
 @Builder
 public class MembershipResponse {
+    private Long membershipId;
+    private Long userId;
+    private Long clubId;
 
-    private Long membershipId; // ✅ cần có để builder hiểu
-    private Long userId;       // id của thành viên
-    private Long clubId;       // id CLB
-    private String level;      // BASIC, SILVER, GOLD
-    private String state;      // trạng thái tham gia
-    private boolean staff;     // true nếu là staff CLB
+    private ClubRoleEnum clubRole;
+    private MembershipStateEnum state;
+
+    private boolean staff;
     private LocalDate joinedDate;
+    private LocalDate endDate;
+
     private String fullName;
     private String studentCode;
+    private String clubName;
 }
