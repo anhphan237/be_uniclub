@@ -16,7 +16,17 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> ok(T data) {
         return ApiResponse.<T>builder()
                 .success(true)
+                .message("success")
                 .data(data)
+                .build();
+    }
+
+    // ✅ Trả response thành công KHÔNG có data
+    public static <T> ApiResponse<T> ok() {
+        return ApiResponse.<T>builder()
+                .success(true)
+                .message("success")
+                .data(null)
                 .build();
     }
 

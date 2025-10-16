@@ -32,10 +32,12 @@ public class CustomUserDetails implements UserDetails {
                 .build();
     }
 
+    // ✅ Lấy ID người dùng
     public Long getId() {
         return userId;
     }
 
+    // ✅ Trả lại entity User rút gọn
     public User getUser() {
         User u = new User();
         u.setUserId(this.userId);
@@ -44,6 +46,22 @@ public class CustomUserDetails implements UserDetails {
         return u;
     }
 
+    // ✅ Lấy tên Role (VD: "ADMIN", "STUDENT", "CLUB_LEADER")
+    public String getRoleName() {
+        if (this.role != null && this.role.getRoleName() != null) {
+            // Ưu tiên lấy từ entity Role nếu có
+            return this.role.getRoleName().replace("ROLE_", "");
+        }
+
+        // Nếu chưa có Role entity, fallback từ authorities
+        if (this.authorities != null && !this.authorities.isEmpty()) {
+            String fullRole = this.authorities.iterator().next().getAuthority();
+            return fullRole.startsWith("ROLE_") ? fullRole.substring(5) : fullRole;
+        }
+        return null;
+    }
+
+    // ✅ Chuẩn hóa authorities (đảm bảo prefix ROLE_)
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities.stream()
@@ -55,7 +73,7 @@ public class CustomUserDetails implements UserDetails {
                 .collect(Collectors.toList());
     }
 
-
+    // === Spring Security Required Methods ===
     @Override public String getPassword() { return password; }
     @Override public String getUsername() { return email; }
     @Override public boolean isAccountNonExpired() { return true; }

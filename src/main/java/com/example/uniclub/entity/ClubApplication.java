@@ -1,7 +1,6 @@
 package com.example.uniclub.entity;
 
-import com.example.uniclub.enums.ClubApplicationStatusEnum;
-import com.example.uniclub.enums.ApplicationSourceTypeEnum;
+import com.example.uniclub.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -19,31 +18,33 @@ public class ClubApplication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long applicationId;
 
-    @ManyToOne
-    @JoinColumn(name = "proposer_id")
-    private User proposer; // Người nộp đơn (chỉ có khi ONLINE)
-
-    @Column(nullable = false, unique = true)
     private String clubName;
-
     private String description;
     private String category;
     private String proposerReason;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ClubApplicationStatusEnum status = ClubApplicationStatusEnum.PENDING;
+    private ApplicationSourceTypeEnum sourceType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ApplicationSourceTypeEnum sourceType = ApplicationSourceTypeEnum.ONLINE;
+    private ClubApplicationStatusEnum status;
 
-    private String rejectReason;
+    @ManyToOne
+    @JoinColumn(name = "proposer_id")
+    private User proposer;
 
     @ManyToOne
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private String rejectReason;
+    private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
+
+    // ✅ THÊM MỚI
+    @Column(length = 500)
+    private String internalNote;   // Ghi chú nội bộ cho staff
+
+    @Column(length = 500)
+    private String attachmentUrl;  // Link file minh chứng (logo, giấy phép,...)
 }
