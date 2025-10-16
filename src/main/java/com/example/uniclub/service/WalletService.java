@@ -4,4 +4,7 @@ import com.example.uniclub.entity.Wallet;
 
 public interface WalletService {
     Wallet getWalletByUserId(Long userId);
+    Wallet getWalletById(Long walletId);
+    void increase(Wallet wallet, int points);
+    void decrease(Wallet wallet, int points);
 }
