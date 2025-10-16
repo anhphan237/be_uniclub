@@ -3,6 +3,7 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.MemberApplicationCreateRequest;
 import com.example.uniclub.dto.request.MemberApplicationStatusUpdateRequest;
 import com.example.uniclub.dto.response.MemberApplicationResponse;
+import com.example.uniclub.dto.response.MemberApplicationStatsResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -185,4 +186,243 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         String role = user.getRole().getRoleName();
         return role.equals("ADMIN") || role.equals("UNIVERSITY_STAFF");
     }
+    // ========================== PHẦN MỞ RỘNG ==========================
+
+    @Override
+    public MemberApplicationResponse getApplicationById(CustomUserDetails principal, Long id) {
+        MemberApplication app = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+        User user = principal.getUser();
+
+        boolean isOwner = app.getApplicant().getUserId().equals(principal.getId());
+        boolean canView = hasAdminRole(user) || isClubLeaderOrVice(principal.getId(), app.getClub().getClubId());
+        if (!isOwner && !canView)
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+
+        return mapToResponse(app);
+    }
+
+    @Override
+    @Transactional
+    public void cancelApplication(CustomUserDetails principal, Long id) {
+        MemberApplication app = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (!app.getApplicant().getUserId().equals(principal.getId()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "You can only cancel your own applications");
+
+        if (app.getStatus() != MemberApplicationStatusEnum.PENDING)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only pending applications can be cancelled");
+
+        appRepo.delete(app);
+    }
+
+    @Override
+    public List<MemberApplicationResponse> getPendingByClub(CustomUserDetails principal, Long clubId) {
+        if (!isClubLeaderOrVice(principal.getId(), clubId) && !hasAdminRole(principal.getUser()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+
+        return appRepo.findAll().stream()
+                .filter(a -> a.getClub().getClubId().equals(clubId)
+                        && a.getStatus() == MemberApplicationStatusEnum.PENDING)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public MemberApplicationResponse approve(CustomUserDetails principal, Long id) {
+        MemberApplication app = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (!isClubLeaderOrVice(principal.getId(), app.getClub().getClubId()) && !hasAdminRole(principal.getUser()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+
+        app.setStatus(MemberApplicationStatusEnum.APPROVED);
+        app.setHandledBy(principal.getUser());
+        app.setUpdatedAt(LocalDateTime.now());
+        appRepo.save(app);
+
+        // tạo membership
+        if (!membershipRepo.existsByUser_UserIdAndClub_ClubId(app.getApplicant().getUserId(), app.getClub().getClubId())) {
+            Membership membership = Membership.builder()
+                    .user(app.getApplicant())
+                    .club(app.getClub())
+                    .clubRole(ClubRoleEnum.MEMBER)
+                    .state(MembershipStateEnum.ACTIVE)
+                    .joinedDate(LocalDate.now())
+                    .build();
+            membershipRepo.save(membership);
+        }
+
+        notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), true);
+        return mapToResponse(app);
+    }
+
+    @Override
+    @Transactional
+    public MemberApplicationResponse reject(CustomUserDetails principal, Long id, String note) {
+        MemberApplication app = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (!isClubLeaderOrVice(principal.getId(), app.getClub().getClubId()) && !hasAdminRole(principal.getUser()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+
+        app.setStatus(MemberApplicationStatusEnum.REJECTED);
+        app.setNote(note);
+        app.setHandledBy(principal.getUser());
+        app.setUpdatedAt(LocalDateTime.now());
+        appRepo.save(app);
+
+        notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), false);
+        return mapToResponse(app);
+    }
+
+    @Override
+    public MemberApplicationStatsResponse getStatsByClub(Long clubId) {
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        long total = appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.PENDING)
+                + appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.APPROVED)
+                + appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.REJECTED);
+
+        return MemberApplicationStatsResponse.builder()
+                .clubId(club.getClubId())
+                .clubName(club.getName())
+                .total(total)
+                .pending(appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.PENDING))
+                .approved(appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.APPROVED))
+                .rejected(appRepo.countByClubAndStatus(club, MemberApplicationStatusEnum.REJECTED))
+                .build();
+    }
+    @Override
+    public List<MemberApplicationResponse> getHandledApplications(CustomUserDetails principal, Long clubId) {
+        // ✅ Chỉ cho phép Leader/Vice/Admin xem
+        if (!isClubLeaderOrVice(principal.getId(), clubId) && !hasAdminRole(principal.getUser())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        return appRepo.findAll().stream()
+                .filter(a -> a.getClub().getClubId().equals(clubId)
+                        && (a.getStatus() == MemberApplicationStatusEnum.APPROVED
+                        || a.getStatus() == MemberApplicationStatusEnum.REJECTED))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    @Override
+    @Transactional
+    public MemberApplicationResponse resubmitApplication(
+            CustomUserDetails principal,
+            Long id,
+            MemberApplicationCreateRequest req) {
+
+        MemberApplication oldApp = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        // ✅ Chỉ cho phép sinh viên chủ đơn resubmit
+        if (!oldApp.getApplicant().getUserId().equals(principal.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "You can only resubmit your own applications");
+        }
+
+        // ✅ Chỉ cho phép resubmit nếu đơn trước bị từ chối
+        if (oldApp.getStatus() != MemberApplicationStatusEnum.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only rejected applications can be resubmitted");
+        }
+
+        // ✅ Cập nhật nội dung đơn
+        oldApp.setMotivation(req.getMotivation());
+        oldApp.setAttachmentUrl(req.getAttachmentUrl());
+        oldApp.setStatus(MemberApplicationStatusEnum.PENDING);
+        oldApp.setNote(null);
+        oldApp.setHandledBy(null);
+        oldApp.setUpdatedAt(LocalDateTime.now());
+
+        appRepo.save(oldApp);
+
+        // Gửi thông báo nếu cần
+        notificationService.sendApplicationSubmitted(
+                principal.getUsername(),
+                oldApp.getClub().getName()
+        );
+
+        return mapToResponse(oldApp);
+    }
+
+    // ========================= PHẦN BỔ SUNG CUỐI =========================
+
+    @Override
+    @Transactional
+    public MemberApplicationResponse updateNoteForApplication(CustomUserDetails principal, Long id, String note) {
+        MemberApplication app = appRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
+
+        if (!isClubLeaderOrVice(principal.getId(), app.getClub().getClubId()) && !hasAdminRole(principal.getUser())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        app.setNote(note);
+        app.setUpdatedAt(LocalDateTime.now());
+        appRepo.save(app);
+        return mapToResponse(app);
+    }
+
+    @Override
+    public List<MemberApplicationResponse> getApplicationsByStatus(String status) {
+        MemberApplicationStatusEnum st;
+        try {
+            st = MemberApplicationStatusEnum.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid status: " + status);
+        }
+
+        return appRepo.findAll().stream()
+                .filter(a -> a.getStatus() == st)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<MemberApplicationResponse> getRecentApplications() {
+        return appRepo.findAll().stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .limit(10)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<MemberApplicationStatsResponse> getDailyStats(Long clubId) {
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        return appRepo.findAll().stream()
+                .filter(a -> a.getClub().equals(club) && a.getCreatedAt().isAfter(sevenDaysAgo))
+                .collect(Collectors.groupingBy(a -> a.getCreatedAt().toLocalDate(), Collectors.counting()))
+                .entrySet().stream()
+                .map(e -> MemberApplicationStatsResponse.builder()
+                        .clubId(club.getClubId())
+                        .clubName(club.getName())
+                        .date(e.getKey().toString())
+                        .count(e.getValue())
+                        .build())
+                .sorted((a, b) -> a.getDate().compareTo(b.getDate()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<MemberApplicationResponse> getApplicationsByApplicant(Long userId) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        return appRepo.findAll().stream()
+                .filter(a -> a.getApplicant().getUserId().equals(userId))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
 }
+
+

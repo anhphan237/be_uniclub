@@ -6,9 +6,12 @@ import lombok.Data;
 @Data
 @Builder
 public class MemberApplicationStatsResponse {
+    private Long clubId;
+    private String clubName;
+    private long total;
     private long pending;
-    private long interviewing;
     private long approved;
     private long rejected;
-    private long expired;
+    private String date;
+    private long count;
 }
