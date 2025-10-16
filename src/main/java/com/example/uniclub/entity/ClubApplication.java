@@ -47,4 +47,9 @@ public class ClubApplication {
 
     @Column(length = 500)
     private String attachmentUrl;  // Link file minh chứng (logo, giấy phép,...)
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "club_type")
+    private ClubTypeEnum clubType;
+
 }

@@ -21,7 +21,7 @@ import java.util.Map;
 public class ClubApplicationController {
 
     private final ClubApplicationService clubApplicationService;
-
+    private final ClubApplicationService service;
     // ============================================================
     // 🟢 #1. Sinh viên nộp đơn online
     // ROLE: STUDENT
@@ -178,4 +178,11 @@ public class ClubApplicationController {
             @RequestParam String keyword) {
         return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.search(keyword)));
     }
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getAllApplications() {
+        return ResponseEntity.ok(ApiResponse.ok(service.getAllApplications()));
+    }
+
+
 }

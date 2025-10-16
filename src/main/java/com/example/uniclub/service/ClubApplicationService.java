@@ -43,4 +43,9 @@ public interface ClubApplicationService {
 
     // 🔵 12. Tìm kiếm đơn theo tên CLB / người nộp (ROLE: ADMIN, STAFF)
     List<ClubApplicationResponse> search(String keyword);
+
+
+
+    // 🟩 13. ✅ Lấy toàn bộ ClubApplications (ROLE: ADMIN, STAFF)
+    List<ClubApplicationResponse> getAllApplications();
 }
