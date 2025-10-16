@@ -1,15 +1,22 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.AttendanceLevelEnum;
 import com.example.uniclub.enums.RegistrationStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "event_registrations",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id","user_id"}))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id", "user_id"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class EventRegistration {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long registrationId;
@@ -23,7 +30,13 @@ public class EventRegistration {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    private RegistrationStatusEnum status = RegistrationStatusEnum.PENDING;
+    private RegistrationStatusEnum status;
 
-    private LocalDateTime registeredAt = LocalDateTime.now();
+    private Integer committedPoints;
+    private LocalDateTime registeredAt;
+    private LocalDateTime checkinAt;
+    private LocalDateTime canceledAt;
+
+    @Enumerated(EnumType.STRING)
+    private AttendanceLevelEnum attendanceLevel;
 }

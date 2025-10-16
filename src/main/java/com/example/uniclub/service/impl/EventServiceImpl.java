@@ -5,10 +5,7 @@ import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.repository.ClubRepository;
-import com.example.uniclub.repository.EventRepository;
-import com.example.uniclub.repository.MembershipRepository;
-import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
 import com.example.uniclub.service.NotificationService;
@@ -18,7 +15,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +32,8 @@ public class EventServiceImpl implements EventService {
     private final MembershipRepository membershipRepo;
     private final NotificationService notificationService;
     private final RewardService rewardService;
+    private final WalletRepository walletRepository;
+    private final EventRegistrationRepository regRepo;
 
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
@@ -72,7 +73,7 @@ public class EventServiceImpl implements EventService {
 
         eventRepo.save(e);
 
-        // Notify university staff for approval (placeholder)
+        // Gửi email thông báo đến staff để duyệt
         var club = clubRepo.findById(req.clubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
         String staffEmail = "uniclub.contacts@gmail.com";
@@ -94,6 +95,7 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    @Transactional
     public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
         var user = principal.getUser();
 
@@ -105,11 +107,41 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         event.setStatus(status);
+
+        // ✅ Khi duyệt APPROVED: tạo ví EVENT và cấp điểm theo số lượng người dự kiến
+        if (status == EventStatusEnum.APPROVED) {
+            if (event.getWallet() == null) {
+                Wallet eventWallet = new Wallet();
+                eventWallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
+                eventWallet.setBalancePoints(0);
+                walletRepository.save(eventWallet);
+                event.setWallet(eventWallet);
+            }
+
+            // 🧮 Nhà trường cấp điểm dựa theo số lượng người dự kiến tham gia
+            int capacity = event.getMaxCheckInCount() != null ? event.getMaxCheckInCount() : 0;
+            if (capacity <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Cannot approve event without setting expected participant count (maxCheckInCount).");
+            }
+
+            // Ví dụ: nhà trường cấp 100 điểm cho mỗi người dự kiến tham gia
+            int basePointPerMember = 100;
+            int totalGrant = capacity * basePointPerMember;
+
+            event.getWallet().setBalancePoints(event.getWallet().getBalancePoints() + totalGrant);
+
+            System.out.printf("🎓 University granted %d points to Event ID %d (%s)%n",
+                    totalGrant, event.getEventId(), event.getName());
+        }
+
         eventRepo.save(event);
 
-        // Find a club contact (prefer LEADER, fallback VICE_LEADER), Approved only
+        // Gửi email thông báo kết quả duyệt
         String contactEmail = resolveClubContactEmail(event.getClub().getClubId())
-                .orElseGet(() -> event.getClub().getCreatedBy() != null ? event.getClub().getCreatedBy().getEmail() : null);
+                .orElseGet(() -> event.getClub().getCreatedBy() != null
+                        ? event.getClub().getCreatedBy().getEmail()
+                        : null);
 
         boolean approved = status == EventStatusEnum.APPROVED;
         if (contactEmail != null && !contactEmail.isBlank()) {
@@ -136,56 +168,16 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public List<EventResponse> getByClubId(Long clubId) {
-        // ensure club exists
         clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-
         return eventRepo.findByClub_ClubId(clubId)
                 .stream()
                 .map(this::toResp)
                 .toList();
     }
 
-    // Student checks in to an event
-    public String checkIn(CustomUserDetails principal, String code) {
-        Event event = eventRepo.findByCheckInCode(code)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Check-in code not found"));
-
-        if (event.getMaxCheckInCount() != null &&
-                event.getCurrentCheckInCount() >= event.getMaxCheckInCount()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event already full!");
-        }
-
-        event.setCurrentCheckInCount(event.getCurrentCheckInCount() + 1);
-        eventRepo.save(event);
-
-        User user = principal.getUser();
-        if (user.getWallet() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "User wallet not found");
-        }
-
-        int rewardPoints = 10; // example reward per event
-        int totalPoints = user.getWallet().getBalancePoints() + rewardPoints;
-        user.getWallet().setBalancePoints(totalPoints);
-        userRepo.save(user);
-
-        rewardService.sendCheckInRewardEmail(user.getUserId(), event.getName(), rewardPoints, totalPoints);
-
-        if (totalPoints == 100 || totalPoints == 200 || totalPoints == 500) {
-            rewardService.sendMilestoneEmail(user.getUserId(), totalPoints);
-        }
-
-        return "✅ Check-in successful! You’ve earned " + rewardPoints + " UniPoints. Total: " + totalPoints;
-    }
-
-    // ------- helpers -------
-
-    /**
-     * Resolve club contact email by Membership model:
-     * Prefer a LEADER (APPROVED), otherwise a VICE_LEADER (APPROVED).
-     */
+    // ✅ Lấy email liên hệ của CLB (leader hoặc vice-leader)
     private Optional<String> resolveClubContactEmail(Long clubId) {
-        // Prefer LEADER
         Optional<Membership> leader = membershipRepo
                 .findFirstByClub_ClubIdAndClubRoleAndState(
                         clubId, ClubRoleEnum.LEADER, MembershipStateEnum.APPROVED);
@@ -194,11 +186,54 @@ public class EventServiceImpl implements EventService {
             if (email != null && !email.isBlank()) return Optional.of(email);
         }
 
-        // Fallback VICE_LEADER
         return membershipRepo
                 .findFirstByClub_ClubIdAndClubRoleAndState(
                         clubId, ClubRoleEnum.VICE_LEADER, MembershipStateEnum.APPROVED)
                 .map(m -> m.getUser() != null ? m.getUser().getEmail() : null)
                 .filter(email -> email != null && !email.isBlank());
+    }
+
+    // ==============================
+    // 🔹 NEW EXTENDED METHODS 🔹
+    // ==============================
+
+    @Override
+    public List<EventResponse> getUpcomingEvents() {
+        LocalDate today = LocalDate.now();
+        return eventRepo.findByDateAfter(today)
+                .stream()
+                .filter(e -> e.getStatus() == EventStatusEnum.APPROVED)
+                .map(this::toResp)
+                .toList();
+    }
+
+    @Override
+    public List<EventResponse> getMyEvents(CustomUserDetails principal) {
+        Long userId = principal.getUser().getUserId();
+        List<Event> events = eventRepo.findEventsByUserId(userId);
+        return events.stream().map(this::toResp).toList();
+    }
+
+    @Override
+    @Transactional
+    public EventResponse cloneEvent(Long eventId) {
+        Event original = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        Event clone = Event.builder()
+                .club(original.getClub())
+                .name(original.getName() + " (Next Term)")
+                .description(original.getDescription())
+                .date(original.getDate() != null ? original.getDate().plusMonths(6) : null)
+                .time(original.getTime())
+                .type(original.getType())
+                .status(EventStatusEnum.PENDING)
+                .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .maxCheckInCount(original.getMaxCheckInCount())
+                .currentCheckInCount(0)
+                .build();
+
+        eventRepo.save(clone);
+        return toResp(clone);
     }
 }
