@@ -6,10 +6,15 @@ import com.example.uniclub.dto.response.ClubApplicationResponse.SimpleUser;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
+import com.example.uniclub.mapper.ClubApplicationMapper;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ClubApplicationService;
 import com.example.uniclub.service.ClubService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,7 +30,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final ClubApplicationRepository appRepo;
     private final UserRepository userRepo;
     private final ClubService clubService;
-
+    private final ClubApplicationMapper mapper;
     // ============================================================
     // 🟢 1. Submit online application
     // ============================================================
@@ -259,4 +264,13 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .internalNote(app.getInternalNote())
                 .build();
     }
+    @Override
+    public List<ClubApplicationResponse> getAllApplications() {
+        return appRepo.findAll()
+                .stream()
+                .map(mapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+
 }
