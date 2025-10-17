@@ -22,6 +22,9 @@ public class Major {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "active", nullable = false)
+    @Column(nullable = false, unique = true, length = 20)
+    private String majorCode; // 🆕 Mã ngành, ví dụ: SE, MKT, BA
+
+    @Column(nullable = false)
     private boolean active = true;
 }

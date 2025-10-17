@@ -22,12 +22,37 @@ public class MajorServiceImpl implements MajorService {
     }
 
     @Override
+    public Major getById(Long id) {
+        return majorRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+    }
+
+    @Override
+    public Major getByMajorCode(String code) {
+        return majorRepo.findByMajorCode(code)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major code not found"));
+    }
+
+    @Override
     public Major create(Major major) {
         if (majorRepo.existsByName(major.getName())) {
             throw new ApiException(HttpStatus.CONFLICT, "Major name already exists");
         }
+        if (majorRepo.existsByMajorCode(major.getMajorCode())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Major code already exists");
+        }
         major.setActive(true);
         return majorRepo.save(major);
+    }
+
+    @Override
+    public Major update(Long id, Major updatedMajor) {
+        Major existing = getById(id);
+        existing.setName(updatedMajor.getName());
+        existing.setDescription(updatedMajor.getDescription());
+        existing.setMajorCode(updatedMajor.getMajorCode());
+        existing.setActive(updatedMajor.isActive());
+        return majorRepo.save(existing);
     }
 
     @Override
