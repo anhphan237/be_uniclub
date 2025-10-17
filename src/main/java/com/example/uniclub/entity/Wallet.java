@@ -1,13 +1,17 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "wallets")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Wallet {
 
     @Id
@@ -20,7 +24,7 @@ public class Wallet {
 
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)
-    @JsonIgnore
+    @JsonBackReference // ✅ ngắt vòng lặp user <-> wallet
     private User user;
 
     @OneToOne

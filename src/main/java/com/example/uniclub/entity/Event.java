@@ -55,7 +55,7 @@ public class Event {
 
     // 🟢 số điểm cam kết mỗi người khi đăng ký
     @Column(nullable = false)
-    private Integer commitPointCost = 100; // default
+    private Integer commitPointCost; // default
 
     // 🟢 đặt trần nhân thưởng (1..3)
     @Column(nullable = false)

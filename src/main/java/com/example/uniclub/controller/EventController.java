@@ -35,9 +35,11 @@ public class EventController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
-    public ResponseEntity<ApiResponse<EventResponse>> create(@Valid @RequestBody EventCreateRequest req) {
+    public ResponseEntity<ApiResponse<EventResponse>> createEvent(
+            @Valid @RequestBody EventCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.create(req)));
     }
+
 
     /**
      * [2] Xem chi tiết một sự kiện

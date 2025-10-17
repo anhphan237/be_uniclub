@@ -2,9 +2,9 @@ package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDate;
 
 @Builder(toBuilder = true)
@@ -23,13 +23,13 @@ public class Membership {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id")
+    @JsonBackReference // ✅ ngắt vòng lặp với User
     private User user;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "club_id")
     private Club club;
 
-    // ✅ Vai trò hành chính trong CLB
     @Enumerated(EnumType.STRING)
     @Column(name = "club_role", nullable = false, length = 30)
     private ClubRoleEnum clubRole = ClubRoleEnum.MEMBER;

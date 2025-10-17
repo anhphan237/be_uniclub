@@ -56,6 +56,11 @@ public class EventServiceImpl implements EventService {
     public EventResponse create(EventCreateRequest req) {
         String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
+        // 🟢 Lấy giá trị commitPointCost từ request (hoặc dùng mặc định 100)
+        int finalCommitCost = (req.commitPointCost() != null && req.commitPointCost() > 0)
+                ? req.commitPointCost()
+                : 100;
+
         Event e = Event.builder()
                 .club(Club.builder().clubId(req.clubId()).build())
                 .name(req.name())
@@ -69,11 +74,13 @@ public class EventServiceImpl implements EventService {
                         Location.builder().locationId(req.locationId()).build())
                 .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
+                .commitPointCost(finalCommitCost) // ✅ thêm commitPointCost
+                .rewardMultiplierCap(3) // ✅ đảm bảo luôn có giá trị mặc định trần nhân thưởng
                 .build();
 
         eventRepo.save(e);
 
-        // Gửi email thông báo đến staff để duyệt
+        // 📨 Gửi email cho staff để duyệt
         var club = clubRepo.findById(req.clubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
         String staffEmail = "uniclub.contacts@gmail.com";
@@ -81,6 +88,7 @@ public class EventServiceImpl implements EventService {
 
         return toResp(e);
     }
+
 
     @Override
     public EventResponse get(Long id) {

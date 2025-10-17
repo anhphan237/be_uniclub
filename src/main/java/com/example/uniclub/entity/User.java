@@ -1,6 +1,7 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.UserStatusEnum;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class User {
     private Role role;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @JsonManagedReference // ✅ tránh vòng lặp user <-> wallet
     private Wallet wallet;
 
     @Column(name = "student_code", nullable = false, unique = true)
@@ -52,5 +54,6 @@ public class User {
 
     // Liên kết đến membership (student có thể tham nhiều CLB)
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference // ✅ tránh vòng lặp user <-> membership
     private List<Membership> memberships = new ArrayList<>();
 }

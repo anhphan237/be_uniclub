@@ -13,5 +13,6 @@ public record EventCreateRequest(
         @NotBlank String time,
         Long locationId,
         @Positive(message = "maxCheckInCount must > 0")
-        Integer maxCheckInCount
+        Integer maxCheckInCount,
+        Integer commitPointCost
 ) {}
