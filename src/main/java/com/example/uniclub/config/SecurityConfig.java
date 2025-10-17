@@ -50,7 +50,7 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // 🌐 Public endpoints (Swagger, Auth)
+                        // 🌐 Public endpoints (Swagger + Auth)
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -62,22 +62,25 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
 
-                        // ✅ Cho phép mọi user đã đăng nhập truy cập /api/users/profile/**
-                        .requestMatchers("/api/users/profile/**").authenticated()
+                        // ✅ Cho phép public truy cập các API majors (GET)
+                        .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
 
-                        // 🔒 Chỉ ADMIN & STAFF được quản lý người dùng chung
-                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
-
-                        // 📅 Cho phép public xem danh sách event và club
+                        // ✅ Public xem danh sách sự kiện và CLB
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
 
-                        // 🧩 Phân quyền còn lại
+                        // 👤 Các endpoint yêu cầu đăng nhập
+                        .requestMatchers("/api/users/profile/**").authenticated()
+
+                        // 🔒 Quản lý người dùng – chỉ ADMIN & STAFF
+                        .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
+
+                        // 🧩 Phân quyền đặc thù
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/club/**").hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
-                        // ✅ Các API khác yêu cầu đăng nhập
+                        // 🔐 Các API khác yêu cầu đăng nhập
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(o -> o
@@ -115,6 +118,7 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization", "Location"));
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
