@@ -15,9 +15,8 @@ public class UserResponse {
     private String phone;
     private String roleName;
     private String status;
-
-    // ✅ Thêm 3 thuộc tính mới cho profile
-    private String studentCode;  // Mã số sinh viên (duy nhất, không đổi)
-    private String majorName;    // Chuyên ngành
-    private String bio;          // Giới thiệu bản thân (optional)
+    private String studentCode;
+    private String majorName;
+    private String bio;
+    private String avatarUrl; // ✅ hiển thị avatar trong dashboard
 }

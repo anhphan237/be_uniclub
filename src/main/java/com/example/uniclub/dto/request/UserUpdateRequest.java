@@ -7,5 +7,5 @@ public record UserUpdateRequest(
         String fullName,
         String phone,
         String majorName,
-        String bio   // ✅ thêm thuộc tính mới
+        String bio
 ) {}

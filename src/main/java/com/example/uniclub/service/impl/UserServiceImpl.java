@@ -6,6 +6,7 @@ import com.example.uniclub.dto.request.UserUpdateRequest;
 import com.example.uniclub.dto.response.UserResponse;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
+import com.example.uniclub.enums.UserStatusEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.service.EmailService;
@@ -17,7 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -25,12 +26,9 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService; // ✅ Inject email service
+    private final EmailService emailService;
 
-    // ==========================================
-    // 🔹 ADMIN / STAFF CRUD User
-    // ==========================================
-
+    // ===================== Helper =====================
     private UserResponse toResp(User u) {
         return UserResponse.builder()
                 .id(u.getUserId())
@@ -42,8 +40,11 @@ public class UserServiceImpl implements UserService {
                 .studentCode(u.getStudentCode())
                 .majorName(u.getMajorName())
                 .bio(u.getBio())
+                .avatarUrl(u.getAvatarUrl())
                 .build();
     }
+
+    // ===================== CRUD =====================
 
     @Override
     public UserResponse create(UserCreateRequest req) {
@@ -62,26 +63,20 @@ public class UserServiceImpl implements UserService {
                 .majorName(req.majorName())
                 .bio(req.bio())
                 .role(Role.builder().roleId(req.roleId()).build())
+                .status(UserStatusEnum.ACTIVE.name())
                 .build();
 
         userRepo.save(user);
 
-        // ✅ Send welcome email in English
+        // ✅ Gửi email chào mừng
         try {
             String subject = "Welcome to UniClub 🎉";
             String content = String.format(
-                    "Hi %s,\n\n" +
-                            "Welcome to UniClub!\n\n" +
-                            "Your account has been successfully created. You can now explore clubs, join activities, and earn reward points.\n\n" +
-                            "Let’s start your student journey with UniClub today!\n\n" +
-                            "Best regards,\nUniClub Team 💌",
-                    req.fullName()
-            );
-
+                    "Hi %s,\n\nWelcome to UniClub!\nYour account has been successfully created.\n\nBest regards,\nUniClub Team 💌",
+                    req.fullName());
             emailService.sendEmail(req.email(), subject, content);
-            System.out.println("✅ Sent welcome email to: " + req.email());
         } catch (Exception e) {
-            System.err.println("⚠️ Failed to send welcome email to " + req.email() + ": " + e.getMessage());
+            System.err.println("⚠️ Failed to send welcome email: " + e.getMessage());
         }
 
         return toResp(user);
@@ -102,6 +97,8 @@ public class UserServiceImpl implements UserService {
             validateMajor(req.majorName());
             user.setMajorName(req.majorName());
         }
+//        if (req.roleId() != null)
+//            user.setRole(Role.builder().roleId(req.roleId()).build());
 
         return toResp(userRepo.save(user));
     }
@@ -125,15 +122,83 @@ public class UserServiceImpl implements UserService {
         return userRepo.findAll(pageable).map(this::toResp);
     }
 
-    // ==========================================
-    // 🔹 STUDENT / MEMBER / CLUB_LEADER
-    // ==========================================
+    // ===================== MỞ RỘNG =====================
 
+    @Override
+    public Page<UserResponse> search(String keyword, Pageable pageable) {
+        String kw = (keyword == null) ? "" : keyword.trim();
+        return userRepo
+                .findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrStudentCodeContainingIgnoreCase(
+                        kw, kw, kw, pageable
+                ).map(this::toResp);
+    }
+
+    @Override
+    public UserResponse updateStatus(Long id, boolean active) {
+        User user = userRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        user.setStatus(active ? UserStatusEnum.ACTIVE.name() : UserStatusEnum.INACTIVE.name());
+        return toResp(userRepo.save(user));
+    }
+
+    @Override
+    public void resetPassword(Long id, String newPassword) {
+        if (newPassword == null || newPassword.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "New password is required");
+
+        User user = userRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepo.save(user);
+
+        // ✅ Gửi thông báo cho user
+        try {
+            emailService.sendEmail(
+                    user.getEmail(),
+                    "Your UniClub password has been reset",
+                    "Hi " + user.getFullName() + ",\n\nYour password has been reset by an administrator.\nPlease log in again using your new credentials.\n\n— UniClub Support 💬"
+            );
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to send reset email: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Page<UserResponse> getByRole(String roleName, Pageable pageable) {
+        if (roleName == null || roleName.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "roleName is required");
+        return userRepo.findByRole_RoleNameIgnoreCase(roleName.trim(), pageable)
+                .map(this::toResp);
+    }
+
+    @Override
+    public Map<String, Object> getUserStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("total", userRepo.count());
+        stats.put("active", userRepo.countByStatus(UserStatusEnum.ACTIVE.name()));
+        stats.put("inactive", userRepo.countByStatus(UserStatusEnum.INACTIVE.name()));
+
+        Map<String, Long> byRole = new HashMap<>();
+        List<Object[]> roleRows = userRepo.countGroupByRole();
+        for (Object[] row : roleRows) {
+            String role = (String) row[0];
+            Long cnt = (Long) row[1];
+            byRole.put(role, cnt);
+        }
+        stats.put("byRole", byRole);
+        return stats;
+    }
+
+    // ===================== PROFILE =====================
+
+    @Override
     public User getProfile(String email) {
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
     }
 
+    @Override
     public User updateProfile(String email, ProfileUpdateRequest req) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
@@ -150,9 +215,18 @@ public class UserServiceImpl implements UserService {
         return userRepo.save(user);
     }
 
-    // ==========================================
-    // 🔹 Validate Major
-    // ==========================================
+    @Override
+    public User updateAvatar(String email, String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "avatarUrl is required");
+
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        user.setAvatarUrl(avatarUrl);
+        return userRepo.save(user);
+    }
+
+    // ===================== Validate Major =====================
     private void validateMajor(String majorName) {
         Set<String> validMajors = Set.of(
                 "Software Engineering", "Artificial Intelligence", "Information Assurance",
@@ -162,15 +236,7 @@ public class UserServiceImpl implements UserService {
                 "Japanese Language", "Korean Language",
                 "SE", "AI", "IA", "DS", "BA", "DM", "GD", "MC", "HM", "IB", "FB", "JP", "KR"
         );
-
         if (!validMajors.contains(majorName))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid major name");
-    }
-
-    public User updateAvatar(String email, String avatarUrl) {
-        User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-        user.setAvatarUrl(avatarUrl);
-        return userRepo.save(user);
     }
 }
