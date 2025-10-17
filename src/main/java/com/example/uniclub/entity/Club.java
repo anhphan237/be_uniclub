@@ -36,4 +36,7 @@ public class Club {
     @OneToOne
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
+
+    @Column(name = "member_count", nullable = false)
+    private Integer memberCount = 0;
 }

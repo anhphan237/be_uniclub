@@ -33,6 +33,8 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     boolean existsByClub_ClubIdAndClubRole(Long clubId, ClubRoleEnum clubRole);
     Optional<Membership> findFirstByUser_FullNameAndClubRole(String fullName, ClubRoleEnum clubRole);
 
+    long countByClub_ClubIdAndState(Long clubId, MembershipStateEnum state);
+    long countByState(MembershipStateEnum state);
 
 
 }

@@ -60,13 +60,9 @@ public class ClubApplicationController {
         return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getPending()));
     }
 
-    // ============================================================
-    // 🟠 #4. Staff duyệt / từ chối đơn online
-    // ROLE: ADMIN, UNIVERSITY_STAFF
-    // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @PutMapping("/{id}/decide")
-    public ResponseEntity<ApiResponse<ClubApplicationResponse>> decide(
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<ClubApplicationResponse>> approveClubApplication(
             @PathVariable Long id,
             @AuthenticationPrincipal CustomUserDetails staff,
             @Valid @RequestBody ClubApplicationDecisionRequest req) {
@@ -74,6 +70,7 @@ public class ClubApplicationController {
                 clubApplicationService.decide(id, staff.getUserId(), req)
         ));
     }
+
 
     // ============================================================
     // 🟣 #5. Sinh viên xem trạng thái các đơn của chính mình

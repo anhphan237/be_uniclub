@@ -182,6 +182,13 @@ public class MembershipServiceImpl implements MembershipService {
         }
         return updateClubRole(membershipId, roleEnum, approverId);
     }
+    private void updateClubMemberCount(Long clubId) {
+        int total = (int) membershipRepo.countByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE);
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+        club.setMemberCount(total);
+        clubRepo.save(club);
+    }
 
 
 }

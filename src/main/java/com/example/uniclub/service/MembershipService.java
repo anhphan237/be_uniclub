@@ -2,6 +2,8 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.MembershipResponse;
 import com.example.uniclub.enums.ClubRoleEnum;
+import com.example.uniclub.enums.MembershipStateEnum;
+
 import java.util.List;
 
 public interface MembershipService {
@@ -30,4 +32,9 @@ public interface MembershipService {
     List<MembershipResponse> getMembersByLeaderName(String leaderName);
 
     MembershipResponse updateRole(Long membershipId, Long approverId, String newRole);
+
+
+
+
+
 }

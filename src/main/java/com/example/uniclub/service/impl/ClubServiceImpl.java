@@ -197,4 +197,9 @@ public class ClubServiceImpl implements ClubService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Club not found");
         clubRepo.deleteById(id);
     }
+    @Override
+    public Club saveClub(Club club) {
+        return clubRepo.save(club);
+    }
+
 }

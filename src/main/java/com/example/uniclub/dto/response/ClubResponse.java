@@ -15,4 +15,5 @@ public class ClubResponse {
     private String majorName;
     private Long leaderId;
     private String leaderName;
+    private Long memberCount;
 }
