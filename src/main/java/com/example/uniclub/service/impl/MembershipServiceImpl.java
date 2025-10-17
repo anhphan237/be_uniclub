@@ -148,7 +148,7 @@ public class MembershipServiceImpl implements MembershipService {
     }
     @Override
     public List<MembershipResponse> getMembersByClub(Long clubId) {
-        return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.APPROVED)
+        return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE)
                 .stream()
                 .map(this::toResp)
                 .toList();

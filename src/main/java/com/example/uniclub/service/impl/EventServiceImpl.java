@@ -47,6 +47,7 @@ public class EventServiceImpl implements EventService {
                 .status(e.getStatus())
                 .checkInCode(e.getCheckInCode())
                 .locationId(e.getLocation() != null ? e.getLocation().getLocationId() : null)
+                .locationName(e.getLocation() != null ? e.getLocation().getName() : null)
                 .maxCheckInCount(e.getMaxCheckInCount())
                 .currentCheckInCount(e.getCurrentCheckInCount())
                 .build();
@@ -107,8 +108,10 @@ public class EventServiceImpl implements EventService {
     public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
         var user = principal.getUser();
 
-        if (user.getRole() == null || !"UNIVERSITY_STAFF".equals(user.getRole().getRoleName())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only University Staff can approve events.");
+        // ✅ Cho phép cả ADMIN và UNIVERSITY_STAFF duyệt sự kiện
+        String roleName = user.getRole().getRoleName();
+        if (!"UNIVERSITY_STAFF".equals(roleName) && !"ADMIN".equals(roleName)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only University Staff or Admin can approve events.");
         }
 
         Event event = eventRepo.findById(id)
@@ -116,28 +119,32 @@ public class EventServiceImpl implements EventService {
 
         event.setStatus(status);
 
-        // ✅ Khi duyệt APPROVED: tạo ví EVENT và cấp điểm theo số lượng người dự kiến
+        // ✅ Khi duyệt APPROVED: tạo ví EVENT và cấp điểm dựa theo số lượng người dự kiến
         if (status == EventStatusEnum.APPROVED) {
             if (event.getWallet() == null) {
                 Wallet eventWallet = new Wallet();
                 eventWallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
                 eventWallet.setBalancePoints(0);
+                eventWallet.setClub(event.getClub()); // ⚙️ Gắn Club để tránh lỗi constraint DB
                 walletRepository.save(eventWallet);
                 event.setWallet(eventWallet);
             }
 
-            // 🧮 Nhà trường cấp điểm dựa theo số lượng người dự kiến tham gia
+            // 🧮 Tính số điểm được cấp cho ví Event dựa trên số người dự kiến
             int capacity = event.getMaxCheckInCount() != null ? event.getMaxCheckInCount() : 0;
             if (capacity <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
                         "Cannot approve event without setting expected participant count (maxCheckInCount).");
             }
 
-            // Ví dụ: nhà trường cấp 100 điểm cho mỗi người dự kiến tham gia
+            // 🏫 Mặc định nhà trường cấp 100 điểm / người dự kiến
             int basePointPerMember = 100;
             int totalGrant = capacity * basePointPerMember;
 
-            event.getWallet().setBalancePoints(event.getWallet().getBalancePoints() + totalGrant);
+            // ✅ Nạp điểm vào ví Event (do UniStaff cấp)
+            Wallet wallet = event.getWallet();
+            wallet.setBalancePoints(wallet.getBalancePoints() + totalGrant);
+            walletRepository.save(wallet);
 
             System.out.printf("🎓 University granted %d points to Event ID %d (%s)%n",
                     totalGrant, event.getEventId(), event.getName());
@@ -145,7 +152,7 @@ public class EventServiceImpl implements EventService {
 
         eventRepo.save(event);
 
-        // Gửi email thông báo kết quả duyệt
+        // 📨 Gửi email thông báo kết quả duyệt cho CLB
         String contactEmail = resolveClubContactEmail(event.getClub().getClubId())
                 .orElseGet(() -> event.getClub().getCreatedBy() != null
                         ? event.getClub().getCreatedBy().getEmail()
@@ -158,6 +165,7 @@ public class EventServiceImpl implements EventService {
 
         return toResp(event);
     }
+
 
     @Override
     public EventResponse findByCheckInCode(String code) {
@@ -244,4 +252,5 @@ public class EventServiceImpl implements EventService {
         eventRepo.save(clone);
         return toResp(clone);
     }
+
 }

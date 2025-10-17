@@ -20,6 +20,7 @@ public class EventResponse {
     private String time;
     private EventStatusEnum status;
     private Long locationId;
+    private String locationName;
     private String checkInCode;
     private Integer maxCheckInCount;
     private Integer currentCheckInCount;

@@ -121,24 +121,49 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     // ✅ Student / Leader view by email
     @Override
     public List<MemberApplicationResponse> findApplicationsByEmail(String email) {
+        // 🔹 1. Lấy user hiện tại
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        boolean isLeader = membershipRepo.findByUser_UserId(user.getUserId()).stream()
-                .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER);
+        // 🔹 2. Kiểm tra vai trò
+        boolean isAdminOrStaff = hasAdminRole(user);
 
-        if (isLeader || hasAdminRole(user)) {
+        // 🔹 3. Lấy danh sách membership của user
+        var memberships = membershipRepo.findByUser_UserId(user.getUserId());
+
+        boolean isLeaderOrVice = memberships.stream()
+                .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER ||
+                        m.getClubRole() == ClubRoleEnum.VICE_LEADER);
+
+        // ✅ Nếu là Admin/Staff → xem toàn bộ
+        if (isAdminOrStaff) {
             return appRepo.findAll().stream()
                     .filter(a -> a.getClub() != null)
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
-        } else {
+        }
+
+        // ✅ Nếu là Leader/Vice → xem đơn thuộc CLB mà mình quản lý
+        if (isLeaderOrVice) {
+            var managedClubIds = memberships.stream()
+                    .filter(m -> m.getClubRole() == ClubRoleEnum.LEADER ||
+                            m.getClubRole() == ClubRoleEnum.VICE_LEADER)
+                    .map(m -> m.getClub().getClubId())
+                    .collect(Collectors.toSet());
+
             return appRepo.findAll().stream()
-                    .filter(a -> Objects.equals(a.getApplicant().getUserId(), user.getUserId()))
+                    .filter(a -> managedClubIds.contains(a.getClub().getClubId()))
                     .map(this::mapToResponse)
                     .collect(Collectors.toList());
         }
+
+        // ✅ Nếu là Student → chỉ xem đơn của chính mình
+        return appRepo.findByApplicant_UserId(user.getUserId()).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
+
+
 
     // ✅ Get by clubId (leader / staff)
     @Override

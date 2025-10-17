@@ -28,8 +28,9 @@ public class MemberApplication {
     private Club club;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "applicant_id")
+    @JoinColumn(name = "user_id")
     private User applicant;
+
 
     @ManyToOne
     @JoinColumn(name = "handled_by")

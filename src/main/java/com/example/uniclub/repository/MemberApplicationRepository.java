@@ -24,7 +24,7 @@ public interface MemberApplicationRepository extends JpaRepository<MemberApplica
             LocalDateTime to,
             Pageable pageable
     );
-
+    List<MemberApplication> findByApplicant_UserId(Long userId);
     long countByClubAndStatus(Club club, MemberApplicationStatusEnum status);
 
     List<MemberApplication> findByStatusAndCreatedAtBefore(
