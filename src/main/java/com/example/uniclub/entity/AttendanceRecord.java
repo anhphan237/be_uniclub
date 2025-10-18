@@ -21,5 +21,5 @@ public class AttendanceRecord {
     private Long studentId;
     private LocalDateTime checkinTime;
 
-    public AttendanceRecord(Long eventId, Long studentId) { this.eventId = eventId; this.studentId = studentId; }
+    public AttendanceRecord(Long eventId, Long studentId) { this.eventId = eventId; this.studentId = studentId; this.checkinTime = LocalDateTime.now(); }
 }
