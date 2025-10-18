@@ -24,7 +24,7 @@ public class AttendanceController {
     public ResponseEntity<String> generateQr(@PathVariable Long eventId,
                                              @RequestParam(defaultValue = "300") int ttlSeconds) {
         String token = attendanceService.generateEncryptedToken(eventId, Duration.ofSeconds(ttlSeconds));
-        return ResponseEntity.ok("https://uniclub-fpt.vercel.app/login?token=" + token);
+        return ResponseEntity.ok(token);
     }
 
     @PostMapping("/checkin")
