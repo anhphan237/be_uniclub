@@ -29,6 +29,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final RoleRepository roleRepo;
+    private final MajorPolicyRepository majorPolicyRepo;
     private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
     private final ClubService clubService;
@@ -131,11 +132,26 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         app.setStatus(ClubApplicationStatusEnum.APPROVED);
         appRepo.save(app);
 
+        MajorPolicy majorPolicy = MajorPolicy.builder()
+                .policyName("Default Policy for " + app.getClubName())
+                .name("Default Policy for " + app.getClubName())
+                .description("Chính sách mặc định cho CLB " + app.getClubName())
+                .majorId(1L) // hoặc lấy majorId từ application nếu có
+                .majorName(app.getCategory()) // hoặc app.getMajorName() nếu có
+                .maxClubJoin(3)               // ví dụ mặc định
+                .rewardMultiplier(1.0)
+                .active(true)
+                .build();
+
+        // ✅ Lưu policy trước -> có ID
+        majorPolicy = majorPolicyRepo.save(majorPolicy);
+
         // === Tạo CLB mới ===
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
                 .createdBy(app.getProposer())
+                .majorPolicy(majorPolicy)
                 .build();
         clubRepo.save(club);
 

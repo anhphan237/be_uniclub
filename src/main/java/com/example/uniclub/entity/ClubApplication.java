@@ -41,6 +41,8 @@ public class ClubApplication {
     @JoinColumn(name = "submitted_by", nullable = false)
     private User submittedBy;
 
+    private Long majorId;
+
     private String rejectReason;
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;

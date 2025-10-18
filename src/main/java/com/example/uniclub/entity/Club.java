@@ -37,6 +37,7 @@ public class Club {
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
 
+    @Builder.Default
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
 }
