@@ -20,7 +20,7 @@ public class AttendanceToken {
     private Long id;
 
     private Long eventId;
-    private String token;
+    private String rawToken;
     private LocalDateTime expiredAt;
     private Boolean isUsed = false;
 }
