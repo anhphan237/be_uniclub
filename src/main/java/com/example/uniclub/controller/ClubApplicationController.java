@@ -31,6 +31,8 @@ public class ClubApplicationController {
     public ResponseEntity<ApiResponse<ClubApplicationResponse>> createOnline(
             @AuthenticationPrincipal CustomUserDetails user,
             @Valid @RequestBody ClubApplicationCreateRequest req) {
+
+
         return ResponseEntity.ok(ApiResponse.ok(
                 clubApplicationService.createOnline(user.getUserId(), req)
         ));

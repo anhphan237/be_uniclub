@@ -53,6 +53,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .proposerReason(req.proposerReason())
                 .sourceType(ApplicationSourceTypeEnum.ONLINE)
                 .status(ClubApplicationStatusEnum.PENDING)
+                .submittedBy(proposer)
                 .createdAt(LocalDateTime.now())
                 .build();
 

@@ -37,6 +37,10 @@ public class ClubApplication {
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 
+    @ManyToOne
+    @JoinColumn(name = "submitted_by", nullable = false)
+    private User submittedBy;
+
     private String rejectReason;
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
