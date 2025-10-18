@@ -1,6 +1,8 @@
 package com.example.uniclub.service;
 
+import java.time.Duration;
+
 public interface AttendanceService {
-    String generateToken(Long eventId);
-    String checkIn(String token, Long studentId);
+    String generateEncryptedToken(Long eventId, Duration ttl);
+    void checkIn(String token, Long studentId);
 }

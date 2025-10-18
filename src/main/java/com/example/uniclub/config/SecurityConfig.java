@@ -70,6 +70,7 @@ public class SecurityConfig {
 
                         // 👤 Các endpoint yêu cầu đăng nhập
                         .requestMatchers("/api/users/profile/**").authenticated()
+                        .requestMatchers("/api/attendance/checkin").authenticated()
 
                         // 🔒 Quản lý người dùng – chỉ ADMIN & STAFF
                         .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
@@ -79,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/club/**").hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+                        .requestMatchers("/api/attendance/generate/**").hasAnyRole("CLUB_LEADER", "ADMIN")
 
                         // 🔐 Các API khác yêu cầu đăng nhập
                         .anyRequest().authenticated()

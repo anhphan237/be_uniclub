@@ -20,4 +20,6 @@ public class AttendanceRecord {
     private Long eventId;
     private Long studentId;
     private LocalDateTime checkinTime;
+
+    public AttendanceRecord(Long eventId, Long studentId) { this.eventId = eventId; this.studentId = studentId; }
 }

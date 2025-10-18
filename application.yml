@@ -42,6 +42,11 @@ jwt:
   secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
   expiration: 7776000000
 
+app:
+  crypto:
+    aes-gcm:
+      key-b64: "kQq0Bx6oJ7cvm1kzA0jJ7GgJ5wF2k3K8V7kq7rT7s4o="
+
 logging:
   level:
     root: INFO
