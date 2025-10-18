@@ -29,7 +29,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         String raw = UUID.randomUUID().toString();
         AttendanceToken t = new AttendanceToken();
         t.setEventId(eventId);
-        t.setToken(raw);
+        t.setRawToken(raw);
         t.setExpiredAt(LocalDateTime.now().plus(ttl));
         tokenRepo.save(t);
         return crypto.encryptToB64Url(raw);
