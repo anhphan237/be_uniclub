@@ -52,3 +52,4 @@ logging:
     root: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql: TRACE
+APP_CRYPTO_AES_GCM_KEY_B64: "c2VjcmV0MTIzNDU2Nzg5MGFiY2RlZg=="

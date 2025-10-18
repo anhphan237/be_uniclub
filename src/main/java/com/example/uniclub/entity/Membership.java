@@ -46,4 +46,16 @@ public class Membership {
 
     @Column(name = "end_date")
     private LocalDate endDate;
+    @Transient
+    private String email;
+
+    @Transient
+    private String avatarUrl;
+
+    @Transient
+    private String studentCode;
+
+    @Transient
+    private String major;
+
 }

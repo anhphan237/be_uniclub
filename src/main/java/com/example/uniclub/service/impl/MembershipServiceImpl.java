@@ -26,22 +26,31 @@ public class MembershipServiceImpl implements MembershipService {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
 
+    // ========================== 🔹 Helper Mapping ==========================
     private MembershipResponse toResp(Membership m) {
+        User u = m.getUser();
+        Club c = m.getClub();
+
         return MembershipResponse.builder()
                 .membershipId(m.getMembershipId())
-                .userId(m.getUser().getUserId())
-                .clubId(m.getClub().getClubId())
+                .userId(u.getUserId())
+                .clubId(c.getClubId())
                 .clubRole(m.getClubRole())
                 .state(m.getState())
                 .staff(m.isStaff())
                 .joinedDate(m.getJoinedDate())
                 .endDate(m.getEndDate())
-                .fullName(m.getUser().getFullName())
-                .studentCode(m.getUser().getStudentCode())
-                .clubName(m.getClub().getName())
+                .fullName(u.getFullName())
+                .studentCode(u.getStudentCode())
+                .clubName(c.getName())
+                // 🆕 Thêm 4 trường mới
+                .email(u.getEmail())
+                .avatarUrl(u.getAvatarUrl())
+                .major(u.getMajorName())
                 .build();
     }
 
+    // ========================== 🔹 1. Membership cơ bản ==========================
     @Override
     public List<MembershipResponse> getMyMemberships(Long userId) {
         return membershipRepo.findByUser_UserId(userId)
@@ -78,6 +87,7 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(m);
     }
 
+    // ========================== 🔹 2. Quản lý đơn duyệt ==========================
     @Override
     public List<MembershipResponse> getPendingMembers(Long clubId) {
         return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.PENDING)
@@ -114,7 +124,7 @@ public class MembershipServiceImpl implements MembershipService {
         membershipRepo.save(m);
     }
 
-    // ✅ Thay đổi vai trò trong CLB (ràng buộc số lượng)
+    // ========================== 🔹 3. Quản lý vai trò ==========================
     @Override
     public MembershipResponse updateClubRole(Long membershipId, ClubRoleEnum newRole, Long approverId) {
         Membership membership = membershipRepo.findById(membershipId)
@@ -146,6 +156,8 @@ public class MembershipServiceImpl implements MembershipService {
         membershipRepo.save(membership);
         return toResp(membership);
     }
+
+    // ========================== 🔹 4. Lấy danh sách theo CLB ==========================
     @Override
     public List<MembershipResponse> getMembersByClub(Long clubId) {
         return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE)
@@ -162,6 +174,7 @@ public class MembershipServiceImpl implements MembershipService {
                 .toList();
     }
 
+    // ========================== 🔹 5. Lấy danh sách theo Leader ==========================
     @Override
     public List<MembershipResponse> getMembersByLeaderName(String leaderName) {
         Membership leaderMembership = membershipRepo
@@ -172,6 +185,7 @@ public class MembershipServiceImpl implements MembershipService {
         return getMembersByClub(clubId);
     }
 
+    // ========================== 🔹 6. Update vai trò từ chuỗi ==========================
     @Override
     public MembershipResponse updateRole(Long membershipId, Long approverId, String newRole) {
         ClubRoleEnum roleEnum;
@@ -182,6 +196,8 @@ public class MembershipServiceImpl implements MembershipService {
         }
         return updateClubRole(membershipId, roleEnum, approverId);
     }
+
+    // ========================== 🔹 7. Cập nhật số lượng thành viên CLB ==========================
     private void updateClubMemberCount(Long clubId) {
         int total = (int) membershipRepo.countByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE);
         Club club = clubRepo.findById(clubId)
@@ -189,6 +205,5 @@ public class MembershipServiceImpl implements MembershipService {
         club.setMemberCount(total);
         clubRepo.save(club);
     }
-
 
 }

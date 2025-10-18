@@ -24,4 +24,8 @@ public class MembershipResponse {
     private String fullName;
     private String studentCode;
     private String clubName;
+
+    private String email;
+    private String avatarUrl;
+    private String major;
 }
