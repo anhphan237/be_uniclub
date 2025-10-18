@@ -73,7 +73,7 @@ public class MemberApplicationController {
 
     // 🟢 [GET] Xem đơn của chính mình
     @GetMapping("/my")
-    @PreAuthorize("hasRole('STUDENT')")
+    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<List<MemberApplicationResponse>>> getMyApplications(
             @AuthenticationPrincipal CustomUserDetails principal) {
         return ResponseEntity.ok(ApiResponse.ok(service.findApplicationsByEmail(principal.getUsername())));
