@@ -6,7 +6,9 @@ import com.example.uniclub.dto.request.MemberApplicationStatusUpdateRequest;
 import com.example.uniclub.dto.response.MemberApplicationResponse;
 import com.example.uniclub.dto.response.MemberApplicationStatsResponse;
 import com.example.uniclub.security.CustomUserDetails;
+import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.MemberApplicationService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +25,22 @@ import java.util.List;
 public class MemberApplicationController {
 
     private final MemberApplicationService service;
+    private final JwtUtil jwtUtil;
 
     // 🟢 [POST] Sinh viên nộp đơn ứng tuyển
     @PostMapping
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<MemberApplicationResponse> create(
             @AuthenticationPrincipal UserDetails principal,
-            @Valid @RequestBody MemberApplicationCreateRequest req) {
+            @Valid @RequestBody MemberApplicationCreateRequest req,
+            HttpServletRequest request) {
+        // Lấy token từ header
+        String authHeader = request.getHeader("Authorization");
+        String token = authHeader.replace("Bearer ", "");
+
+        // Lấy email từ token
+        String email = jwtUtil.getSubject(token);
+
         return ResponseEntity.ok(service.createByEmail(principal.getUsername(), req));
     }
 
