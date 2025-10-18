@@ -45,7 +45,7 @@ jwt:
 app:
   crypto:
     aes-gcm:
-      key-b64: "kQq0Bx6oJ7cvm1kzA0jJ7GgJ5wF2k3K8V7kq7rT7s4o="
+      key-b64: ${APP_CRYPTO_AES_GCM_KEY_B64}
 
 logging:
   level:
