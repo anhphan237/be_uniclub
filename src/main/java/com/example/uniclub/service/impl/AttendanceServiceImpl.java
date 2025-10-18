@@ -2,9 +2,12 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.entity.AttendanceRecord;
 import com.example.uniclub.entity.AttendanceToken;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.repository.AttendanceRecordRepository;
 import com.example.uniclub.repository.AttendanceTokenRepository;
+import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.AttendanceService;
+import com.example.uniclub.service.UserService;
 import com.example.uniclub.util.CryptoUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +26,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceTokenRepository tokenRepo;
     private final AttendanceRecordRepository recordRepo;
     private final CryptoUtil crypto;
+    private final UserService userService;
 
     /** Admin tạo QR: lưu rawToken + TTL, trả encryptedToken để FE nhúng vào QR URL */
     public String generateEncryptedToken(Long eventId, Duration ttl) {
@@ -37,7 +41,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     /** Student check-in sau khi login (JWT) */
     @Transactional
-    public void checkIn(String encryptedToken, Long studentId) {
+    public void checkIn(String encryptedToken, String email) {
         // 1) decrypt về raw
         String raw = crypto.decryptFromB64Url(encryptedToken);
 
@@ -50,6 +54,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalStateException("Token expired");
         }
 
+        Long studentId = getStudentIdByEmail(email);
+
         // 4) ghi attendance (unique eventId, studentId)
         try {
             if (!recordRepo.existsByEventIdAndStudentId(token.getEventId(), studentId)) {
@@ -58,5 +64,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         } catch (DataIntegrityViolationException ignore) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Already checked in");// duplicate -> coi như đã check-in
         }
+    }
+
+    private Long getStudentIdByEmail(String email) {
+        User user = userService.getByEmail(email);
+        Long studentId = user.getUserId();
+        return studentId;
     }
 }

@@ -20,6 +20,7 @@ public class AttendanceToken {
     private Long id;
 
     private Long eventId;
+    @Column(name = "raw_token", unique = true)
     private String rawToken;
     private LocalDateTime expiredAt;
     private Boolean isUsed = false;

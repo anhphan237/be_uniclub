@@ -7,7 +7,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper(componentModel = "spring")
+@Mapper
 public interface ClubApplicationMapper {
 
     ClubApplicationMapper INSTANCE = org.mapstruct.factory.Mappers.getMapper(ClubApplicationMapper.class);

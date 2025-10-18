@@ -32,7 +32,6 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
     private final ClubService clubService;
-    private final ClubApplicationMapper mapper;
     private final PasswordEncoder passwordEncoder;
 
     // ============================================================
@@ -330,7 +329,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     public List<ClubApplicationResponse> getAllApplications() {
         return appRepo.findAll()
                 .stream()
-                .map(mapper::toResponse)
+                .map(ClubApplicationMapper.INSTANCE::toResponse)
                 .collect(Collectors.toList());
     }
 }

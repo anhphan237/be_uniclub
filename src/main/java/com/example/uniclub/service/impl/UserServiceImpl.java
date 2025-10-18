@@ -226,6 +226,12 @@ public class UserServiceImpl implements UserService {
         return userRepo.save(user);
     }
 
+    @Override
+    public User getByEmail(String email) {
+        return userRepo.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+    }
+
     // ===================== Validate Major =====================
     private void validateMajor(String majorName) {
         Set<String> validMajors = Set.of(

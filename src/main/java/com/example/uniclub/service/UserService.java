@@ -30,4 +30,5 @@ public interface UserService {
     User getProfile(String email);
     User updateProfile(String email, ProfileUpdateRequest req);
     User updateAvatar(String email, String avatarUrl);
+    User getByEmail(String email);
 }

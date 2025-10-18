@@ -4,5 +4,5 @@ import java.time.Duration;
 
 public interface AttendanceService {
     String generateEncryptedToken(Long eventId, Duration ttl);
-    void checkIn(String token, Long studentId);
+    void checkIn(String token, String email);
 }
