@@ -26,7 +26,7 @@ public class MembershipController {
 
     /** 🔹 Lấy tất cả thành viên của 1 CLB */
     @GetMapping("/clubs/{clubId}/members")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STUDENT')")
     public ResponseEntity<ApiResponse<List<MembershipResponse>>> getAllMembers(
             @PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMembersByClub(clubId)));
