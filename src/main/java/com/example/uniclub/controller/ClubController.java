@@ -69,7 +69,7 @@ public class ClubController {
 
     // 🧩 6. ✅ Lấy tổng số thành viên ACTIVE trong 1 CLB
     @GetMapping("/{id}/member-count")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_VICE_LEADER')")
+//    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_VICE_LEADER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberCount(@PathVariable Long id) {
         long count = membershipRepo.countByClub_ClubIdAndState(id, MembershipStateEnum.ACTIVE);
         Map<String, Object> result = new HashMap<>();
