@@ -5,40 +5,34 @@ import com.example.uniclub.service.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/attendance")
 @RequiredArgsConstructor
 public class AttendanceController {
+
     private final AttendanceService attendanceService;
     private final JwtUtil jwtUtil;
 
-    @PostMapping("/generate/{eventId}")
-    public ResponseEntity<String> generateQr(@PathVariable Long eventId,
-                                             @RequestParam(defaultValue = "300") int ttlSeconds) {
-        String token = attendanceService.generateEncryptedToken(eventId, Duration.ofSeconds(ttlSeconds));
-        return ResponseEntity.ok(token);
+    /** 🟢 Leader màn hình sự kiện gọi định kỳ để lấy QR mới */
+    @GetMapping("/qr-token/{eventId}")
+    public ResponseEntity<?> getQr(@PathVariable Long eventId) {
+        return ResponseEntity.ok(attendanceService.getQrTokenForEvent(eventId));
     }
 
+    /** 🟢 Member gửi check-in */
     @PostMapping("/checkin")
-    public ResponseEntity<String> checkIn(@RequestParam("token") String encryptedToken,
-                                          @AuthenticationPrincipal Jwt jwt,
+    public ResponseEntity<String> checkIn(@RequestParam("token") String eventJwtToken,
                                           HttpServletRequest request) {
-        // Lấy token từ header
         String authHeader = request.getHeader("Authorization");
-        String token = authHeader.replace("Bearer ", "");
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).body("Unauthorized");
 
-        // Lấy email từ token
-        String email = jwtUtil.getSubject(token);
+        String jwt = authHeader.substring(7);
+        String email = jwtUtil.getSubject(jwt);
 
-        attendanceService.checkIn(encryptedToken, email);
-        return ResponseEntity.ok("Checked-in");
+        attendanceService.checkInWithToken(eventJwtToken, email);
+        return ResponseEntity.ok("Checked-in successfully");
     }
 }

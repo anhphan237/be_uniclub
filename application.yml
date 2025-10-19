@@ -11,6 +11,13 @@ spring:
     password: npg_Ov8aHyTuSP0E   # ⚠️ đây là mật khẩu bạn lấy từ Neon dashboard
     driver-class-name: org.postgresql.Driver
 
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 6000
+
   jpa:
     hibernate:
       ddl-auto: update          # ✅ Hibernate tự thêm cột/bảng khi cần
@@ -46,6 +53,8 @@ app:
   crypto:
     aes-gcm:
       key-b64: ${APP_CRYPTO_AES_GCM_KEY_B64}
+  jwt:
+    event-secret: "CHANGE_ME_TO_A_32B_SECRET_0123456789ABCDEF"
 
 logging:
   level:
