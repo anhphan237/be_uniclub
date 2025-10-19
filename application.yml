@@ -13,11 +13,10 @@ spring:
 
   data:
     redis:
-      url: rediss://default:AUlNAAIncDI4MjIyMGNhM2U0ZmM0NTU1YWRlMTRlZTcxMmYxMzU0ZHAyMTg3NjU@calm-goose-18765.upstash.io:6379
-      timeout: 10000
-    config:
-      activate:
-        on-profile: default
+      host: calm-goose-18765.upstash.io
+      port: 6379
+      password: AUlNAAIncDI4MjIyMGNhM2U0ZmM0NTU1YWRlMTRlZTcxMmYxMzU0ZHAyMTg3NjU
+
 
   jpa:
     hibernate:
