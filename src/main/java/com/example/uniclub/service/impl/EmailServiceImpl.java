@@ -9,6 +9,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
@@ -19,15 +21,18 @@ public class EmailServiceImpl implements EmailService {
     public void sendEmail(String to, String subject, String content) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            // ✅ true = multipart mode (for inline images)
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+
+            // ✅ Cẩn thận: setFrom có 2 tham số cần encoding chuẩn
             helper.setFrom("uniclub.contacts@gmail.com", "UniClub Vietnam");
             helper.setTo(to);
             helper.setSubject(subject);
 
-            // ✅ HTML template with logo and gradient background
-            String html = """
-                    <div style="font-family: Arial, sans-serif; background: linear-gradient(180deg, #EAF9FF 0%, #FFFFFF 100%);
+            // ✅ Dùng String.format thay vì .formatted() để tránh Java 17 lỗi cú pháp cũ
+            String html = String.format("""
+                    <div style="font-family: Arial, sans-serif; background: linear-gradient(180deg, #EAF9FF 0%%, #FFFFFF 100%%);
                                 border-radius: 10px; padding: 30px; max-width: 600px; margin: auto; box-shadow: 0 0 12px rgba(0,0,0,0.1);">
                         <div style="text-align: center; margin-bottom: 25px;">
                             <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 110px;'>
@@ -40,18 +45,21 @@ public class EmailServiceImpl implements EmailService {
                             <p>Best regards,<br><b>UniClub Vietnam</b><br>Digitalizing Communities 💡</p>
                         </div>
                     </div>
-                    """.formatted(content);
+                    """, content);
 
+            // ✅ Đặt nội dung HTML
             helper.setText(html, true);
+
+            // ✅ Inline logo (đảm bảo file nằm đúng đường dẫn)
             helper.addInline("uniclub-logo", new ClassPathResource("static/images/Logo.png"));
 
             mailSender.send(message);
             System.out.println("✅ Email sent successfully to " + to);
 
         } catch (MessagingException e) {
-            e.printStackTrace();
-            System.err.println("❌ Email send failed: " + e.getMessage());
+            System.err.println("❌ Messaging error: " + e.getMessage());
         } catch (Exception e) {
+            System.err.println("❌ Email send failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
