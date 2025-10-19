@@ -13,10 +13,8 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
-      password:
-      timeout: 6000
+      url: rediss://default:AUlNAAIncDI4MjIyMGNhM2U0ZmM0NTU1YWRlMTRlZTcxMmYxMzU0ZHAyMTg3NjU@calm-goose-18765.upstash.io:6379
+      timeout: 10000
 
   jpa:
     hibernate:
