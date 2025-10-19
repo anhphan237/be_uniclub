@@ -14,14 +14,11 @@ public class MemberApplicationResponse {
     private String applicantName;
     private String applicantEmail;
     private String status;
-    private String motivation;
-    private String attachmentUrl;
-    private String note;
+    private String message;
+    private String reason;
     private Long handledById;
     private String handledByName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String studentCode;
-    private String majorName;
-    private String bio;
 }

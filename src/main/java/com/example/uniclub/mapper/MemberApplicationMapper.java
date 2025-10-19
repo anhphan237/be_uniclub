@@ -17,9 +17,8 @@ public class MemberApplicationMapper {
                 .applicantName(user.getFullName())
                 .applicantEmail(user.getEmail())
                 .status(app.getStatus().name()) // Enum to String
-                .motivation(app.getMotivation())
-                .attachmentUrl(app.getAttachmentUrl())
-                .note(app.getNote())
+                .message(app.getMessage())
+                .reason(app.getNote())
                 .handledById(app.getHandledBy() != null ? app.getHandledBy().getUserId() : null)
                 .handledByName(app.getHandledBy() != null ? app.getHandledBy().getFullName() : null)
                 .createdAt(app.getCreatedAt())
@@ -27,8 +26,6 @@ public class MemberApplicationMapper {
 
                 // ✅ thêm thông tin user
                 .studentCode(user.getStudentCode())
-                .majorName(user.getMajorName())
-                .bio(user.getBio())
                 .build();
     }
 }

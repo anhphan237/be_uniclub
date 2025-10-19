@@ -55,8 +55,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         MemberApplication app = MemberApplication.builder()
                 .club(club)
                 .applicant(user)
-                .motivation(req.getMotivation())
-                .attachmentUrl(req.getAttachmentUrl())
+                .message(req.getMessage())
                 .status(MemberApplicationStatusEnum.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -189,9 +188,8 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .applicantName(app.getApplicant().getFullName())
                 .applicantEmail(app.getApplicant().getEmail())
                 .status(app.getStatus().name())
-                .motivation(app.getMotivation())
-                .attachmentUrl(app.getAttachmentUrl())
-                .note(app.getNote())
+                .message(app.getMessage())
+                .reason(app.getNote())
                 .handledById(app.getHandledBy() != null ? app.getHandledBy().getUserId() : null)
                 .handledByName(app.getHandledBy() != null ? app.getHandledBy().getFullName() : null)
                 .createdAt(app.getCreatedAt())
@@ -356,8 +354,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         }
 
         // ✅ Cập nhật nội dung đơn
-        oldApp.setMotivation(req.getMotivation());
-        oldApp.setAttachmentUrl(req.getAttachmentUrl());
+        oldApp.setMessage(req.getMessage());
         oldApp.setStatus(MemberApplicationStatusEnum.PENDING);
         oldApp.setNote(null);
         oldApp.setHandledBy(null);

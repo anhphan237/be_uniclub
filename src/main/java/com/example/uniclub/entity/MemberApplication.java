@@ -41,10 +41,7 @@ public class MemberApplication {
     private MemberApplicationStatusEnum status = MemberApplicationStatusEnum.PENDING;
 
     @Column(length = 1000)
-    private String motivation;
-
-    @Column(length = 500)
-    private String attachmentUrl;
+    private String message;
 
     @Column(length = 1000)
     private String note;

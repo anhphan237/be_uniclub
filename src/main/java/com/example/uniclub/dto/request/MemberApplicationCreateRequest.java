@@ -8,6 +8,5 @@ import lombok.Data;
 @Data
 public class MemberApplicationCreateRequest {
     private Long clubId;
-    private String motivation;
-    private String attachmentUrl;
+    private String message;
 }
