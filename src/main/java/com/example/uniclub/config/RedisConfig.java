@@ -11,7 +11,6 @@ public class RedisConfig {
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
-        // đọc host/port từ application.yml nếu cần
         return new LettuceConnectionFactory();
     }
 
