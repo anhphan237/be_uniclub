@@ -11,7 +11,7 @@ import com.example.uniclub.service.EmailService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder; // ✅ Thêm import này
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -29,8 +29,9 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
     private final RoleRepository roleRepo;
+    private final MajorRepository majorRepository; // ✅ Thêm để map majorId
     private final EmailService emailService;
-    private final PasswordEncoder passwordEncoder; // ✅ Inject password encoder
+    private final PasswordEncoder passwordEncoder;
 
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn xin tạo CLB
@@ -43,12 +44,16 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         if (appRepo.findByClubName(req.clubName()).isPresent())
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 
+        // ✅ Lấy Major entity từ ID
+        Major major = majorRepository.findById(req.majorId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+
         ClubApplication app = ClubApplication.builder()
                 .proposer(proposer)
                 .submittedBy(proposer)
                 .clubName(req.clubName())
                 .description(req.description())
-                .major(req.major())
+                .major(major) // ✅ Gán entity Major
                 .vision(req.vision())
                 .proposerReason(req.proposerReason())
                 .status(ClubApplicationStatusEnum.PENDING)
@@ -122,7 +127,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor())
+                .majorName(app.getMajor().getName()) // ✅ Lấy tên ngành từ entity Major
                 .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
                 .build();
@@ -138,13 +143,11 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         club.setWallet(wallet);
         clubRepo.save(club);
 
-        // 👥 Tự tạo 2 tài khoản Leader & ViceLeader
+        // 👥 Tự tạo 2 tài khoản Leader & Vice Leader
         Role leaderSystemRole = roleRepo.findByRoleName("CLUB_LEADER")
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
 
         String slug = club.getName().trim().toLowerCase().replaceAll("\\s+", "");
-
-        // ✅ Mã hóa mật khẩu 123
         String encodedPassword = passwordEncoder.encode("123");
 
         // 🟢 Chủ nhiệm

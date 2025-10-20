@@ -78,7 +78,7 @@ public class ClubServiceImpl implements ClubService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor()) // ✅ String
+                .majorName(app.getMajor().getName())// ✅ String
                 .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
                 .build();
@@ -101,7 +101,7 @@ public class ClubServiceImpl implements ClubService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor())
+                .majorName(app.getMajor().getName())
                 .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
                 .build();

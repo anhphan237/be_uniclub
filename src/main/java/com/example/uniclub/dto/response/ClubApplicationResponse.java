@@ -49,7 +49,7 @@ public class ClubApplicationResponse {
                 .applicationId(app.getApplicationId())
                 .clubName(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor())
+                .majorName(app.getMajor().getName())
                 .vision(app.getVision())
                 .proposerReason(app.getProposerReason())
                 .proposer(app.getProposer() == null ? null :
