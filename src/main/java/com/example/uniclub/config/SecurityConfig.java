@@ -38,12 +38,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ Cấu hình CORS + CSRF + session
+                // ✅ CORS + CSRF + session management
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // ✅ Cấu hình xử lý exception (unauthorized & forbidden)
+                // ✅ Exception handling (Unauthorized / Forbidden)
                 .exceptionHandling(eh -> eh
                         .authenticationEntryPoint(customAuthEntryPoint)
                         .accessDeniedHandler((req, res, ex) -> {
@@ -53,7 +53,7 @@ public class SecurityConfig {
                         })
                 )
 
-                // ✅ Phân quyền truy cập cho từng nhóm endpoint
+                // ✅ Endpoint authorization rules
                 .authorizeHttpRequests(auth -> auth
                         // 🌐 Public endpoints (Swagger + Auth)
                         .requestMatchers(
@@ -67,48 +67,53 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
 
-                        // ✅ Public xem majors, events, clubs
+                        // ✅ Public data
                         .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
 
-                        // 👤 Profile và Attendance (cần đăng nhập)
+                        // 👤 Profile & Attendance (requires login)
                         .requestMatchers("/api/users/profile/**").authenticated()
                         .requestMatchers("/api/attendance/checkin").authenticated()
 
                         // 🧩 Wallet APIs
-                        // Chỉ CLUB_LEADER, UNIVERSITY_STAFF, ADMIN mới được phát điểm
+                        // Reward: ClubLeader / UniversityStaff / Admin only
                         .requestMatchers(HttpMethod.POST, "/api/wallets/reward/**")
                         .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
-                        // Xem ví cá nhân: user nào cũng được sau khi đăng nhập
+
+                        // Get my wallet: any authenticated user
                         .requestMatchers(HttpMethod.GET, "/api/wallets/me").authenticated()
 
-                        // 🔒 Quản lý người dùng – chỉ ADMIN & STAFF
+                        // Get club wallet: ClubLeader / Staff / Admin
+                        .requestMatchers(HttpMethod.GET, "/api/wallets/club/**")
+                        .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
+
+                        // 🔒 User management – Admin & Staff only
                         .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
 
-                        // 🧩 Phân quyền đặc thù cho các nhóm API
+                        // 🧩 Specialized API access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/club/**").hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/attendance/generate/**").hasAnyRole("CLUB_LEADER", "ADMIN")
 
-                        // 🔐 Các API khác yêu cầu đăng nhập
+                        // 🔐 All other endpoints require authentication
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Cấu hình OAuth2 login
+                // ✅ OAuth2 login configuration
                 .oauth2Login(o -> o
                         .successHandler(oauth2SuccessHandler)
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // ✅ Thêm filter xác thực JWT trước UsernamePasswordAuthenticationFilter
+                // ✅ Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // 🔐 Authentication Provider (Dùng cho login truyền thống)
+    // 🔐 Authentication Provider (used for traditional login)
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -127,7 +132,7 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
-    // 🌍 Cấu hình CORS cho toàn hệ thống
+    // 🌍 Global CORS configuration
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

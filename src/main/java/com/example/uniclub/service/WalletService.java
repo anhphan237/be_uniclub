@@ -8,5 +8,6 @@ public interface WalletService {
     Wallet getWalletById(Long walletId);
     void increase(Wallet wallet, int points);
     void decrease(Wallet wallet, int points);
+    Wallet getWalletByClubId(Long clubId);
 
 }

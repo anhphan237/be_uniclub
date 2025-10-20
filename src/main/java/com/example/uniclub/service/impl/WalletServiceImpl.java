@@ -41,4 +41,10 @@ public class WalletServiceImpl implements WalletService {
         wallet.setBalancePoints(wallet.getBalancePoints() - points);
         walletRepository.save(wallet);
     }
+    @Override
+    public Wallet getWalletByClubId(Long clubId) {
+        return walletRepository.findByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for clubId: " + clubId));
+    }
+
 }
