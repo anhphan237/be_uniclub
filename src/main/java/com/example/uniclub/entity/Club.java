@@ -21,13 +21,11 @@ public class Club {
 
     private String description;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "major_policy_id")
-    private MajorPolicy majorPolicy;
+    @Column(name = "major_name")
+    private String majorName;
 
-    @ManyToOne
-    @JoinColumn(name = "major_id")
-    private Major major;
+    @Column(name = "vision", length = 500)
+    private String vision;
 
     @ManyToOne
     @JoinColumn(name = "created_by")
@@ -41,3 +39,4 @@ public class Club {
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
 }
+

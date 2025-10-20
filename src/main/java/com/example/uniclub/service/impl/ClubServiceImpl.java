@@ -23,8 +23,6 @@ public class ClubServiceImpl implements ClubService {
     private final WalletRepository walletRepo;
     private final RoleRepository roleRepo;
     private final UserRepository userRepo;
-    private final MajorPolicyRepository majorPolicyRepo;
-    private final MajorRepository majorRepo;
     private final MembershipRepository membershipRepo;
     private final PasswordEncoder passwordEncoder;
 
@@ -42,26 +40,22 @@ public class ClubServiceImpl implements ClubService {
                 .name(club.getName())
                 .description(club.getDescription())
                 .leaderName(leaderName)
-                .majorPolicyName(club.getMajorPolicy() != null ? club.getMajorPolicy().getPolicyName() : null)
-                .majorName(club.getMajor() != null ? club.getMajor().getName() : null)
+                .majorName(club.getMajorName())  // ✅ chỉ lưu tên ngành
                 .build();
     }
 
+    // 🟢 1. Tạo CLB mới thủ công (Admin / Staff)
     @Override
     public ClubResponse create(ClubCreateRequest req) {
         if (clubRepo.existsByName(req.name()))
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 
-        MajorPolicy policy = majorPolicyRepo.findById(req.majorPolicyId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major policy not found"));
-        Major major = majorRepo.findById(req.majorId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
-
         Club club = Club.builder()
                 .name(req.name())
                 .description(req.description())
-                .major(major)
-                .majorPolicy(policy)
+                .majorName(req.majorName()) // ✅ chỉ cần String
+                .vision(req.vision())
+                .createdBy(null) // có thể set staff hiện tại nếu cần
                 .build();
 
         Wallet clubWallet = Wallet.builder()
@@ -69,6 +63,7 @@ public class ClubServiceImpl implements ClubService {
                 .balancePoints(0)
                 .club(club)
                 .build();
+
         walletRepo.save(clubWallet);
         club.setWallet(clubWallet);
 
@@ -77,61 +72,67 @@ public class ClubServiceImpl implements ClubService {
         return toResponse(saved);
     }
 
+    // 🟢 2. Tạo CLB từ đơn Online
     @Override
     public void createFromOnlineApplication(ClubApplication app) {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .createdBy(app.getProposer())
+                .majorName(app.getMajor()) // ✅ String
+                .vision(app.getVision())
+                .createdBy(app.getReviewedBy())
                 .build();
 
-        Wallet clubWallet = Wallet.builder()
+        Wallet wallet = Wallet.builder()
                 .ownerType(WalletOwnerTypeEnum.CLUB)
                 .balancePoints(0)
                 .club(club)
                 .build();
-        walletRepo.save(clubWallet);
-        club.setWallet(clubWallet);
 
+        walletRepo.save(wallet);
+        club.setWallet(wallet);
         Club saved = clubRepo.save(club);
         createDefaultAccounts(saved);
     }
 
+    // 🟢 3. Tạo CLB từ đơn Offline (Staff nhập)
     @Override
     public void createFromOfflineApplication(ClubApplication app, ClubApplicationOfflineRequest req) {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
+                .majorName(app.getMajor())
+                .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
                 .build();
 
-        Wallet clubWallet = Wallet.builder()
+        Wallet wallet = Wallet.builder()
                 .ownerType(WalletOwnerTypeEnum.CLUB)
                 .balancePoints(0)
                 .club(club)
                 .build();
-        walletRepo.save(clubWallet);
-        club.setWallet(clubWallet);
 
+        walletRepo.save(wallet);
+        club.setWallet(wallet);
         Club saved = clubRepo.save(club);
         createDefaultAccounts(saved);
     }
 
-    /** 🔹 Auto-create Leader & Vice-Leader when club is created */
+    // 🔹 Tự động tạo tài khoản Leader & Vice Leader
     private void createDefaultAccounts(Club club) {
-        Role leaderSystemRole = roleRepo.findByRoleName("CLUB_LEADER")
+        Role leaderRole = roleRepo.findByRoleName("CLUB_LEADER")
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
 
         String slug = club.getName().trim().toLowerCase().replaceAll("\\s+", "");
 
-        // 🔸 Chủ nhiệm (Leader)
+        // Chủ nhiệm
         User leader = User.builder()
-                .email("club_leader_" + slug + "@uniclub.edu.vn")
+                .email("leader_" + slug + "@uniclub.edu.vn")
                 .passwordHash(passwordEncoder.encode("123"))
                 .fullName("Leader of " + club.getName())
-                .studentCode("LEAD_" + slug)
+                .studentCode("LEAD_" + slug.toUpperCase())
                 .status(UserStatusEnum.ACTIVE.name())
-                .role(leaderSystemRole)
+                .role(leaderRole)
                 .build();
 
         Wallet leaderWallet = Wallet.builder()
@@ -139,6 +140,7 @@ public class ClubServiceImpl implements ClubService {
                 .user(leader)
                 .balancePoints(0)
                 .build();
+
         leader.setWallet(leaderWallet);
         userRepo.save(leader);
         walletRepo.save(leaderWallet);
@@ -147,18 +149,18 @@ public class ClubServiceImpl implements ClubService {
                 .club(club)
                 .user(leader)
                 .clubRole(ClubRoleEnum.LEADER)
-                .state(MembershipStateEnum.APPROVED)
+                .state(MembershipStateEnum.ACTIVE)
                 .staff(true)
                 .build());
 
-        // 🔸 Phó chủ nhiệm (Vice Leader)
+        // Phó chủ nhiệm
         User vice = User.builder()
-                .email("club_vice_" + slug + "@uniclub.edu.vn")
+                .email("vice_" + slug + "@uniclub.edu.vn")
                 .passwordHash(passwordEncoder.encode("123"))
                 .fullName("Vice Leader of " + club.getName())
-                .studentCode("VICE_" + slug)
+                .studentCode("VICE_" + slug.toUpperCase())
                 .status(UserStatusEnum.ACTIVE.name())
-                .role(leaderSystemRole)
+                .role(leaderRole)
                 .build();
 
         Wallet viceWallet = Wallet.builder()
@@ -166,6 +168,7 @@ public class ClubServiceImpl implements ClubService {
                 .user(vice)
                 .balancePoints(0)
                 .build();
+
         vice.setWallet(viceWallet);
         userRepo.save(vice);
         walletRepo.save(viceWallet);
@@ -174,7 +177,7 @@ public class ClubServiceImpl implements ClubService {
                 .club(club)
                 .user(vice)
                 .clubRole(ClubRoleEnum.VICE_LEADER)
-                .state(MembershipStateEnum.APPROVED)
+                .state(MembershipStateEnum.ACTIVE)
                 .staff(true)
                 .build());
     }
@@ -197,9 +200,9 @@ public class ClubServiceImpl implements ClubService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Club not found");
         clubRepo.deleteById(id);
     }
+
     @Override
     public Club saveClub(Club club) {
         return clubRepo.save(club);
     }
-
 }

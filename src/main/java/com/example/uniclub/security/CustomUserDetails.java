@@ -7,6 +7,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
@@ -15,69 +16,78 @@ import java.util.stream.Collectors;
 @Builder
 public class CustomUserDetails implements UserDetails {
 
-    private Long userId;
-    private String email;
-    private String password;
+    private User user;
     private Collection<? extends GrantedAuthority> authorities;
-    private Role role;
 
-    // ✅ Tạo CustomUserDetails từ entity User
+    // ✅ Factory method: tạo từ entity User
     public static CustomUserDetails fromUser(User user, Collection<? extends GrantedAuthority> authorities) {
         return CustomUserDetails.builder()
-                .userId(user.getUserId())
-                .email(user.getEmail())
-                .password(user.getPasswordHash())
+                .user(user)
                 .authorities(authorities)
-                .role(user.getRole())
                 .build();
     }
 
-    // ✅ Lấy ID người dùng
+    // ✅ Lấy ID người dùng (chuẩn)
     public Long getId() {
-        return userId;
+        return user.getUserId();
     }
 
-    // ✅ Trả lại entity User rút gọn
-    public User getUser() {
-        User u = new User();
-        u.setUserId(this.userId);
-        u.setEmail(this.email);
-        u.setRole(this.role);
-        return u;
+    // ✅ Alias để tương thích với các controller cũ
+    public Long getUserId() {
+        return user.getUserId();
+    }
+
+    // ✅ Lấy Role
+    public Role getRole() {
+        return user.getRole();
     }
 
     // ✅ Lấy tên Role (VD: "ADMIN", "STUDENT", "CLUB_LEADER")
     public String getRoleName() {
-        if (this.role != null && this.role.getRoleName() != null) {
-            // Ưu tiên lấy từ entity Role nếu có
-            return this.role.getRoleName().replace("ROLE_", "");
-        }
-
-        // Nếu chưa có Role entity, fallback từ authorities
-        if (this.authorities != null && !this.authorities.isEmpty()) {
-            String fullRole = this.authorities.iterator().next().getAuthority();
-            return fullRole.startsWith("ROLE_") ? fullRole.substring(5) : fullRole;
-        }
-        return null;
+        if (user.getRole() == null) return null;
+        String roleName = user.getRole().getRoleName();
+        return roleName.startsWith("ROLE_") ? roleName.substring(5) : roleName;
     }
 
     // ✅ Chuẩn hóa authorities (đảm bảo prefix ROLE_)
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        if (authorities == null) return List.of();
         return authorities.stream()
                 .map(auth -> {
                     String roleName = auth.getAuthority();
-                    final String fixedName = roleName.startsWith("ROLE_") ? roleName : "ROLE_" + roleName;
-                    return (GrantedAuthority) () -> fixedName;
+                    if (!roleName.startsWith("ROLE_")) {
+                        roleName = "ROLE_" + roleName;
+                    }
+                    String finalRole = roleName;
+                    return (GrantedAuthority) () -> finalRole;
                 })
                 .collect(Collectors.toList());
     }
 
     // === Spring Security Required Methods ===
-    @Override public String getPassword() { return password; }
-    @Override public String getUsername() { return email; }
-    @Override public boolean isAccountNonExpired() { return true; }
-    @Override public boolean isAccountNonLocked() { return true; }
-    @Override public boolean isCredentialsNonExpired() { return true; }
-    @Override public boolean isEnabled() { return true; }
+    @Override
+    public String getPassword() {
+        // ✅ Lấy trực tiếp từ entity
+        return user.getPasswordHash();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getEmail();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+
+    @Override
+    public boolean isAccountNonLocked() { return true; }
+
+    @Override
+    public boolean isCredentialsNonExpired() { return true; }
+
+    @Override
+    public boolean isEnabled() {
+        return user.getStatus() != null && user.getStatus().equals("ACTIVE");
+    }
 }

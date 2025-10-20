@@ -6,12 +6,9 @@ import com.example.uniclub.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -25,11 +22,20 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy người dùng với email: " + email));
 
-        List<GrantedAuthority> authorities = Collections.singletonList(
-                new SimpleGrantedAuthority(user.getRole().getRoleName())
-        );
+        // ✅ Thêm tiền tố ROLE_ để Spring nhận diện đúng quyền
+        String roleName = user.getRole().getRoleName();
+        if (!roleName.startsWith("ROLE_")) {
+            roleName = "ROLE_" + roleName;
+        }
 
-        // ✅ Dùng factory method thay vì constructor cũ
+        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(roleName));
+
+        // ✅ Debug log kiểm tra
+        System.out.println("DEBUG >>> Loaded user: " + user.getEmail());
+        System.out.println("DEBUG >>> Role: " + roleName);
+        System.out.println("DEBUG >>> PasswordHash: " + user.getPasswordHash());
+
+        // ✅ Dùng factory method trong CustomUserDetails
         return CustomUserDetails.fromUser(user, authorities);
     }
 }

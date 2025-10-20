@@ -7,18 +7,23 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper
+/**
+ * Mapper: chuyển đổi ClubApplication → ClubApplicationResponse
+ * Dùng MapStruct để tự động map các field cùng tên
+ */
+@Mapper(componentModel = "spring")
 public interface ClubApplicationMapper {
 
     ClubApplicationMapper INSTANCE = org.mapstruct.factory.Mappers.getMapper(ClubApplicationMapper.class);
 
-    // Map entity -> DTO, chú ý đổi proposer -> submittedBy
-    @Mapping(source = "proposer", target = "submittedBy", qualifiedByName = "userToSimpleUser")
+    // Map entity → DTO (bỏ sourceType)
+    @Mapping(source = "proposer", target = "proposer", qualifiedByName = "userToSimpleUser")
     @Mapping(source = "reviewedBy", target = "reviewedBy", qualifiedByName = "userToSimpleUser")
-    @Mapping(source = "status", target = "status")
+    @Mapping(source = "createdAt", target = "submittedAt")
+    @Mapping(source = "reviewedAt", target = "reviewedAt")
     ClubApplicationResponse toResponse(ClubApplication app);
 
-    // Chuyển User entity sang SimpleUser DTO
+    // === Helper: chuyển User → SimpleUser DTO ===
     @Named("userToSimpleUser")
     default ClubApplicationResponse.SimpleUser userToSimpleUser(User user) {
         if (user == null) return null;

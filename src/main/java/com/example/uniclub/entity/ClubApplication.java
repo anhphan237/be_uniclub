@@ -18,44 +18,36 @@ public class ClubApplication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long applicationId;
 
+    // Thông tin CLB
     private String clubName;
     private String description;
-    private String category;
+    private String major;      // chuyên ngành CLB
+    private String vision;     // tầm nhìn CLB
     private String proposerReason;
 
-    @Enumerated(EnumType.STRING)
-    private ApplicationSourceTypeEnum sourceType;
 
     @Enumerated(EnumType.STRING)
     private ClubApplicationStatusEnum status;
 
+    // Người nộp đơn
     @ManyToOne
-    @JoinColumn(name = "proposer_id")
+    @JoinColumn(name = "proposer_id", nullable = false)
     private User proposer;
-
-    @ManyToOne
-    @JoinColumn(name = "reviewed_by")
-    private User reviewedBy;
-
     @ManyToOne
     @JoinColumn(name = "submitted_by", nullable = false)
     private User submittedBy;
 
-    private Long majorId;
+    // Người duyệt đơn
+    @ManyToOne
+    @JoinColumn(name = "reviewed_by")
+    private User reviewedBy;
 
     private String rejectReason;
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
 
-    // ✅ THÊM MỚI
-    @Column(length = 500)
-    private String internalNote;   // Ghi chú nội bộ cho staff
-
-    @Column(length = 500)
-    private String attachmentUrl;  // Link file minh chứng (logo, giấy phép,...)
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "club_type")
-    private ClubTypeEnum clubType;
-
+    // Gắn với CLB sau khi khởi tạo chính thức
+    @OneToOne
+    @JoinColumn(name = "club_id")
+    private Club club;
 }

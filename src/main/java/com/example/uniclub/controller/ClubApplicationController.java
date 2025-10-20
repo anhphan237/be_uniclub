@@ -5,13 +5,14 @@ import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.ClubApplicationResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubApplicationService;
+import com.example.uniclub.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.Map;
 
@@ -21,9 +22,10 @@ import java.util.Map;
 public class ClubApplicationController {
 
     private final ClubApplicationService clubApplicationService;
-    private final ClubApplicationService service;
+    private final UserService userService;
+
     // ============================================================
-    // 🟢 #1. Sinh viên nộp đơn online
+    // 🟢 1. Sinh viên nộp đơn online
     // ROLE: STUDENT
     // ============================================================
     @PreAuthorize("hasRole('STUDENT')")
@@ -31,38 +33,16 @@ public class ClubApplicationController {
     public ResponseEntity<ApiResponse<ClubApplicationResponse>> createOnline(
             @AuthenticationPrincipal CustomUserDetails user,
             @Valid @RequestBody ClubApplicationCreateRequest req) {
-
-
         return ResponseEntity.ok(ApiResponse.ok(
                 clubApplicationService.createOnline(user.getUserId(), req)
         ));
     }
 
     // ============================================================
-    // 🟩 #2. Staff nhập đơn offline đã được duyệt
-    // ROLE: ADMIN, UNIVERSITY_STAFF
+    // 🟠 2. UniStaff phê duyệt hoặc từ chối đơn
+    // ROLE: UNIVERSITY_STAFF
     // ============================================================
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @PostMapping("/offline")
-    public ResponseEntity<ApiResponse<ClubApplicationResponse>> createOffline(
-            @AuthenticationPrincipal CustomUserDetails staff,
-            @Valid @RequestBody ClubApplicationOfflineRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                clubApplicationService.createOffline(staff.getUserId(), req)
-        ));
-    }
-
-    // ============================================================
-    // 🟦 #3. Staff lấy danh sách đơn chờ duyệt
-    // ROLE: ADMIN, UNIVERSITY_STAFF
-    // ============================================================
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @GetMapping("/pending")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getPending() {
-        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getPending()));
-    }
-
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PutMapping("/{id}/approve")
     public ResponseEntity<ApiResponse<ClubApplicationResponse>> approveClubApplication(
             @PathVariable Long id,
@@ -73,9 +53,33 @@ public class ClubApplicationController {
         ));
     }
 
+    // ============================================================
+    // 🟢 3. UniStaff tạo 2 tài khoản CLB (Leader & ViceLeader)
+    // ROLE: UNIVERSITY_STAFF
+    // ============================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @PostMapping("/create-club-accounts")
+    public ResponseEntity<ApiResponse<String>> createClubAccounts(
+            @Valid @RequestBody CreateClubAccountsRequest request) {
+        userService.createClubAccounts(request);
+        return ResponseEntity.ok(ApiResponse.ok("Club accounts created successfully."));
+    }
 
     // ============================================================
-    // 🟣 #5. Sinh viên xem trạng thái các đơn của chính mình
+    // 🟢 4. UniStaff xác nhận khởi tạo CLB chính thức
+    // ROLE: UNIVERSITY_STAFF
+    // ============================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @PutMapping("/{id}/finalize")
+    public ResponseEntity<ApiResponse<String>> finalizeClubCreation(
+            @PathVariable Long id,
+            @RequestBody ClubFinalizeRequest req) {
+        clubApplicationService.finalizeClubCreation(id, req);
+        return ResponseEntity.ok(ApiResponse.ok("Club officially created."));
+    }
+
+    // ============================================================
+    // 🟣 5. Sinh viên xem danh sách đơn của mình
     // ROLE: STUDENT
     // ============================================================
     @PreAuthorize("hasRole('STUDENT')")
@@ -88,8 +92,8 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 #6. Xem chi tiết 1 đơn bất kỳ (tùy theo quyền)
-    // ROLE: ADMIN, UNIVERSITY_STAFF, STUDENT (chỉ xem đơn của mình)
+    // 🔵 6. Xem chi tiết 1 đơn
+    // ROLE: ADMIN, UNIVERSITY_STAFF, STUDENT
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','STUDENT')")
     @GetMapping("/{id}")
@@ -102,64 +106,16 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟤 #7. Admin lọc đơn theo trạng thái (pending / approved / rejected)
-    // ROLE: ADMIN, UNIVERSITY_STAFF
+    // 🟤 7. Admin / Staff xem danh sách đơn chờ duyệt
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @GetMapping("/filter")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> filterByStatus(
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String clubType) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                clubApplicationService.filter(status, clubType)
-        ));
+    @GetMapping("/pending")
+    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getPending() {
+        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getPending()));
     }
 
     // ============================================================
-    // ⚪ #8. Admin cập nhật ghi chú nội bộ (internal note)
-    // ROLE: ADMIN, UNIVERSITY_STAFF
-    // ============================================================
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @PatchMapping("/{id}/note")
-    public ResponseEntity<ApiResponse<ClubApplicationResponse>> updateNote(
-            @PathVariable Long id,
-            @RequestBody Map<String, String> body,
-            @AuthenticationPrincipal CustomUserDetails staff) {
-        String note = body.get("note");
-        return ResponseEntity.ok(ApiResponse.ok(
-                clubApplicationService.updateNote(id, staff.getUserId(), note)
-        ));
-    }
-
-    // ============================================================
-    // 🟠 #9. Admin xoá 1 đơn bị lỗi hoặc nhập nhầm
-    // ROLE: ADMIN
-    // ============================================================
-    @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(
-            @PathVariable Long id) {
-        clubApplicationService.delete(id);
-        return ResponseEntity.ok(ApiResponse.ok());
-    }
-
-    // ============================================================
-    // 🟢 #10. Upload file minh chứng (logo, giấy tờ,...)
-    // ROLE: STUDENT (khi nộp đơn), STAFF (khi nhập offline)
-    // ============================================================
-    @PreAuthorize("hasAnyRole('STUDENT','ADMIN','UNIVERSITY_STAFF')")
-    @PostMapping("/{id}/upload")
-    public ResponseEntity<ApiResponse<String>> uploadDocument(
-            @PathVariable Long id,
-            @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal CustomUserDetails user) {
-        String url = clubApplicationService.uploadFile(id, user.getUserId(), file);
-        return ResponseEntity.ok(ApiResponse.ok(url));
-    }
-
-    // ============================================================
-    // 🟣 #11. Admin xem thống kê tổng số đơn (theo trạng thái, tháng, loại CLB)
-    // ROLE: ADMIN, UNIVERSITY_STAFF
+    // 🟣 8. Thống kê số lượng đơn theo trạng thái
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/statistics")
@@ -168,8 +124,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 #12. Admin tìm kiếm đơn theo tên CLB hoặc người nộp
-    // ROLE: ADMIN, UNIVERSITY_STAFF
+    // 🔵 9. Tìm kiếm đơn theo tên CLB / người nộp
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/search")
@@ -177,11 +132,13 @@ public class ClubApplicationController {
             @RequestParam String keyword) {
         return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.search(keyword)));
     }
-    @GetMapping("/all")
+
+    // ============================================================
+    // ⚪ 10. Lấy toàn bộ đơn (Admin / Staff)
+    // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @GetMapping("/all")
     public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getAllApplications() {
-        return ResponseEntity.ok(ApiResponse.ok(service.getAllApplications()));
+        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getAllApplications()));
     }
-
-
 }

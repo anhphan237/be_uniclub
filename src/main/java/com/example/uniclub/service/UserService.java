@@ -1,5 +1,6 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.request.CreateClubAccountsRequest;
 import com.example.uniclub.dto.request.ProfileUpdateRequest;
 import com.example.uniclub.dto.request.UserCreateRequest;
 import com.example.uniclub.dto.request.UserUpdateRequest;
@@ -31,4 +32,10 @@ public interface UserService {
     User updateProfile(String email, ProfileUpdateRequest req);
     User updateAvatar(String email, String avatarUrl);
     User getByEmail(String email);
+    void createClubAccounts(CreateClubAccountsRequest req);
+    UserResponse getProfileResponse(String email);
+
+    UserResponse updateProfileResponse(String email, ProfileUpdateRequest req);
+
+    UserResponse updateAvatarResponse(String email, String avatarUrl);
 }

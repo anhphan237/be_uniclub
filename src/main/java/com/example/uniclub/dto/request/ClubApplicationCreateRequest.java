@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 public record ClubApplicationCreateRequest(
         @NotBlank String clubName,
         String description,
-        String category,
+        @NotBlank String major,
+        String vision,
         @NotBlank String proposerReason
 ) {}

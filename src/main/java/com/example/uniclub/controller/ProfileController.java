@@ -2,7 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ProfileUpdateRequest;
-import com.example.uniclub.entity.User;
+import com.example.uniclub.dto.response.UserResponse;
 import com.example.uniclub.service.CloudinaryService;
 import com.example.uniclub.service.impl.UserServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-
 
 @RestController
 @RequestMapping("/api/users/profile")
@@ -29,11 +28,11 @@ public class ProfileController {
     // =============================================
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<User>> getProfile(
+    public ResponseEntity<ApiResponse<UserResponse>> getProfile(
             @AuthenticationPrincipal UserDetails principal) {
 
         String email = principal.getUsername();
-        User profile = userService.getProfile(email);
+        UserResponse profile = userService.getProfileResponse(email);
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
@@ -42,12 +41,12 @@ public class ProfileController {
     // =============================================
     @PutMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<User>> updateProfile(
+    public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails principal,
             @RequestBody ProfileUpdateRequest req) {
 
         String email = principal.getUsername();
-        User updated = userService.updateProfile(email, req);
+        UserResponse updated = userService.updateProfileResponse(email, req);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
 
@@ -56,27 +55,27 @@ public class ProfileController {
     // =============================================
     @PostMapping(value = "/avatar", consumes = "multipart/form-data")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<User>> uploadAvatar(
+    public ResponseEntity<ApiResponse<UserResponse>> uploadAvatar(
             @AuthenticationPrincipal UserDetails principal,
             @RequestParam("file") MultipartFile file) throws IOException {
 
         String email = principal.getUsername();
         String avatarUrl = cloudinaryService.uploadAvatar(file);
-        User updated = userService.updateAvatar(email, avatarUrl);
+        UserResponse updated = userService.updateAvatarResponse(email, avatarUrl);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
 
     // =============================================
-    // 🔹 4. Cập nhật avatar URL thủ công (ví dụ dán link sẵn)
+    // 🔹 4. Cập nhật avatar URL thủ công
     // =============================================
     @PatchMapping("/avatar")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<User>> updateAvatarManual(
+    public ResponseEntity<ApiResponse<UserResponse>> updateAvatarManual(
             @AuthenticationPrincipal UserDetails principal,
             @RequestParam String avatarUrl) {
 
         String email = principal.getUsername();
-        User updated = userService.updateAvatar(email, avatarUrl);
+        UserResponse updated = userService.updateAvatarResponse(email, avatarUrl);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
 }

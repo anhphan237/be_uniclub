@@ -3,7 +3,7 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.ClubApplication;
 import com.example.uniclub.enums.ClubApplicationStatusEnum;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;     // ✅ bổ sung import này
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -37,17 +37,15 @@ public interface ClubApplicationRepository extends JpaRepository<ClubApplication
 
     List<ClubApplication> findAll();
 
+    // ✅ Đã loại bỏ clubType vì entity không còn trường này
     @Query("""
-    SELECT a FROM ClubApplication a
-    WHERE (:status IS NULL OR a.status = :status)
-      AND (:clubType IS NULL OR a.clubType = :clubType)
-      AND (:keyword IS NULL OR LOWER(a.clubName) LIKE LOWER(CONCAT('%', :keyword, '%')))
-""")
+        SELECT a FROM ClubApplication a
+        WHERE (:status IS NULL OR a.status = :status)
+          AND (:keyword IS NULL OR LOWER(a.clubName) LIKE LOWER(CONCAT('%', :keyword, '%')))
+    """)
     Page<ClubApplication> searchApplications(
             @Param("status") String status,
-            @Param("clubType") String clubType,
             @Param("keyword") String keyword,
             Pageable pageable
     );
-
 }

@@ -1,13 +1,12 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.request.ProfileUpdateRequest;
-import com.example.uniclub.dto.request.UserCreateRequest;
-import com.example.uniclub.dto.request.UserUpdateRequest;
+import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.UserResponse;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.UserStatusEnum;
 import com.example.uniclub.exception.ApiException;
+import com.example.uniclub.repository.RoleRepository;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.UserService;
@@ -25,6 +24,7 @@ import java.util.*;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
+    private final RoleRepository roleRepo;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
@@ -45,7 +45,6 @@ public class UserServiceImpl implements UserService {
     }
 
     // ===================== CRUD =====================
-
     @Override
     public UserResponse create(UserCreateRequest req) {
         if (userRepo.existsByEmail(req.email()))
@@ -72,7 +71,7 @@ public class UserServiceImpl implements UserService {
         try {
             String subject = "Welcome to UniClub 🎉";
             String content = String.format(
-                    "Hi %s,\n\nWelcome to UniClub!\nYour account has been successfully created.\n\nBest regards,\nUniClub Team 💌",
+                    "Hi %s,<br><br>Welcome to UniClub!<br>Your account has been successfully created.<br><br>Best regards,<br>UniClub Team 💌",
                     req.fullName());
             emailService.sendEmail(req.email(), subject, content);
         } catch (Exception e) {
@@ -97,8 +96,6 @@ public class UserServiceImpl implements UserService {
             validateMajor(req.majorName());
             user.setMajorName(req.majorName());
         }
-//        if (req.roleId() != null)
-//            user.setRole(Role.builder().roleId(req.roleId()).build());
 
         return toResp(userRepo.save(user));
     }
@@ -122,8 +119,7 @@ public class UserServiceImpl implements UserService {
         return userRepo.findAll(pageable).map(this::toResp);
     }
 
-    // ===================== MỞ RỘNG =====================
-
+    // ===================== Search & Statistics =====================
     @Override
     public Page<UserResponse> search(String keyword, Pageable pageable) {
         String kw = (keyword == null) ? "" : keyword.trim();
@@ -152,12 +148,12 @@ public class UserServiceImpl implements UserService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepo.save(user);
 
-        // ✅ Gửi thông báo cho user
+        // ✅ Gửi thông báo
         try {
             emailService.sendEmail(
                     user.getEmail(),
                     "Your UniClub password has been reset",
-                    "Hi " + user.getFullName() + ",\n\nYour password has been reset by an administrator.\nPlease log in again using your new credentials.\n\n— UniClub Support 💬"
+                    "Hi " + user.getFullName() + ",<br><br>Your password has been reset by an administrator.<br>Please log in again using your new credentials.<br><br>— UniClub Support 💬"
             );
         } catch (Exception e) {
             System.err.println("⚠️ Failed to send reset email: " + e.getMessage());
@@ -191,7 +187,6 @@ public class UserServiceImpl implements UserService {
     }
 
     // ===================== PROFILE =====================
-
     @Override
     public User getProfile(String email) {
         return userRepo.findByEmail(email)
@@ -232,6 +227,49 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
     }
 
+    // ===================== ⚙️ Tạo tài khoản CLB (UniStaff) =====================
+    @Override
+    public void createClubAccounts(CreateClubAccountsRequest req) {
+        String leaderEmail = req.getClubCode().toLowerCase() + "_leader@uniclub.edu.vn";
+        String viceEmail = req.getClubCode().toLowerCase() + "_vice@uniclub.edu.vn";
+
+        Role leaderRole = roleRepo.findByRoleName("CLUB_LEADER")
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
+        Role viceRole = roleRepo.findByRoleName("CLUB_VICE_LEADER")
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_VICE_LEADER not found"));
+
+        String pwd1 = UUID.randomUUID().toString().substring(0, 8);
+        String pwd2 = UUID.randomUUID().toString().substring(0, 8);
+
+        User leader = User.builder()
+                .email(leaderEmail)
+                .fullName(req.getLeaderName())
+                .passwordHash(passwordEncoder.encode(pwd1))
+                .studentCode("LEADER_" + req.getClubCode().toUpperCase())
+                .role(leaderRole)
+                .status(UserStatusEnum.ACTIVE.name())
+                .build();
+
+        User vice = User.builder()
+                .email(viceEmail)
+                .fullName(req.getViceLeaderName())
+                .passwordHash(passwordEncoder.encode(pwd2))
+                .studentCode("VICE_" + req.getClubCode().toUpperCase())
+                .role(viceRole)
+                .status(UserStatusEnum.ACTIVE.name())
+                .build();
+
+        userRepo.saveAll(List.of(leader, vice));
+
+        // ✅ Gửi email tài khoản
+        emailService.sendEmail(leaderEmail, "Tài khoản CLB - Chủ nhiệm",
+                "Xin chào " + req.getLeaderName() + ",<br>Tài khoản CLB của bạn là <b>" + leaderEmail +
+                        "</b><br>Mật khẩu: <b>" + pwd1 + "</b>");
+        emailService.sendEmail(viceEmail, "Tài khoản CLB - Phó chủ nhiệm",
+                "Xin chào " + req.getViceLeaderName() + ",<br>Tài khoản CLB của bạn là <b>" + viceEmail +
+                        "</b><br>Mật khẩu: <b>" + pwd2 + "</b>");
+    }
+
     // ===================== Validate Major =====================
     private void validateMajor(String majorName) {
         Set<String> validMajors = Set.of(
@@ -245,4 +283,39 @@ public class UserServiceImpl implements UserService {
         if (!validMajors.contains(majorName))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid major name");
     }
+    @Override
+    public UserResponse getProfileResponse(String email) {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        return toResp(user);
+    }
+
+    @Override
+    public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (req.getPhone() != null && !req.getPhone().isBlank())
+            user.setPhone(req.getPhone());
+        if (req.getBio() != null && !req.getBio().isBlank())
+            user.setBio(req.getBio());
+        if (req.getMajorName() != null && !req.getMajorName().isBlank())
+            user.setMajorName(req.getMajorName());
+
+        userRepo.save(user);
+        return toResp(user);
+    }
+
+    @Override
+    public UserResponse updateAvatarResponse(String email, String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "avatarUrl is required");
+
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+        user.setAvatarUrl(avatarUrl);
+        userRepo.save(user);
+        return toResp(user);
+    }
+
 }
