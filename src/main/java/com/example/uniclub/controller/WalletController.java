@@ -19,42 +19,60 @@ public class WalletController {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
 
-    // ✅ Lấy ví của user đang đăng nhập
+    // ✅ Get wallet of the current logged-in user
     @GetMapping("/me")
-    public Wallet getMyWallet(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        String token = authHeader.replace("Bearer ", "");
+    public ResponseEntity<Wallet> getMyWallet(HttpServletRequest request) {
+        String token = request.getHeader("Authorization").replace("Bearer ", "");
         String email = jwtUtil.getSubject(token);
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return walletRewardService.getWalletByUserId(user.getUserId());
+        return ResponseEntity.ok(walletRewardService.getWalletByUserId(user.getUserId()));
     }
 
-    // ✅ Phát điểm cho thành viên (ClubLeader trở lên)
+    // ✅ Reward points to a single member (Leader / Staff / Admin)
     @PostMapping("/reward/{membershipId}")
-    public ResponseEntity<?> rewardByMembershipId(
+    public ResponseEntity<?> rewardMember(
             @PathVariable Long membershipId,
             @RequestParam int points,
             @RequestParam(required = false) String reason,
             HttpServletRequest request) {
 
         if (points <= 0) {
-            return ResponseEntity.badRequest().body("Points must be > 0");
+            return ResponseEntity.badRequest().body("Points must be greater than zero.");
         }
 
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing token");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing or invalid token.");
         }
 
         String token = authHeader.replace("Bearer ", "");
         String email = jwtUtil.getSubject(token);
         User operator = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Operator user not found"));
+                .orElseThrow(() -> new RuntimeException("Operator not found"));
 
-        Wallet updated = walletRewardService.rewardPointsByMembershipId(operator, membershipId, points, reason);
-        return ResponseEntity.ok(updated);
+        Wallet updatedWallet = walletRewardService.rewardPointsByMembershipId(operator, membershipId, points, reason);
+        return ResponseEntity.ok(updatedWallet);
+    }
+
+    // ✅ Reward points to all members of a club (Staff / Admin only)
+    @PostMapping("/reward/club/{clubId}")
+    public ResponseEntity<?> rewardEntireClub(
+            @PathVariable Long clubId,
+            @RequestParam int points,
+            @RequestParam(required = false) String reason,
+            HttpServletRequest request) {
+
+        if (points <= 0) {
+            return ResponseEntity.badRequest().body("Points must be greater than zero.");
+        }
+
+        String token = request.getHeader("Authorization").replace("Bearer ", "");
+        String email = jwtUtil.getSubject(token);
+        User operator = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Operator not found"));
+
+        int count = walletRewardService.rewardPointsByClubId(operator, clubId, points, reason);
+        return ResponseEntity.ok("Rewarded " + count + " members successfully.");
     }
 }

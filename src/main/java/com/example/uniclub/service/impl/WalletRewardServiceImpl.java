@@ -15,14 +15,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class WalletRewardServiceImpl implements WalletRewardService {
 
     private final WalletService walletService;
-    private final MembershipRepository membershipRepository;
-    private final UserRepository userRepository;
+    private final MembershipRepository membershipRepo;
+    private final UserRepository userRepo;
     private final RewardService rewardService;
 
     @Override
@@ -33,54 +34,64 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     @Transactional
     @Override
     public Wallet rewardPointsByMembershipId(User operator, Long membershipId, int points, String reason) {
-        // 1️⃣ Kiểm tra quyền hệ thống
-        String sysRole = operator.getRole().getRoleName();
-        boolean isAdminOrStaff = "ADMIN".equalsIgnoreCase(sysRole) || "UNIVERSITY_STAFF".equalsIgnoreCase(sysRole);
-        boolean isClubLeader = "CLUB_LEADER".equalsIgnoreCase(sysRole);
+        String role = operator.getRole().getRoleName();
+        boolean isAdmin = role.equalsIgnoreCase("ADMIN");
+        boolean isStaff = role.equalsIgnoreCase("UNIVERSITY_STAFF");
+        boolean isLeader = role.equalsIgnoreCase("CLUB_LEADER");
 
-        if (!(isAdminOrStaff || isClubLeader)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Bạn không có quyền phát điểm");
+        if (!(isAdmin || isStaff || isLeader)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to reward points.");
         }
 
-        // 2️⃣ Lấy membership người nhận
-        Membership memberMs = membershipRepository.findById(membershipId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found: " + membershipId));
+        Membership membership = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found."));
 
-        if (memberMs.getState() != MembershipStateEnum.APPROVED && memberMs.getState() != MembershipStateEnum.ACTIVE) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Membership chưa được duyệt hoặc đã hết hiệu lực");
+        if (membership.getState() != MembershipStateEnum.APPROVED && membership.getState() != MembershipStateEnum.ACTIVE) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Membership is not active or approved.");
         }
 
-        Long receiverUserId = memberMs.getUser().getUserId();
-        Long receiverClubId = memberMs.getClub().getClubId();
+        Long targetUserId = membership.getUser().getUserId();
+        Long targetClubId = membership.getClub().getClubId();
 
-        // 3️⃣ Nếu là CLUB_LEADER, phải cùng CLB và có role LEADER/VICE_LEADER
-        if (isClubLeader) {
-            boolean sameClub = membershipRepository.existsByUser_UserIdAndClub_ClubId(operator.getUserId(), receiverClubId);
-            if (!sameClub) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Bạn không thuộc CLB của thành viên này");
-            }
-
-            boolean isLeaderOrVice = membershipRepository.findByUser_UserId(operator.getUserId()).stream()
-                    .filter(ms -> ms.getClub().getClubId().equals(receiverClubId))
-                    .anyMatch(ms -> ms.getClubRole() == ClubRoleEnum.LEADER || ms.getClubRole() == ClubRoleEnum.VICE_LEADER);
-
-            if (!isLeaderOrVice) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Bạn cần là LEADER/VICE_LEADER trong CLB này");
-            }
+        // Leaders can only reward within their club
+        if (isLeader) {
+            boolean sameClub = membershipRepo.existsByUser_UserIdAndClub_ClubId(operator.getUserId(), targetClubId);
+            if (!sameClub) throw new ApiException(HttpStatus.FORBIDDEN, "You are not part of this club.");
         }
 
-        // 4️⃣ Cộng điểm và gửi mail
-        Wallet receiverWallet = walletService.getWalletByUserId(receiverUserId);
-        walletService.increase(receiverWallet, points);
-        int totalPoints = receiverWallet.getBalancePoints();
+        Wallet wallet = walletService.getWalletByUserId(targetUserId);
+        walletService.increase(wallet, points);
+        int totalPoints = wallet.getBalancePoints();
 
-        rewardService.sendManualBonusEmail(receiverUserId, points, reason, totalPoints);
+        rewardService.sendManualBonusEmail(targetUserId, points, reason, totalPoints);
 
-        // 5️⃣ Gửi mail milestone
-        if (totalPoints >= 500 && (totalPoints - points) < 500) rewardService.sendMilestoneEmail(receiverUserId, 500);
-        if (totalPoints >= 1000 && (totalPoints - points) < 1000) rewardService.sendMilestoneEmail(receiverUserId, 1000);
-        if (totalPoints >= 2000 && (totalPoints - points) < 2000) rewardService.sendMilestoneEmail(receiverUserId, 2000);
+        if (totalPoints >= 500 && totalPoints - points < 500) rewardService.sendMilestoneEmail(targetUserId, 500);
+        if (totalPoints >= 1000 && totalPoints - points < 1000) rewardService.sendMilestoneEmail(targetUserId, 1000);
+        if (totalPoints >= 2000 && totalPoints - points < 2000) rewardService.sendMilestoneEmail(targetUserId, 2000);
 
-        return receiverWallet;
+        return wallet;
+    }
+
+    // ✅ Reward all approved members in a club (Staff/Admin only)
+    @Transactional
+    @Override
+    public int rewardPointsByClubId(User operator, Long clubId, int points, String reason) {
+        String role = operator.getRole().getRoleName();
+        boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
+
+        if (!isAdminOrStaff)
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only staff or admin can reward an entire club.");
+
+        List<Membership> members = membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.APPROVED);
+        int count = 0;
+
+        for (Membership m : members) {
+            Wallet wallet = walletService.getWalletByUserId(m.getUser().getUserId());
+            walletService.increase(wallet, points);
+            rewardService.sendManualBonusEmail(m.getUser().getUserId(), points, reason, wallet.getBalancePoints());
+            count++;
+        }
+
+        return count;
     }
 }
