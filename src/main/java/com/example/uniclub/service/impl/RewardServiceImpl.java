@@ -41,6 +41,8 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
+        String displayReason = (reason == null || reason.isBlank()) ? "your special contribution" : reason;
+
         emailService.sendEmail(
                 user.getEmail(),
                 "💎 You’ve Received Extra UniPoints!",
@@ -49,7 +51,7 @@ public class RewardServiceImpl implements RewardService {
                 <p>Good news! You’ve received <b>%d UniPoints</b> bonus for <b>%s</b>.</p>
                 <p>Your total balance is now <b>%d UniPoints</b>.</p>
                 <p>Keep up your great contributions and continue to grow with UniClub!</p>
-                """.formatted(user.getFullName(), bonusPoints, reason, totalPoints)
+                """.formatted(user.getFullName(), bonusPoints, displayReason, totalPoints)
         );
     }
 
