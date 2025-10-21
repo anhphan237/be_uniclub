@@ -29,7 +29,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
     private final RoleRepository roleRepo;
-    private final MajorRepository majorRepository; // ✅ Thêm để map majorId
+    private final MajorRepository majorRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
@@ -44,7 +44,6 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         if (appRepo.findByClubName(req.clubName()).isPresent())
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 
-        // ✅ Lấy Major entity từ ID
         Major major = majorRepository.findById(req.majorId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
 
@@ -53,7 +52,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .submittedBy(proposer)
                 .clubName(req.clubName())
                 .description(req.description())
-                .major(major) // ✅ Gán entity Major
+                .major(major)
                 .vision(req.vision())
                 .proposerReason(req.proposerReason())
                 .status(ClubApplicationStatusEnum.PENDING)
@@ -171,6 +170,10 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .role(leaderSystemRole)
                 .build();
         userRepo.save(viceLeader);
+
+        // ✅ Gán leader cho CLB (fix lỗi leader_id = NULL)
+        club.setLeader(leader);
+        clubRepo.save(club);
 
         // 💼 Tạo ví cho 2 tài khoản
         walletRepo.save(Wallet.builder()

@@ -28,6 +28,11 @@ public class Club {
     @Column(name = "vision", length = 500)
     private String vision;
 
+    //Liên kết đến User làm chủ nhiệm CLB
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "leader_id")
+    private User leader;
+
     @ManyToOne
     @JoinColumn(name = "created_by")
     private User createdBy;
@@ -40,4 +45,3 @@ public class Club {
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
 }
-
