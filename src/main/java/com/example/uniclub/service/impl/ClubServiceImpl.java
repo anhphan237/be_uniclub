@@ -24,6 +24,7 @@ public class ClubServiceImpl implements ClubService {
     private final RoleRepository roleRepo;
     private final UserRepository userRepo;
     private final MembershipRepository membershipRepo;
+    private final MajorRepository majorRepo;
     private final PasswordEncoder passwordEncoder;
 
     // ✅ Convert entity → DTO (tìm tên chủ nhiệm)
@@ -40,7 +41,8 @@ public class ClubServiceImpl implements ClubService {
                 .name(club.getName())
                 .description(club.getDescription())
                 .leaderName(leaderName)
-                .majorName(club.getMajorName())  // ✅ chỉ lưu tên ngành
+                .majorId(club.getMajor().getId())           // ✅ mới
+                .majorName(club.getMajor().getName())       // ✅ mới
                 .build();
     }
 
@@ -50,12 +52,16 @@ public class ClubServiceImpl implements ClubService {
         if (clubRepo.existsByName(req.name()))
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 
+        // ✅ Lấy Major từ DB
+        Major major = majorRepo.findById(req.majorId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+
         Club club = Club.builder()
                 .name(req.name())
                 .description(req.description())
-                .majorName(req.majorName()) // ✅ chỉ cần String
                 .vision(req.vision())
-                .createdBy(null) // có thể set staff hiện tại nếu cần
+                .major(major)                 // ✅ dùng object Major
+                .createdBy(null)
                 .build();
 
         Wallet clubWallet = Wallet.builder()
@@ -78,8 +84,8 @@ public class ClubServiceImpl implements ClubService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor().getName())// ✅ String
                 .vision(app.getVision())
+                .major(app.getMajor())                  // ✅ dùng object Major
                 .createdBy(app.getReviewedBy())
                 .build();
 
@@ -101,8 +107,8 @@ public class ClubServiceImpl implements ClubService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor().getName())
                 .vision(app.getVision())
+                .major(app.getMajor())                   // ✅ dùng object Major
                 .createdBy(app.getReviewedBy())
                 .build();
 

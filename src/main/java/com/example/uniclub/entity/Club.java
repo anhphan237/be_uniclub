@@ -21,8 +21,9 @@ public class Club {
 
     private String description;
 
-    @Column(name = "major_name")
-    private String majorName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_id", nullable = false)
+    private Major major;
 
     @Column(name = "vision", length = 500)
     private String vision;

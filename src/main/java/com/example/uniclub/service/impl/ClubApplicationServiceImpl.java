@@ -127,7 +127,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor().getName()) // ✅ Lấy tên ngành từ entity Major
+                .major(app.getMajor())
                 .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
                 .build();

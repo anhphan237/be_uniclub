@@ -36,7 +36,7 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
-    // =============================================
+    // ============================================= d
     // 🔹 2. Cập nhật thông tin hồ sơ (full name, phone, bio, major...)
     // =============================================
     @PutMapping

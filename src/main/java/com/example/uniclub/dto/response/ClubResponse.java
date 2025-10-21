@@ -12,6 +12,7 @@ public class ClubResponse {
     private String name;
     private String description;
     private String majorPolicyName;
+    private Long majorId;
     private String majorName;
     private Long leaderId;
     private String leaderName;
