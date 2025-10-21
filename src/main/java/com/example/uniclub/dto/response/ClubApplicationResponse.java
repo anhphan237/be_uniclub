@@ -5,9 +5,6 @@ import com.example.uniclub.enums.ClubApplicationStatusEnum;
 import lombok.*;
 import java.time.LocalDateTime;
 
-/**
- * DTO phản hồi cho đơn xin tạo CLB (Student + UniStaff)
- */
 @Getter
 @Setter
 @Builder
@@ -18,7 +15,10 @@ public class ClubApplicationResponse {
     private Long applicationId;
     private String clubName;
     private String description;
+
+    private Long majorId;
     private String majorName;
+
     private String vision;
     private String proposerReason;
     private SimpleUser proposer;
@@ -28,7 +28,6 @@ public class ClubApplicationResponse {
     private LocalDateTime submittedAt;
     private LocalDateTime reviewedAt;
 
-    // === Nested DTO cho người nộp & người duyệt ===
     @Getter
     @Setter
     @Builder
@@ -39,9 +38,6 @@ public class ClubApplicationResponse {
         private String email;
     }
 
-    // ============================================================
-    // ✅ Static mapper từ Entity → Response (tự viết tay)
-    // ============================================================
     public static ClubApplicationResponse fromEntity(ClubApplication app) {
         if (app == null) return null;
 
@@ -49,7 +45,10 @@ public class ClubApplicationResponse {
                 .applicationId(app.getApplicationId())
                 .clubName(app.getClubName())
                 .description(app.getDescription())
-                .majorName(app.getMajor().getName())
+
+                .majorId(app.getMajor() != null ? app.getMajor().getId() : null)
+                .majorName(app.getMajor() != null ? app.getMajor().getName() : null)
+
                 .vision(app.getVision())
                 .proposerReason(app.getProposerReason())
                 .proposer(app.getProposer() == null ? null :
