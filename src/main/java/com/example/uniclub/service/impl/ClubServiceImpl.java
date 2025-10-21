@@ -14,7 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ClubServiceImpl implements ClubService {
@@ -27,24 +27,29 @@ public class ClubServiceImpl implements ClubService {
     private final MajorRepository majorRepo;
     private final PasswordEncoder passwordEncoder;
 
-    // ✅ Convert entity → DTO (tìm tên chủ nhiệm)
     private ClubResponse toResponse(Club club) {
-        String leaderName = membershipRepo
+        var leaderMembership = membershipRepo
                 .findByClub_ClubIdAndClubRole(club.getClubId(), ClubRoleEnum.LEADER)
                 .stream()
                 .findFirst()
-                .map(m -> m.getUser().getFullName())
                 .orElse(null);
+
+        Long leaderId = leaderMembership != null ? leaderMembership.getUser().getUserId() : null;
+        String leaderName = leaderMembership != null ? leaderMembership.getUser().getFullName() : null;
 
         return ClubResponse.builder()
                 .id(club.getClubId())
                 .name(club.getName())
                 .description(club.getDescription())
+                .leaderId(leaderId)
                 .leaderName(leaderName)
-                .majorId(club.getMajor().getId())           // ✅ mới
-                .majorName(club.getMajor().getName())       // ✅ mới
+                .majorId(club.getMajor().getId())
+                .majorName(club.getMajor().getName())
+                .memberCount(club.getMemberCount() != null ? club.getMemberCount().longValue() : 0L)
                 .build();
     }
+
+
 
     // 🟢 1. Tạo CLB mới thủ công (Admin / Staff)
     @Override
@@ -60,7 +65,7 @@ public class ClubServiceImpl implements ClubService {
                 .name(req.name())
                 .description(req.description())
                 .vision(req.vision())
-                .major(major)                 // ✅ dùng object Major
+                .major(major)
                 .createdBy(null)
                 .build();
 
@@ -211,4 +216,26 @@ public class ClubServiceImpl implements ClubService {
     public Club saveClub(Club club) {
         return clubRepo.save(club);
     }
+
+
+    // 🟢 Cập nhật member_count thực tế trong DB mỗi khi có thay đổi
+    @Transactional
+    public void updateMemberCount(Long clubId) {
+        // Đếm tổng số thành viên ACTIVE trong CLB
+        int total = (int) membershipRepo.countByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE);
+
+        // Tìm CLB cần cập nhật
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        // Gán lại giá trị member_count
+        club.setMemberCount(total);
+
+        // Ghi ngược vào DB ngay lập tức
+        clubRepo.saveAndFlush(club);
+
+        System.out.println("🔁 Updated member_count for club " + clubId + " = " + total);
+    }
+
+
 }

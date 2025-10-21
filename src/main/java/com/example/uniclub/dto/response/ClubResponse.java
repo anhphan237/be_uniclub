@@ -1,12 +1,12 @@
 package com.example.uniclub.dto.response;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class ClubResponse {
     private Long id;
     private String name;

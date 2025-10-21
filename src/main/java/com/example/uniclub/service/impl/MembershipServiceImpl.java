@@ -10,10 +10,12 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.service.ClubService;
 import com.example.uniclub.service.MembershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +27,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final MembershipRepository membershipRepo;
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
+    private final ClubService clubService;
 
     // ========================== 🔹 Helper Mapping ==========================
     private MembershipResponse toResp(Membership m) {
@@ -43,7 +46,6 @@ public class MembershipServiceImpl implements MembershipService {
                 .fullName(u.getFullName())
                 .studentCode(u.getStudentCode())
                 .clubName(c.getName())
-                // 🆕 Thêm 4 trường mới
                 .email(u.getEmail())
                 .avatarUrl(u.getAvatarUrl())
                 .major(u.getMajorName())
@@ -65,6 +67,7 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     @Override
+    @Transactional
     public MembershipResponse joinClub(Long userId, Long clubId) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
@@ -89,39 +92,44 @@ public class MembershipServiceImpl implements MembershipService {
 
     // ========================== 🔹 2. Quản lý đơn duyệt ==========================
     @Override
-    public List<MembershipResponse> getPendingMembers(Long clubId) {
-        return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.PENDING)
-                .stream()
-                .map(this::toResp)
-                .toList();
-    }
-
-    @Override
+    @Transactional
     public MembershipResponse approveMember(Long membershipId, Long approverId) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        m.setState(MembershipStateEnum.APPROVED);
+        m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
+
+        // ✅ Cập nhật lại member_count trong DB
+        clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
 
     @Override
+    @Transactional
     public MembershipResponse rejectMember(Long membershipId, Long approverId, String reason) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
         m.setState(MembershipStateEnum.REJECTED);
         membershipRepo.save(m);
+
+        // ✅ Rejected không tính vào count → vẫn cập nhật để đảm bảo chính xác
+        clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
 
     @Override
+    @Transactional
     public void removeMember(Long membershipId, Long approverId) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
         m.setState(MembershipStateEnum.INACTIVE);
         membershipRepo.save(m);
+
+        // ✅ Sau khi xóa → cập nhật lại member_count
+        clubService.updateMemberCount(m.getClub().getClubId());
     }
 
     // ========================== 🔹 3. Quản lý vai trò ==========================
@@ -198,12 +206,20 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     // ========================== 🔹 7. Cập nhật số lượng thành viên CLB ==========================
-    private void updateClubMemberCount(Long clubId) {
+    @Transactional
+    public void updateClubMemberCount(Long clubId) {
         int total = (int) membershipRepo.countByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE);
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
         club.setMemberCount(total);
         clubRepo.save(club);
+    }
+    @Override
+    public List<MembershipResponse> getPendingMembers(Long clubId) {
+        return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.PENDING)
+                .stream()
+                .map(this::toResp)
+                .toList();
     }
 
 }

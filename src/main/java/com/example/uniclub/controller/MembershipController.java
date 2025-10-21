@@ -121,4 +121,5 @@ public class MembershipController {
             @AuthenticationPrincipal CustomUserDetails user) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMyMemberships(user.getId())));
     }
+
 }

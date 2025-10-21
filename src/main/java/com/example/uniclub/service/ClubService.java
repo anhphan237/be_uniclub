@@ -17,4 +17,5 @@ public interface ClubService {
     // 🆕 Dành cho ClubApplication
     void createFromOnlineApplication(ClubApplication app);
     void createFromOfflineApplication(ClubApplication app, ClubApplicationOfflineRequest req);
+    void updateMemberCount(Long clubId);
 }
