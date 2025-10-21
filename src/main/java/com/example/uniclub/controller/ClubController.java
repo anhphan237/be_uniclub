@@ -4,9 +4,11 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubCreateRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.entity.Club;
+import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.service.ClubService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ public class ClubController {
     private final ClubService clubService;
     private final ClubRepository clubRepo;
     private final MembershipRepository membershipRepo;
+    private final EventRepository eventRepo; // ✅ Thêm repository này
 
     // 🟢 1. Tạo CLB mới
     @PostMapping
@@ -38,7 +41,7 @@ public class ClubController {
     public ResponseEntity<ApiResponse<ClubResponse>> get(@PathVariable Long id) {
         ClubResponse club = clubService.get(id);
         long memberCount = membershipRepo.countByClub_ClubIdAndState(id, MembershipStateEnum.ACTIVE);
-        club.setMemberCount(memberCount); 
+        club.setMemberCount(memberCount);
         return ResponseEntity.ok(ApiResponse.ok(club));
     }
 
@@ -64,12 +67,13 @@ public class ClubController {
         stats.put("totalClubs", clubRepo.count());
         stats.put("totalMembers", membershipRepo.count());
         stats.put("activeMembers", membershipRepo.countByState(MembershipStateEnum.ACTIVE));
+        stats.put("approvedEvents", eventRepo.countByStatus(EventStatusEnum.APPROVED));
+
         return ResponseEntity.ok(ApiResponse.ok(stats));
     }
 
-    // 🧩 6. ✅ Lấy tổng số thành viên ACTIVE trong 1 CLB
+    // 🧩 6. Lấy tổng số thành viên ACTIVE trong 1 CLB
     @GetMapping("/{id}/member-count")
-//    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_VICE_LEADER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberCount(@PathVariable Long id) {
         long count = membershipRepo.countByClub_ClubIdAndState(id, MembershipStateEnum.ACTIVE);
         Map<String, Object> result = new HashMap<>();

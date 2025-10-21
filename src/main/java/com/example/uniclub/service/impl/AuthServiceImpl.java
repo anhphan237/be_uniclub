@@ -58,16 +58,14 @@ public class AuthServiceImpl {
         if ("CLUB_LEADER".equals(roleName)) {
             var leaderMembership = membershipRepository.findByUser_UserId(user.getUserId())
                     .stream()
-                    .filter(Membership::isStaff) // ✅ Dựa vào staff=true
+                    .filter(Membership::isStaff)
                     .findFirst()
                     .orElse(null);
 
             if (leaderMembership != null) {
                 clubId = leaderMembership.getClub().getClubId();
             }
-        }
-
-        else if ("STUDENT".equals(roleName)) {
+        } else if ("STUDENT".equals(roleName)) {
             var memberships = membershipRepository.findByUser_UserId(user.getUserId());
             clubIds = memberships.stream()
                     .map(m -> m.getClub().getClubId())
@@ -149,10 +147,10 @@ public class AuthServiceImpl {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No account found with this email."));
 
-        // Xóa token cũ nếu tồn tại
+        // Xóa token cũ nếu có
         tokenRepository.deleteByUser_UserId(user.getUserId());
 
-        // Tạo token mới
+        // Sinh token mới
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .token(token)
@@ -162,7 +160,7 @@ public class AuthServiceImpl {
         tokenRepository.save(resetToken);
 
         // Gửi email
-        String resetLink = "https://uniclub.vn/reset-password?token=" + token;
+        String resetLink = "https://uniclub.vn/reset-password?token=" + token + "&email=" + email;
         String subject = "Reset your UniClub password";
         String content = """
                 Hi %s,<br><br>
@@ -174,16 +172,16 @@ public class AuthServiceImpl {
                 This link will expire in 15 minutes.<br><br>
                 Best regards,<br>
                 <b>UniClub Vietnam</b> 💌
-                """.formatted(user.getFullName(), resetLink);
+                """.formatted(user.getFullName() != null ? user.getFullName() : "there", resetLink);
 
         emailService.sendEmail(email, subject, content);
-        System.out.println("✅ Sent reset password email to " + email);
+        System.out.println("✅ Sent reset password email to " + email + " with token=" + token);
     }
 
     // ==============================================
-    // 🔹 Đặt lại mật khẩu mới
+    // 🔹 Đặt lại mật khẩu mới (verify token + email)
     // ==============================================
-    public void resetPassword(String token, String newPassword) {
+    public void resetPassword(String email, String token, String newPassword) {
         PasswordResetToken resetToken = tokenRepository.findByToken(token)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid or expired token."));
 
@@ -193,10 +191,15 @@ public class AuthServiceImpl {
         }
 
         User user = resetToken.getUser();
+
+        if (!user.getEmail().equalsIgnoreCase(email)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Token does not match this email.");
+        }
+
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-
         tokenRepository.delete(resetToken);
+
         System.out.println("✅ Password reset successfully for user: " + user.getEmail());
     }
 }
