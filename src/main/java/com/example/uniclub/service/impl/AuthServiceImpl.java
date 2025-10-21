@@ -160,7 +160,7 @@ public class AuthServiceImpl {
         tokenRepository.save(resetToken);
 
         // Gửi email
-        String resetLink = "https://uniclub.vn/reset-password?token=" + token + "&email=" + email;
+        String resetLink = "https://uniclub-fpt.vercel.app/reset-password?token=" + token + "&email=" + email;
         String subject = "Reset your UniClub password";
         String content = """
                 Hi %s,<br><br>
