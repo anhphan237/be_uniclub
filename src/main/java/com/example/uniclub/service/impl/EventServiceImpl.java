@@ -18,9 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +27,7 @@ public class EventServiceImpl implements EventService {
 
     private final EventRepository eventRepo;
     private final ClubRepository clubRepo;
+    private final LocationRepository locationRepo;
     private final UserRepository userRepo;
     private final MembershipRepository membershipRepo;
     private final NotificationService notificationService;
@@ -35,62 +35,104 @@ public class EventServiceImpl implements EventService {
     private final WalletRepository walletRepository;
     private final EventRegistrationRepository regRepo;
 
+    // =========================================================
+    // 🔹 MAPPING ENTITY → RESPONSE
+    // =========================================================
     private EventResponse toResp(Event e) {
         return EventResponse.builder()
                 .id(e.getEventId())
-                .clubId(e.getClub() != null ? e.getClub().getClubId() : null)
                 .name(e.getName())
                 .description(e.getDescription())
                 .type(e.getType())
                 .date(e.getDate())
-                .time(e.getTime())
+                .startTime(e.getStartTime())
+                .endTime(e.getEndTime())
                 .status(e.getStatus())
                 .checkInCode(e.getCheckInCode())
-                .locationId(e.getLocation() != null ? e.getLocation().getLocationId() : null)
                 .locationName(e.getLocation() != null ? e.getLocation().getName() : null)
                 .maxCheckInCount(e.getMaxCheckInCount())
                 .currentCheckInCount(e.getCurrentCheckInCount())
+                .hostClub(e.getHostClub() != null
+                        ? new EventResponse.SimpleClub(e.getHostClub().getClubId(), e.getHostClub().getName())
+                        : null)
+                .coHostedClubs(e.getCoHostedClubs() != null
+                        ? e.getCoHostedClubs().stream()
+                        .map(c -> new EventResponse.SimpleClub(c.getClubId(), c.getName()))
+                        .collect(Collectors.toList())
+                        : List.of())
                 .build();
     }
 
+    // =========================================================
+    // 🔹 TẠO SỰ KIỆN (CLUB LEADER GỬI YÊU CẦU)
+    // =========================================================
     @Override
     public EventResponse create(EventCreateRequest req) {
-        String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // 🟢 Lấy giá trị commitPointCost từ request (hoặc dùng mặc định 100)
+        // 1️⃣ Kiểm tra location hợp lệ
+        Location location = locationRepo.findById(req.locationId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Địa điểm không tồn tại"));
+
+        // 2️⃣ Kiểm tra sức chứa location
+        if (req.maxCheckInCount() != null && req.maxCheckInCount() > location.getCapacity()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, String.format(
+                    "Địa điểm '%s' chỉ chứa tối đa %d người. Vui lòng giảm số lượng hoặc chọn địa điểm khác.",
+                    location.getName(), location.getCapacity()
+            ));
+        }
+
+        // 3️⃣ Lấy CLB chủ trì
+        Club hostClub = clubRepo.findById(req.hostClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club không tồn tại"));
+
+        // 4️⃣ Lấy danh sách CLB đồng tổ chức (nếu có)
+        List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
+                ? clubRepo.findAllById(req.coHostClubIds())
+                : List.of();
+
+        // 5️⃣ Xác định điểm cam kết mặc định
         int finalCommitCost = (req.commitPointCost() != null && req.commitPointCost() > 0)
                 ? req.commitPointCost()
                 : 100;
 
-        Event e = Event.builder()
-                .club(Club.builder().clubId(req.clubId()).build())
+        // 6️⃣ Tạo mã sự kiện ngẫu nhiên
+        String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+        // 7️⃣ Khởi tạo đối tượng Event
+        Event event = Event.builder()
+                .hostClub(hostClub)
+                .coHostedClubs(coHosts)
                 .name(req.name())
                 .description(req.description())
                 .type(req.type())
                 .date(req.date())
-                .time(req.time())
+                .startTime(req.startTime())
+                .endTime(req.endTime())
+                .location(location)
                 .status(EventStatusEnum.PENDING)
                 .checkInCode(randomCode)
-                .location(req.locationId() == null ? null :
-                        Location.builder().locationId(req.locationId()).build())
                 .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
-                .commitPointCost(finalCommitCost) // ✅ thêm commitPointCost
-                .rewardMultiplierCap(3) // ✅ đảm bảo luôn có giá trị mặc định trần nhân thưởng
+                .commitPointCost(finalCommitCost)
+                .rewardMultiplierCap(2)
                 .build();
 
-        eventRepo.save(e);
+        eventRepo.save(event);
 
-        // 📨 Gửi email cho staff để duyệt
-        var club = clubRepo.findById(req.clubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+        // 8️⃣ Gửi thông báo cho UniStaff
         String staffEmail = "uniclub.contacts@gmail.com";
-        notificationService.sendEventApprovalRequest(staffEmail, club.getName(), req.name());
+        notificationService.sendEventApprovalRequest(
+                staffEmail,
+                hostClub.getName(),
+                req.name()
+        );
 
-        return toResp(e);
+        return toResp(event);
     }
 
-
+    // =========================================================
+    // 🔹 LẤY CHI TIẾT SỰ KIỆN
+    // =========================================================
     @Override
     public EventResponse get(Long id) {
         return eventRepo.findById(id)
@@ -98,17 +140,23 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
     }
 
+    // =========================================================
+    // 🔹 DANH SÁCH SỰ KIỆN (PAGINATION)
+    // =========================================================
     @Override
     public Page<EventResponse> list(Pageable pageable) {
         return eventRepo.findAll(pageable).map(this::toResp);
     }
 
+    // =========================================================
+    // 🔹 CẬP NHẬT TRẠNG THÁI (DUYỆT / TỪ CHỐI)
+    // =========================================================
     @Override
     @Transactional
     public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
         var user = principal.getUser();
 
-        // ✅ Cho phép cả ADMIN và UNIVERSITY_STAFF duyệt sự kiện
+        // Chỉ cho phép University Staff hoặc Admin duyệt
         String roleName = user.getRole().getRoleName();
         if (!"UNIVERSITY_STAFF".equals(roleName) && !"ADMIN".equals(roleName)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only University Staff or Admin can approve events.");
@@ -119,29 +167,26 @@ public class EventServiceImpl implements EventService {
 
         event.setStatus(status);
 
-        // ✅ Khi duyệt APPROVED: tạo ví EVENT và cấp điểm dựa theo số lượng người dự kiến
+        // Khi APPROVED → tạo ví Event + cấp điểm
         if (status == EventStatusEnum.APPROVED) {
             if (event.getWallet() == null) {
                 Wallet eventWallet = new Wallet();
                 eventWallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
                 eventWallet.setBalancePoints(0);
-                eventWallet.setClub(event.getClub()); // ⚙️ Gắn Club để tránh lỗi constraint DB
+//                eventWallet.setClub(event.getHostClub());
                 walletRepository.save(eventWallet);
                 event.setWallet(eventWallet);
             }
 
-            // 🧮 Tính số điểm được cấp cho ví Event dựa trên số người dự kiến
             int capacity = event.getMaxCheckInCount() != null ? event.getMaxCheckInCount() : 0;
             if (capacity <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
-                        "Cannot approve event without setting expected participant count (maxCheckInCount).");
+                        "Cannot approve event without setting expected participant count.");
             }
 
-            // 🏫 Mặc định nhà trường cấp 100 điểm / người dự kiến
             int basePointPerMember = 100;
             int totalGrant = capacity * basePointPerMember;
 
-            // ✅ Nạp điểm vào ví Event (do UniStaff cấp)
             Wallet wallet = event.getWallet();
             wallet.setBalancePoints(wallet.getBalancePoints() + totalGrant);
             walletRepository.save(wallet);
@@ -152,10 +197,10 @@ public class EventServiceImpl implements EventService {
 
         eventRepo.save(event);
 
-        // 📨 Gửi email thông báo kết quả duyệt cho CLB
-        String contactEmail = resolveClubContactEmail(event.getClub().getClubId())
-                .orElseGet(() -> event.getClub().getCreatedBy() != null
-                        ? event.getClub().getCreatedBy().getEmail()
+        // Gửi email thông báo kết quả duyệt
+        String contactEmail = resolveClubContactEmail(event.getHostClub().getClubId())
+                .orElseGet(() -> event.getHostClub().getCreatedBy() != null
+                        ? event.getHostClub().getCreatedBy().getEmail()
                         : null);
 
         boolean approved = status == EventStatusEnum.APPROVED;
@@ -166,7 +211,9 @@ public class EventServiceImpl implements EventService {
         return toResp(event);
     }
 
-
+    // =========================================================
+    // 🔹 TÌM KIẾM SỰ KIỆN QUA MÃ CHECK-IN
+    // =========================================================
     @Override
     public EventResponse findByCheckInCode(String code) {
         Event event = eventRepo.findByCheckInCode(code)
@@ -174,6 +221,9 @@ public class EventServiceImpl implements EventService {
         return toResp(event);
     }
 
+    // =========================================================
+    // 🔹 XÓA SỰ KIỆN
+    // =========================================================
     @Override
     public void delete(Long id) {
         if (!eventRepo.existsById(id)) {
@@ -182,17 +232,23 @@ public class EventServiceImpl implements EventService {
         eventRepo.deleteById(id);
     }
 
+    // =========================================================
+    // 🔹 DANH SÁCH EVENT CỦA MỘT CLB
+    // =========================================================
     @Override
     public List<EventResponse> getByClubId(Long clubId) {
         clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-        return eventRepo.findByClub_ClubId(clubId)
+        return eventRepo.findByHostClub_ClubId(clubId)
                 .stream()
                 .map(this::toResp)
                 .toList();
+
     }
 
-    // ✅ Lấy email liên hệ của CLB (leader hoặc vice-leader)
+    // =========================================================
+    // 🔹 LẤY EMAIL LIÊN HỆ CỦA CLB
+    // =========================================================
     private Optional<String> resolveClubContactEmail(Long clubId) {
         Optional<Membership> leader = membershipRepo
                 .findFirstByClub_ClubIdAndClubRoleAndState(
@@ -209,10 +265,9 @@ public class EventServiceImpl implements EventService {
                 .filter(email -> email != null && !email.isBlank());
     }
 
-    // ==============================
-    // 🔹 NEW EXTENDED METHODS 🔹
-    // ==============================
-
+    // =========================================================
+    // 🔹 CÁC API MỞ RỘNG
+    // =========================================================
     @Override
     public List<EventResponse> getUpcomingEvents() {
         LocalDate today = LocalDate.now();
@@ -237,11 +292,13 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         Event clone = Event.builder()
-                .club(original.getClub())
+                .hostClub(original.getHostClub())
+                .coHostedClubs(original.getCoHostedClubs())
                 .name(original.getName() + " (Next Term)")
                 .description(original.getDescription())
                 .date(original.getDate() != null ? original.getDate().plusMonths(6) : null)
-                .time(original.getTime())
+                .startTime(original.getStartTime())
+                .endTime(original.getEndTime())
                 .type(original.getType())
                 .status(EventStatusEnum.PENDING)
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
@@ -252,5 +309,4 @@ public class EventServiceImpl implements EventService {
         eventRepo.save(clone);
         return toResp(clone);
     }
-
 }

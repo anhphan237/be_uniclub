@@ -18,19 +18,23 @@ public class Wallet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long walletId;
 
+    // 🧩 Loại ví: CLUB / USER / EVENT
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private WalletOwnerTypeEnum ownerType;
 
+    // 🎓 Ví của User (mỗi user có 1 ví)
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)
-    @JsonBackReference // ✅ ngắt vòng lặp user <-> wallet
+    @JsonBackReference
     private User user;
 
+    // 🏫 Ví của Club (mỗi club chỉ có 1 ví)
     @OneToOne
-    @JoinColumn(name = "club_id")
+    @JoinColumn(name = "club_id", unique = true)
     private Club club;
 
+    // 💰 Số điểm hiện có
     @Column(nullable = false)
     private Integer balancePoints = 0;
 }

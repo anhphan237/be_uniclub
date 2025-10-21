@@ -30,7 +30,9 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final WalletRepository walletRepo;
     private final WalletService walletService;
 
-    // ============ REGISTER ============
+    // =========================================================
+    // 🔹 REGISTER
+    // =========================================================
     @Override
     @Transactional
     public String register(CustomUserDetails principal, EventRegisterRequest req) {
@@ -71,7 +73,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         return "✅ Registration successful. " + commitPoints + " commitment points have been deducted.";
     }
 
-    // ============ CHECK-IN ============
+    // =========================================================
+    // 🔹 CHECK-IN
+    // =========================================================
     @Override
     @Transactional
     public String checkin(CustomUserDetails principal, EventCheckinRequest req) {
@@ -114,7 +118,9 @@ public class EventPointsServiceImpl implements EventPointsService {
                 + ". Points will be rewarded after the event ends.";
     }
 
-    // ============ CANCEL REGISTRATION ============
+    // =========================================================
+    // 🔹 CANCEL REGISTRATION
+    // =========================================================
     @Override
     @Transactional
     public String cancelRegistration(CustomUserDetails principal, Long eventId) {
@@ -148,7 +154,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         return "❌ Registration canceled. " + refund + " commitment points have been refunded to your wallet.";
     }
 
-    // ============ END EVENT ============
+    // =========================================================
+    // 🔹 END EVENT
+    // =========================================================
     @Override
     @Transactional
     public String endEvent(CustomUserDetails principal, EventEndRequest req) {
@@ -186,31 +194,43 @@ public class EventPointsServiceImpl implements EventPointsService {
         event.setStatus(EventStatusEnum.COMPLETED);
         eventRepo.save(event);
 
+        // =====================================================
+        // 🧮 Xử lý điểm dư → chia đều cho Host + Co-host
+        // =====================================================
         int leftover = eventWallet.getBalancePoints();
         if (leftover > 0) {
-            Wallet clubWallet = event.getClub().getWallet();
-            if (clubWallet == null) {
-                clubWallet = walletRepo.save(Wallet.builder()
-                        .ownerType(WalletOwnerTypeEnum.CLUB)
-                        .club(event.getClub())
-                        .balancePoints(0)
-                        .build());
-                event.getClub().setWallet(clubWallet);
+            List<Club> clubsToReward = event.getCoHostedClubs();
+            clubsToReward.add(event.getHostClub());
+
+            int share = leftover / clubsToReward.size();
+
+            for (Club club : clubsToReward) {
+                Wallet clubWallet = club.getWallet();
+                if (clubWallet == null) {
+                    clubWallet = walletRepo.save(Wallet.builder()
+                            .ownerType(WalletOwnerTypeEnum.CLUB)
+                            .club(club)
+                            .balancePoints(0)
+                            .build());
+                    club.setWallet(clubWallet);
+                }
+                walletService.decrease(eventWallet, share);
+                walletService.increase(clubWallet, share);
             }
-            walletService.decrease(eventWallet, leftover);
-            walletService.increase(clubWallet, leftover);
         }
 
+        // Xóa ví event (đã phân phối xong)
         walletRepo.delete(eventWallet);
         event.setWallet(null);
         eventRepo.save(event);
 
         return "🏁 Event completed. Total " + totalPayout +
-                " points have been distributed to participants. Remaining " + leftover +
-                " points have been transferred back to the host club.";
+                " points distributed. Remaining points (" + leftover + ") shared among host/co-host clubs.";
     }
 
-    // ============ EVENT REGISTRATIONS ============
+    // =========================================================
+    // 🔹 EVENT REGISTRATIONS
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public List<EventRegistration> getEventRegistrations(Long eventId) {
@@ -219,7 +239,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         return regRepo.findByEvent_EventId(eventId);
     }
 
-    // ============ EVENT SUMMARY ============
+    // =========================================================
+    // 🔹 EVENT SUMMARY
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventSummary(Long eventId) {
@@ -240,7 +262,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         );
     }
 
-    // ============ EVENT WALLET ============
+    // =========================================================
+    // 🔹 EVENT WALLET
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventWallet(Long eventId) {
@@ -253,11 +277,13 @@ public class EventPointsServiceImpl implements EventPointsService {
                 "eventName", event.getName(),
                 "walletBalance", wallet.getBalancePoints(),
                 "ownerType", wallet.getOwnerType().name(),
-                "clubId", event.getClub().getClubId()
+                "hostClubId", event.getHostClub().getClubId()
         );
     }
 
-    // ============ UTIL ============
+    // =========================================================
+    // 🔹 UTIL
+    // =========================================================
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
         if (w == null) {

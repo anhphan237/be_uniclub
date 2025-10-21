@@ -5,10 +5,18 @@ import com.example.uniclub.enums.EventTypeEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+
+
 
 @Entity
 @Table(name = "events")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Event {
 
     @Id
@@ -16,8 +24,16 @@ public class Event {
     private Long eventId;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name = "club_id")
-    private Club club; // Host club
+    @JoinColumn(name = "host_club_id")
+    private Club hostClub;
+
+    @ManyToMany
+    @JoinTable(
+            name = "event_co_clubs",
+            joinColumns = @JoinColumn(name = "event_id"),
+            inverseJoinColumns = @JoinColumn(name = "club_id")
+    )
+    private List<Club> coHostedClubs;
 
     @Column(nullable = false)
     private String name;
@@ -30,7 +46,10 @@ public class Event {
     private LocalDate date;
 
     @Column(nullable = false)
-    private String time;
+    private LocalTime startTime;
+
+    @Column(nullable = false)
+    private LocalTime endTime;
 
     @ManyToOne
     @JoinColumn(name = "location_id")
@@ -39,25 +58,22 @@ public class Event {
     @Column(nullable = false, unique = true, length = 50)
     private String checkInCode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EventStatusEnum status = EventStatusEnum.PENDING;
+
     @Column(nullable = false)
     private Integer currentCheckInCount = 0;
 
     private Integer maxCheckInCount;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private EventStatusEnum status = EventStatusEnum.PENDING;
+    private Integer commitPointCost;
 
-    // 🟢 ví riêng cho Event (được cấp điểm khi APPROVED)
+    @Column(nullable = false)
+    private Integer rewardMultiplierCap = 2;
+
     @OneToOne
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
-
-    // 🟢 số điểm cam kết mỗi người khi đăng ký
-    @Column(nullable = false)
-    private Integer commitPointCost; // default
-
-    // 🟢 đặt trần nhân thưởng (1..3)
-    @Column(nullable = false)
-    private Integer rewardMultiplierCap = 3; // x1/x2/x3
 }
