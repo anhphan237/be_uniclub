@@ -200,16 +200,23 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         club.setLeader(leader);
         clubRepo.save(club);
 
-        // 📧 Gửi email cho người nộp đơn sau khi tạo tài khoản
+        // ✅ Cập nhật trạng thái COMPLETE cho đơn ứng tuyển
         ClubApplication app = appRepo.findByClub(club).orElse(null);
+        if (app != null) {
+            app.setStatus(ClubApplicationStatusEnum.COMPLETE);
+            app.setReviewedAt(LocalDateTime.now());
+            appRepo.save(app);
+        }
+
+        // 📧 Gửi email cho người nộp đơn sau khi tạo tài khoản
         if (app != null && app.getProposer() != null) {
             User proposer = app.getProposer();
             try {
-                String subject = "[UniClub] CLB " + club.getName() + " của bạn đã được tạo thành công!";
+                String subject = "[UniClub] CLB " + club.getName() + " của bạn đã được tạo hoàn tất 🎉";
 
                 String content = String.format("""
                         Xin chào %s,<br><br>
-                        CLB <b>%s</b> mà bạn đã đề xuất đã được UniStaff phê duyệt và tạo thành công 🎉<br><br>
+                        CLB <b>%s</b> mà bạn đã đề xuất đã được UniStaff phê duyệt và hoàn tất việc tạo thành công! 🎉<br><br>
                         Dưới đây là thông tin 2 tài khoản chính của CLB:<br><br>
                         🔹 <b>Chủ nhiệm (Leader)</b><br>
                         Họ tên: %s<br>
@@ -218,8 +225,9 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                         Họ tên: %s<br>
                         Email: %s<br><br>
                         Mật khẩu mặc định cho cả hai tài khoản: <b>%s</b><br><br>
-                        Vui lòng chuyển thông tin này cho 2 người phụ trách CLB.<br>
-                        Họ có thể đăng nhập tại <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a>.<br><br>
+                        Hai người phụ trách CLB có thể đăng nhập tại:<br>
+                        <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a><br><br>
+                        Trạng thái đơn xin CLB của bạn hiện là: <b>COMPLETE ✅</b><br><br>
                         Trân trọng,<br>
                         <b>UniClub System</b> 💌
                         """,
@@ -231,16 +239,13 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 );
 
                 emailService.sendEmail(proposer.getEmail(), subject, content);
-                System.out.println("✅ Sent club creation email to proposer: " + proposer.getEmail());
+                System.out.println("✅ Sent COMPLETE email to proposer: " + proposer.getEmail());
             } catch (Exception e) {
-                System.err.println("❌ Failed to send email to proposer: " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("❌ Failed to send COMPLETE email: " + e.getMessage());
             }
-        } else {
-            System.err.println("⚠️ No proposer found for club " + club.getName());
         }
 
-        return ApiResponse.ok("Created leader & vice leader successfully and notified proposer via email");
+        return ApiResponse.ok("Created leader & vice leader successfully, status = COMPLETE");
     }
 
     // ============================================================
@@ -276,6 +281,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         stats.put("pending", appRepo.countByStatus(ClubApplicationStatusEnum.PENDING));
         stats.put("approved", appRepo.countByStatus(ClubApplicationStatusEnum.APPROVED));
         stats.put("rejected", appRepo.countByStatus(ClubApplicationStatusEnum.REJECTED));
+        stats.put("complete", appRepo.countByStatus(ClubApplicationStatusEnum.COMPLETE));
         return stats;
     }
 
