@@ -26,7 +26,6 @@ public class ClubApplicationController {
 
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn online
-    // ROLE: STUDENT
     // ============================================================
     @PreAuthorize("hasRole('STUDENT')")
     @PostMapping
@@ -40,7 +39,6 @@ public class ClubApplicationController {
 
     // ============================================================
     // 🟠 2. UniStaff phê duyệt hoặc từ chối đơn
-    // ROLE: UNIVERSITY_STAFF
     // ============================================================
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PutMapping("/{id}/approve")
@@ -55,7 +53,6 @@ public class ClubApplicationController {
 
     // ============================================================
     // 🟢 3. UniStaff tạo 2 tài khoản CLB (Leader & ViceLeader)
-    // ROLE: UNIVERSITY_STAFF
     // ============================================================
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping("/create-club-accounts")
@@ -66,21 +63,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟢 4. UniStaff xác nhận khởi tạo CLB chính thức
-    // ROLE: UNIVERSITY_STAFF
-    // ============================================================
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    @PutMapping("/{id}/finalize")
-    public ResponseEntity<ApiResponse<String>> finalizeClubCreation(
-            @PathVariable Long id,
-            @RequestBody ClubFinalizeRequest req) {
-        clubApplicationService.finalizeClubCreation(id, req);
-        return ResponseEntity.ok(ApiResponse.ok("Club officially created."));
-    }
-
-    // ============================================================
-    // 🟣 5. Sinh viên xem danh sách đơn của mình
-    // ROLE: STUDENT
+    // 🟣 4. Sinh viên xem danh sách đơn của mình
     // ============================================================
     @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/my")
@@ -92,8 +75,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 6. Xem chi tiết 1 đơn
-    // ROLE: ADMIN, UNIVERSITY_STAFF, STUDENT
+    // 🔵 5. Xem chi tiết 1 đơn
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','STUDENT')")
     @GetMapping("/{id}")
@@ -106,7 +88,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟤 7. Admin / Staff xem danh sách đơn chờ duyệt
+    // 🟤 6. Danh sách đơn chờ duyệt
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/pending")
@@ -115,7 +97,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟣 8. Thống kê số lượng đơn theo trạng thái
+    // 🟣 7. Thống kê số lượng đơn theo trạng thái
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/statistics")
@@ -124,7 +106,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 9. Tìm kiếm đơn theo tên CLB / người nộp
+    // 🔵 8. Tìm kiếm đơn theo tên CLB / người nộp
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/search")
@@ -134,7 +116,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // ⚪ 10. Lấy toàn bộ đơn (Admin / Staff)
+    // ⚪ 9. Lấy toàn bộ đơn (Admin / Staff)
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/all")

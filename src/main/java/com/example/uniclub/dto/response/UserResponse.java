@@ -1,6 +1,7 @@
 package com.example.uniclub.dto.response;
 
 import lombok.*;
+import java.util.List;
 
 @Getter
 @Setter
@@ -18,5 +19,16 @@ public class UserResponse {
     private String studentCode;
     private String majorName;
     private String bio;
-    private String avatarUrl; // ✅ hiển thị avatar trong dashboard
+    private String avatarUrl;
+
+    private List<ClubInfo> clubs;
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ClubInfo {
+        private Long clubId;
+        private String clubName;
+    }
 }

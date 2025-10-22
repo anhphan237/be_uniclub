@@ -11,13 +11,12 @@ import com.example.uniclub.service.EmailService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -26,12 +25,9 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final ClubApplicationRepository appRepo;
     private final ClubRepository clubRepo;
     private final UserRepository userRepo;
-    private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
-    private final RoleRepository roleRepo;
     private final MajorRepository majorRepository;
     private final EmailService emailService;
-    private final PasswordEncoder passwordEncoder;
 
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn xin tạo CLB
@@ -92,43 +88,27 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
 
             emailService.sendEmail(app.getProposer().getEmail(),
                     "Đơn xin tạo CLB bị từ chối",
-                    "Đơn xin thành lập CLB \"" + app.getClubName() + "\" đã bị từ chối.<br>Lý do: <b>" + req.rejectReason() + "</b>");
+                    String.format("""
+                            Đơn xin thành lập CLB <b>%s</b> đã bị từ chối.<br>
+                            <b>Lý do:</b> %s<br><br>
+                            Vui lòng chỉnh sửa và nộp lại nếu cần thiết.
+                            """, app.getClubName(), req.rejectReason()));
+
             return ClubApplicationResponse.fromEntity(app);
         }
 
-        // ✅ Duyệt
+        // ✅ Duyệt đơn
         app.setStatus(ClubApplicationStatusEnum.APPROVED);
         appRepo.save(app);
 
-        emailService.sendEmail(app.getProposer().getEmail(),
-                "Đơn xin tạo CLB được phê duyệt",
-                """
-                Đơn xin thành lập CLB của bạn đã được phê duyệt.<br>
-                Nhà trường sẽ cung cấp 2 tài khoản (Chủ nhiệm & Phó chủ nhiệm) có domain @uniclub.edu.vn.<br>
-                Sau khi đăng nhập, họ cần đổi mật khẩu và cập nhật thông tin cá nhân.
-                """);
-        return ClubApplicationResponse.fromEntity(app);
-    }
-
-    // ============================================================
-    // 🟣 3. UniStaff xác nhận khởi tạo CLB chính thức
-    // ============================================================
-    @Transactional
-    @Override
-    public void finalizeClubCreation(Long appId, ClubFinalizeRequest req) {
-        ClubApplication app = appRepo.findById(appId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
-
-        if (app.getStatus() != ClubApplicationStatusEnum.APPROVED)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Application must be approved first");
-
-        // 🏫 Tạo CLB chính thức
+        // 🏫 Tạo CLB
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
                 .major(app.getMajor())
                 .vision(app.getVision())
                 .createdBy(app.getReviewedBy())
+                .memberCount(0)
                 .build();
         clubRepo.save(club);
 
@@ -142,91 +122,29 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         club.setWallet(wallet);
         clubRepo.save(club);
 
-        // 👥 Tự tạo 2 tài khoản Leader & Vice Leader
-        Role leaderSystemRole = roleRepo.findByRoleName("CLUB_LEADER")
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
-
-        String slug = club.getName().trim().toLowerCase().replaceAll("\\s+", "");
-        String encodedPassword = passwordEncoder.encode("123");
-
-        // 🟢 Chủ nhiệm
-        User leader = User.builder()
-                .email("leader_" + slug + "@uniclub.edu.vn")
-                .passwordHash(encodedPassword)
-                .fullName("Leader of " + club.getName())
-                .studentCode("LEAD_" + slug)
-                .status(UserStatusEnum.ACTIVE.name())
-                .role(leaderSystemRole)
-                .build();
-        userRepo.save(leader);
-
-        // 🟠 Phó chủ nhiệm
-        User viceLeader = User.builder()
-                .email("viceleader_" + slug + "@uniclub.edu.vn")
-                .passwordHash(encodedPassword)
-                .fullName("Vice Leader of " + club.getName())
-                .studentCode("VICE_" + slug)
-                .status(UserStatusEnum.ACTIVE.name())
-                .role(leaderSystemRole)
-                .build();
-        userRepo.save(viceLeader);
-
-        // ✅ Gán leader cho CLB (fix lỗi leader_id = NULL)
-        club.setLeader(leader);
-        clubRepo.save(club);
-
-        // 💼 Tạo ví cho 2 tài khoản
-        walletRepo.save(Wallet.builder()
-                .ownerType(WalletOwnerTypeEnum.USER)
-                .user(leader)
-                .balancePoints(0)
-                .build());
-
-        walletRepo.save(Wallet.builder()
-                .ownerType(WalletOwnerTypeEnum.USER)
-                .user(viceLeader)
-                .balancePoints(0)
-                .build());
-
-        // 🤝 Thêm membership cho 2 người
-        membershipRepo.save(Membership.builder()
-                .user(leader)
-                .club(club)
-                .clubRole(ClubRoleEnum.LEADER)
-                .state(MembershipStateEnum.ACTIVE)
-                .joinedDate(java.time.LocalDate.now())
-                .staff(true)
-                .build());
-
-        membershipRepo.save(Membership.builder()
-                .user(viceLeader)
-                .club(club)
-                .clubRole(ClubRoleEnum.VICE_LEADER)
-                .state(MembershipStateEnum.ACTIVE)
-                .joinedDate(java.time.LocalDate.now())
-                .staff(true)
-                .build());
-
-        // 🔗 Liên kết lại với ClubApplication
+        // 🔗 Liên kết Club với đơn
         app.setClub(club);
         appRepo.save(app);
 
-        // 📧 Gửi mail thông báo
+        // 📧 Gửi mail thông báo cho người nộp đơn
         emailService.sendEmail(app.getProposer().getEmail(),
-                "CLB đã được khởi tạo thành công",
-                """
-                Xin chúc mừng! CLB "%s" đã được khởi tạo chính thức.<br>
-                Hai tài khoản đã được cấp cho bạn:<br>
-                - Chủ nhiệm: leader_%s@uniclub.edu.vn<br>
-                - Phó chủ nhiệm: viceleader_%s@uniclub.edu.vn<br><br>
-                Mật khẩu mặc định: <b>123</b><br>
-                Vui lòng đăng nhập và đổi mật khẩu.
-                """.formatted(club.getName(), slug, slug)
-        );
+                "Đơn xin tạo CLB đã được phê duyệt",
+                String.format("""
+                        Xin chào <b>%s</b>,<br><br>
+                        Đơn xin tạo CLB <b>%s</b> của bạn đã được phê duyệt thành công 🎉<br><br>
+                        CLB đã được khởi tạo trong hệ thống UniClub.<br><br>
+                        <b>Lưu ý:</b><br>
+                        - Nhà trường sẽ tạo thủ công 2 tài khoản (Chủ nhiệm & Phó chủ nhiệm).<br>
+                        - Hai tài khoản này có domain <b>@uniclub.edu.vn</b> và sẽ được gửi cho bạn qua email khi sẵn sàng.<br><br>
+                        Trân trọng,<br>
+                        <b>UniClub System</b>
+                        """, app.getProposer().getFullName(), app.getClubName()));
+
+        return ClubApplicationResponse.fromEntity(app);
     }
 
     // ============================================================
-    // 🟤 4. Các hàm tiện ích còn lại
+    // 🟣 3. Các hàm tiện ích khác
     // ============================================================
     @Override
     public List<ClubApplicationResponse> getPending() {

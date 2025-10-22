@@ -8,6 +8,7 @@ import com.example.uniclub.dto.response.UserResponse;
 import com.example.uniclub.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,7 +18,6 @@ import java.util.Map;
 
 /**
  * ✅ Controller dành cho ADMIN hoặc STAFF quản lý người dùng
- * (Không bao gồm đăng nhập, đăng ký, reset mật khẩu hay profile cá nhân)
  */
 @RestController
 @RequestMapping("/api/users")
@@ -26,7 +26,7 @@ public class UserController {
 
     private final UserService userService;
 
-    // ✅ Tạo user mới (ADMIN / STAFF)
+    // ✅ Tạo user mới
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @PostMapping
     public ResponseEntity<ApiResponse<UserResponse>> create(
@@ -58,23 +58,23 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.get(id)));
     }
 
-    // ✅ Lấy danh sách user (phân trang)
+    // ✅ Lấy danh sách user (phân trang) — có kèm danh sách CLB
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping
-    public ResponseEntity<?> list(Pageable pageable) {
-        return ResponseEntity.ok(userService.list(pageable));
+    public ResponseEntity<ApiResponse<Page<UserResponse>>> list(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.list(pageable)));
     }
 
-    // ✅ Tìm kiếm user theo từ khoá (email, tên, MSSV)
+    // ✅ Tìm kiếm user theo từ khoá
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/search")
-    public ResponseEntity<?> searchUsers(
+    public ResponseEntity<ApiResponse<Page<UserResponse>>> searchUsers(
             @RequestParam(required = false, defaultValue = "") String keyword,
             Pageable pageable) {
-        return ResponseEntity.ok(userService.search(keyword, pageable));
+        return ResponseEntity.ok(ApiResponse.ok(userService.search(keyword, pageable)));
     }
 
-    // ✅ Cập nhật trạng thái hoạt động (Active / Inactive)
+    // ✅ Cập nhật trạng thái (Active / Inactive)
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<UserResponse>> updateStatus(
@@ -83,23 +83,23 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(userService.updateStatus(id, req.active())));
     }
 
-    // ✅ Lọc danh sách user theo vai trò (ADMIN, STAFF, STUDENT, LEADER...)
+    // ✅ Lọc danh sách user theo vai trò
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/role/{roleName}")
-    public ResponseEntity<?> getByRole(
+    public ResponseEntity<ApiResponse<Page<UserResponse>>> getByRole(
             @PathVariable String roleName,
             Pageable pageable) {
-        return ResponseEntity.ok(userService.getByRole(roleName, pageable));
+        return ResponseEntity.ok(ApiResponse.ok(userService.getByRole(roleName, pageable)));
     }
 
-    // ✅ Thống kê user theo trạng thái & vai trò
+    // ✅ Thống kê user
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/stats")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
         return ResponseEntity.ok(ApiResponse.ok(userService.getUserStatistics()));
     }
 
-    // ✅ ADMIN ép reset mật khẩu cho user (không trùng với /auth/reset-password)
+    // ✅ ADMIN ép reset mật khẩu
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/force-reset-password")
     public ResponseEntity<ApiResponse<String>> forceResetPassword(

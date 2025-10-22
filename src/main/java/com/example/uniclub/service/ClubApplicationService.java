@@ -31,8 +31,6 @@ public interface ClubApplicationService {
     // 🔵 8. Tìm kiếm đơn theo tên CLB / người nộp (ROLE: ADMIN, STAFF)
     List<ClubApplicationResponse> search(String keyword);
 
-    // 🟢 9. UniStaff xác nhận khởi tạo CLB chính thức
-    void finalizeClubCreation(Long applicationId, ClubFinalizeRequest req);
 
     // 🟩 10. Lấy toàn bộ ClubApplications (ROLE: ADMIN, STAFF)
     List<ClubApplicationResponse> getAllApplications();
