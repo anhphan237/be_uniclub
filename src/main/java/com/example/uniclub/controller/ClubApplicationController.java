@@ -22,7 +22,7 @@ import java.util.Map;
 public class ClubApplicationController {
 
     private final ClubApplicationService clubApplicationService;
-    private final UserService userService;
+
 
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn online
@@ -54,13 +54,13 @@ public class ClubApplicationController {
     // ============================================================
     // 🟢 3. UniStaff tạo 2 tài khoản CLB (Leader & ViceLeader)
     // ============================================================
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping("/create-club-accounts")
     public ResponseEntity<ApiResponse<String>> createClubAccounts(
             @Valid @RequestBody CreateClubAccountsRequest request) {
-        userService.createClubAccounts(request);
+        clubApplicationService.createClubAccounts(request);
         return ResponseEntity.ok(ApiResponse.ok("Club accounts created successfully."));
     }
+
 
     // ============================================================
     // 🟣 4. Sinh viên xem danh sách đơn của mình

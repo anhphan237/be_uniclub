@@ -33,7 +33,4 @@ public interface UserService {
 
     // ===================== Internal Use =====================
     User getByEmail(String email);
-
-    // ===================== UniStaff: Tạo tài khoản CLB =====================
-    void createClubAccounts(CreateClubAccountsRequest req);
 }

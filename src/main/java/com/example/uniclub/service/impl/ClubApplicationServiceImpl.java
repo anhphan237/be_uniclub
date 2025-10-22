@@ -200,7 +200,47 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         club.setLeader(leader);
         clubRepo.save(club);
 
-        return ApiResponse.ok("Created leader & vice leader successfully");
+        // 📧 Gửi email cho người nộp đơn sau khi tạo tài khoản
+        ClubApplication app = appRepo.findByClub(club).orElse(null);
+        if (app != null && app.getProposer() != null) {
+            User proposer = app.getProposer();
+            try {
+                String subject = "[UniClub] CLB " + club.getName() + " của bạn đã được tạo thành công!";
+
+                String content = String.format("""
+                        Xin chào %s,<br><br>
+                        CLB <b>%s</b> mà bạn đã đề xuất đã được UniStaff phê duyệt và tạo thành công 🎉<br><br>
+                        Dưới đây là thông tin 2 tài khoản chính của CLB:<br><br>
+                        🔹 <b>Chủ nhiệm (Leader)</b><br>
+                        Họ tên: %s<br>
+                        Email: %s<br><br>
+                        🔹 <b>Phó chủ nhiệm (Vice Leader)</b><br>
+                        Họ tên: %s<br>
+                        Email: %s<br><br>
+                        Mật khẩu mặc định cho cả hai tài khoản: <b>%s</b><br><br>
+                        Vui lòng chuyển thông tin này cho 2 người phụ trách CLB.<br>
+                        Họ có thể đăng nhập tại <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a>.<br><br>
+                        Trân trọng,<br>
+                        <b>UniClub System</b> 💌
+                        """,
+                        proposer.getFullName(),
+                        club.getName(),
+                        req.getLeaderFullName(), req.getLeaderEmail(),
+                        req.getViceFullName(), req.getViceEmail(),
+                        req.getDefaultPassword()
+                );
+
+                emailService.sendEmail(proposer.getEmail(), subject, content);
+                System.out.println("✅ Sent club creation email to proposer: " + proposer.getEmail());
+            } catch (Exception e) {
+                System.err.println("❌ Failed to send email to proposer: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            System.err.println("⚠️ No proposer found for club " + club.getName());
+        }
+
+        return ApiResponse.ok("Created leader & vice leader successfully and notified proposer via email");
     }
 
     // ============================================================

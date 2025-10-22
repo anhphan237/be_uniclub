@@ -1,5 +1,6 @@
 package com.example.uniclub.repository;
 
+import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.ClubApplication;
 import com.example.uniclub.enums.ClubApplicationStatusEnum;
 import org.springframework.data.domain.Page;
@@ -15,7 +16,7 @@ public interface ClubApplicationRepository extends JpaRepository<ClubApplication
 
     // 🔹 Lấy danh sách theo trạng thái
     List<ClubApplication> findByStatus(ClubApplicationStatusEnum status);
-
+    Optional<ClubApplication> findByClub(Club club);
     // 🔹 Tìm theo tên CLB (tránh trùng tên)
     Optional<ClubApplication> findByClubName(String clubName);
 
