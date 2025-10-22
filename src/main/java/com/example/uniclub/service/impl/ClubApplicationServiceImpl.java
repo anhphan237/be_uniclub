@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.ClubApplicationResponse;
+import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -11,6 +12,7 @@ import com.example.uniclub.service.EmailService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,6 +29,9 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final UserRepository userRepo;
     private final WalletRepository walletRepo;
     private final MajorRepository majorRepository;
+    private final RoleRepository roleRepo;
+    private final MembershipRepository membershipRepo;
+    private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
     // ============================================================
@@ -60,7 +65,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     }
 
     // ============================================================
-    // 🟠 2. UniStaff duyệt hoặc từ chối đơn
+    // 🟠 2. UniStaff duyệt đơn (approve / reject)
     // ============================================================
     @Transactional
     @Override
@@ -101,7 +106,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         app.setStatus(ClubApplicationStatusEnum.APPROVED);
         appRepo.save(app);
 
-        // 🏫 Tạo CLB
+        // 🏫 Tạo CLB mới
         Club club = Club.builder()
                 .name(app.getClubName())
                 .description(app.getDescription())
@@ -126,7 +131,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         app.setClub(club);
         appRepo.save(app);
 
-        // 📧 Gửi mail thông báo cho người nộp đơn
+        // 📧 Thông báo cho người nộp đơn
         emailService.sendEmail(app.getProposer().getEmail(),
                 "Đơn xin tạo CLB đã được phê duyệt",
                 String.format("""
@@ -144,7 +149,62 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     }
 
     // ============================================================
-    // 🟣 3. Các hàm tiện ích khác
+    // 🟢 3. UniStaff nhập tài khoản CLB (Leader & Vice Leader)
+    // ============================================================
+    @Transactional
+    @Override
+    public ApiResponse<?> createClubAccounts(CreateClubAccountsRequest req) {
+        Club club = clubRepo.findById(req.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        Role clubLeaderRole = roleRepo.findByRoleName("CLUB_LEADER")
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
+
+        // 🟢 Chủ nhiệm
+        User leader = User.builder()
+                .fullName(req.getLeaderFullName())
+                .email(req.getLeaderEmail())
+                .passwordHash(passwordEncoder.encode(req.getDefaultPassword()))
+                .status(UserStatusEnum.ACTIVE.name())
+                .role(clubLeaderRole)
+                .build();
+        userRepo.save(leader);
+
+        // 🟣 Phó chủ nhiệm
+        User vice = User.builder()
+                .fullName(req.getViceFullName())
+                .email(req.getViceEmail())
+                .passwordHash(passwordEncoder.encode(req.getDefaultPassword()))
+                .status(UserStatusEnum.ACTIVE.name())
+                .role(clubLeaderRole)
+                .build();
+        userRepo.save(vice);
+
+        // 🔗 Membership cho cả hai
+        membershipRepo.save(Membership.builder()
+                .club(club)
+                .user(leader)
+                .clubRole(ClubRoleEnum.LEADER)
+                .state(MembershipStateEnum.ACTIVE)
+                .staff(true)
+                .build());
+
+        membershipRepo.save(Membership.builder()
+                .club(club)
+                .user(vice)
+                .clubRole(ClubRoleEnum.VICE_LEADER)
+                .state(MembershipStateEnum.ACTIVE)
+                .staff(true)
+                .build());
+
+        club.setLeader(leader);
+        clubRepo.save(club);
+
+        return ApiResponse.ok("Created leader & vice leader successfully");
+    }
+
+    // ============================================================
+    // 🟣 4. Các hàm tiện ích khác
     // ============================================================
     @Override
     public List<ClubApplicationResponse> getPending() {
