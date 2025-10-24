@@ -34,7 +34,7 @@ public class EventServiceImpl implements EventService {
     private final RewardService rewardService;
     private final WalletRepository walletRepository;
     private final EventRegistrationRepository regRepo;
-
+    private final EventStaffRepository eventStaffRepo;
     // =========================================================
     // 🔹 MAPPING ENTITY → RESPONSE
     // =========================================================
@@ -335,4 +335,76 @@ public class EventServiceImpl implements EventService {
                 .status(e.getStatus())
                 .build();
     }
+    @Override
+    @Transactional
+    public EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty) {
+        var user = principal.getUser();
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        // 1️⃣ Kiểm tra quyền: chỉ Leader hoặc Vice-Leader của CLB chủ trì
+        Membership actorMembership = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
+        if (!(actorMembership.getClubRole() == ClubRoleEnum.LEADER ||
+                actorMembership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can assign staff.");
+        }
+
+        // 2️⃣ Kiểm tra thành viên được gán có tồn tại & cùng CLB
+        Membership target = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target member not found"));
+        if (!target.getClub().getClubId().equals(event.getHostClub().getClubId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Member does not belong to this club.");
+        }
+
+        // 3️⃣ Kiểm tra trùng lặp
+        if (eventStaffRepo.existsByEvent_EventIdAndMembership_MembershipId(eventId, membershipId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "This member is already assigned to the event.");
+        }
+
+        // 4️⃣ Gán staff mới
+        EventStaff staff = EventStaff.builder()
+                .event(event)
+                .membership(target)
+                .duty(duty)
+                .build();
+        eventStaffRepo.save(staff);
+
+        return toResp(event);
+    }
+    @Override
+    public List<Membership> getEventStaffs(CustomUserDetails principal, Long eventId) {
+        var user = principal.getUser();
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        // 1️⃣ Kiểm tra quyền: Leader/Vice/UniStaff/Admin mới được xem danh sách staff
+        String roleName = user.getRole().getRoleName();
+        boolean isPrivileged =
+                roleName.equals("ADMIN") ||
+                        roleName.equals("UNIVERSITY_STAFF");
+
+        if (!isPrivileged) {
+            // Nếu là member trong club, cần là leader hoặc vice
+            Membership membership = membershipRepo
+                    .findByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
+            if (!(membership.getClubRole() == ClubRoleEnum.LEADER ||
+                    membership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to view event staff list.");
+            }
+        }
+
+        // 2️⃣ Lấy danh sách staff
+        List<EventStaff> staffs = eventStaffRepo.findByEvent_EventIdOrderByIdAsc(eventId);
+        return staffs.stream()
+                .map(EventStaff::getMembership)
+                .collect(Collectors.toList());
+    }
+
 }

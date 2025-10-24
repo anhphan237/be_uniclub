@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.response.EventResponse;
+import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
@@ -34,5 +35,10 @@ public interface EventService {
     EventResponse cloneEvent(Long eventId);
 
     Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable);
+
+    EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty);
+
+    List<Membership> getEventStaffs(CustomUserDetails principal, Long eventId);
+
 
 }

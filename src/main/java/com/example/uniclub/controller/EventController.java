@@ -3,6 +3,7 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.EventResponse;
+import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventPointsService;
@@ -255,4 +256,34 @@ public class EventController {
     ) {
         return ResponseEntity.ok(eventService.filter(name, date, status, pageable));
     }
+    /**
+     * [18] Gán Staff cho Sự kiện
+     * Roles: CLUB_LEADER, CLUB_VICE_LEADER
+     * Method: POST /api/events/{id}/assign-staff
+     */
+    @PostMapping("/{id}/assign-staff")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','CLUB_VICE_LEADER')")
+    public ResponseEntity<ApiResponse<EventResponse>> assignStaff(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long id,
+            @RequestParam Long membershipId,
+            @RequestParam(required = false) String duty) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                eventService.assignStaff(principal, id, membershipId, duty)
+        ));
+    }
+    /**
+     * [19] Xem danh sách Staff của Sự kiện
+     * Roles: ADMIN, UNIVERSITY_STAFF, CLUB_LEADER, CLUB_VICE_LEADER
+     * Method: GET /api/events/{id}/staffs
+     */
+    @GetMapping("/{id}/staffs")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_VICE_LEADER')")
+    public ResponseEntity<ApiResponse<List<Membership>>> getEventStaffs(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getEventStaffs(principal, id)));
+    }
+
+
 }
