@@ -1,16 +1,10 @@
 package com.example.uniclub.controller;
 
-import com.example.uniclub.dto.response.ClubStatisticsResponse;
-import com.example.uniclub.dto.response.UniversityAttendanceResponse;
-import com.example.uniclub.dto.response.UniversityPointsResponse;
-import com.example.uniclub.dto.response.UniversityStatisticsResponse;
+import com.example.uniclub.dto.response.*;
 import com.example.uniclub.service.UniversityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/university")
@@ -41,5 +35,29 @@ public class UniversityController {
     public ResponseEntity<UniversityAttendanceResponse> getAttendanceRanking() {
         return ResponseEntity.ok(universityService.getAttendanceRanking());
     }
+
+    @GetMapping("/attendance-summary")
+    public ResponseEntity<AttendanceSummaryResponse> getAttendanceSummary(
+            @RequestParam(defaultValue = "2025") int year
+    ) {
+        return ResponseEntity.ok(universityService.getAttendanceSummary(year));
+    }
+
+    @GetMapping("/attendance-summary/club/{clubId}")
+    public ResponseEntity<AttendanceSummaryResponse> getClubAttendanceSummary(
+            @PathVariable Long clubId,
+            @RequestParam(defaultValue = "2025") int year
+    ) {
+        return ResponseEntity.ok(universityService.getAttendanceSummaryByClub(year, clubId));
+    }
+
+    @GetMapping("/attendance-summary/event/{eventId}")
+    public ResponseEntity<AttendanceSummaryResponse> getEventAttendanceSummary(
+            @PathVariable Long eventId,
+            @RequestParam(defaultValue = "2025") int year
+    ) {
+        return ResponseEntity.ok(universityService.getAttendanceSummaryByEvent(year, eventId));
+    }
+
 }
 

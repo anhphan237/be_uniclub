@@ -3,6 +3,7 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.AttendanceRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -23,4 +24,47 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
         ORDER BY total_attendances DESC
         """, nativeQuery = true)
     List<Object[]> getClubAttendanceRanking();
+
+    @Query(value = """
+        SELECT 
+            DATE_TRUNC('month', a.checkin_time) AS month,
+            COUNT(DISTINCT a.student_id) AS participant_count
+        FROM attendance_records a
+        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+        GROUP BY month
+        ORDER BY month
+    """, nativeQuery = true)
+    List<Object[]> getMonthlyAttendanceSummary(@Param("year") int year);
+
+    @Query(value = """
+        SELECT 
+            DATE_TRUNC('month', a.checkin_time) AS month,
+            COUNT(DISTINCT a.student_id) AS participant_count
+        FROM attendance_records a
+        JOIN events e ON e.event_id = a.event_id
+        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+          AND e.host_club_id = :clubId
+        GROUP BY month
+        ORDER BY month
+    """, nativeQuery = true)
+    List<Object[]> getMonthlyAttendanceSummaryByClub(
+            @Param("year") int year,
+            @Param("clubId") Long clubId
+    );
+
+    @Query(value = """
+        SELECT 
+            DATE_TRUNC('month', a.checkin_time) AS month,
+            COUNT(DISTINCT a.student_id) AS participant_count
+        FROM attendance_records a
+        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+          AND a.event_id = :eventId
+        GROUP BY month
+        ORDER BY month
+    """, nativeQuery = true)
+    List<Object[]> getMonthlyAttendanceSummaryByEvent(
+            @Param("year") int year,
+            @Param("eventId") Long eventId
+    );
+
 }

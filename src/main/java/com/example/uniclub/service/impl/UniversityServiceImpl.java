@@ -95,5 +95,60 @@ public class UniversityServiceImpl implements UniversityService {
                 .clubRankings(rankings)
                 .build();
     }
+
+    @Override
+    public AttendanceSummaryResponse getAttendanceSummary(int year) {
+        List<Object[]> result = attendanceRecordRepo.getMonthlyAttendanceSummary(year);
+
+        List<AttendanceSummaryResponse.MonthlyAttendance> monthly = result.stream()
+                .map(r -> AttendanceSummaryResponse.MonthlyAttendance.builder()
+                        .month(r[0].toString().substring(0, 7)) // "YYYY-MM"
+                        .participantCount(((Number) r[1]).longValue())
+                        .build())
+                .toList();
+
+        return AttendanceSummaryResponse.builder()
+                .year(year)
+                .monthlySummary(monthly)
+                .build();
+    }
+
+    @Override
+    public AttendanceSummaryResponse getAttendanceSummaryByClub(int year, Long clubId) {
+        List<Object[]> result = attendanceRecordRepo.getMonthlyAttendanceSummaryByClub(year, clubId);
+
+        List<AttendanceSummaryResponse.MonthlyAttendance> monthly = result.stream()
+                .map(r -> AttendanceSummaryResponse.MonthlyAttendance.builder()
+                        .month(r[0].toString().substring(0, 7))
+                        .participantCount(((Number) r[1]).longValue())
+                        .build())
+                .toList();
+
+        return AttendanceSummaryResponse.builder()
+                .year(year)
+                .clubId(clubId)
+                .monthlySummary(monthly)
+                .build();
+    }
+
+    @Override
+    public AttendanceSummaryResponse getAttendanceSummaryByEvent(int year, Long eventId) {
+        List<Object[]> result = attendanceRecordRepo.getMonthlyAttendanceSummaryByEvent(year, eventId);
+
+        List<AttendanceSummaryResponse.MonthlyAttendance> monthly = result.stream()
+                .map(r -> AttendanceSummaryResponse.MonthlyAttendance.builder()
+                        .month(r[0].toString().substring(0, 7))
+                        .participantCount(((Number) r[1]).longValue())
+                        .build())
+                .toList();
+
+        return AttendanceSummaryResponse.builder()
+                .year(year)
+                .eventId(eventId)
+                .monthlySummary(monthly)
+                .build();
+    }
+
+
 }
 
