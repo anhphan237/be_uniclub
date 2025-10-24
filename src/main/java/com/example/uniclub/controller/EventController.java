@@ -3,17 +3,22 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.EventResponse;
+import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventPointsService;
 import com.example.uniclub.service.EventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -239,5 +244,15 @@ public class EventController {
     @PreAuthorize("hasRole('CLUB_LEADER')")
     public ResponseEntity<ApiResponse<EventResponse>> cloneEvent(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.cloneEvent(eventId)));
+    }
+
+    @GetMapping("/filter")
+    public ResponseEntity<Page<EventResponse>> filter(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) EventStatusEnum status,
+            @ParameterObject Pageable pageable
+    ) {
+        return ResponseEntity.ok(eventService.filter(name, date, status, pageable));
     }
 }

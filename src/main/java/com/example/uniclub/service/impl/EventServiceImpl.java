@@ -309,4 +309,30 @@ public class EventServiceImpl implements EventService {
         eventRepo.save(clone);
         return toResp(clone);
     }
+
+    @Override
+    public Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable) {
+        name = (name == null) ? "" : name; // tránh null pointer
+
+        Page<Event> page;
+
+        if (date != null && status != null) {
+            page = eventRepo.findByNameContainingIgnoreCaseAndDateAndStatus(name, date, status, pageable);
+        } else if (status != null) {
+            page = eventRepo.findByNameContainingIgnoreCaseAndStatus(name, status, pageable);
+        } else {
+            page = eventRepo.findByNameContainingIgnoreCase(name, pageable);
+        }
+
+        return page.map(this::toResponse);
+    }
+
+    private EventResponse toResponse(Event e) {
+        return EventResponse.builder()
+                .id(e.getEventId())
+                .name(e.getName())
+                .date(e.getDate())
+                .status(e.getStatus())
+                .build();
+    }
 }
