@@ -4,6 +4,7 @@ import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -36,5 +37,9 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     long countByClub_ClubIdAndState(Long clubId, MembershipStateEnum state);
     long countByState(MembershipStateEnum state);
 
+    @Query("SELECT COUNT(m) FROM Membership m WHERE m.state = :state")
+    long countByStateV2(MembershipStateEnum state);
 
+    @Query("SELECT COUNT(m) FROM Membership m WHERE m.club.clubId = :clubId AND m.state = :state")
+    long countByClubIdAndState(Long clubId, MembershipStateEnum state);
 }

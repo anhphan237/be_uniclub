@@ -2,7 +2,25 @@ package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.AttendanceRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
 
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
     boolean existsByEventIdAndStudentId(Long eventId, Long studentId);
+
+    // ✅ Tổng attendance toàn trường
+    @Query(value = "SELECT COUNT(*) FROM attendance_records", nativeQuery = true)
+    long countTotalAttendances();
+
+    // ✅ Số attendance từng CLB (group by)
+    @Query(value = """
+        SELECT e.host_club_id AS club_id, c.name AS club_name, COUNT(a.*) AS total_attendances
+        FROM attendance_records a
+        JOIN events e ON e.event_id = a.event_id
+        JOIN clubs c ON c.club_id = e.host_club_id
+        GROUP BY e.host_club_id, c.name
+        ORDER BY total_attendances DESC
+        """, nativeQuery = true)
+    List<Object[]> getClubAttendanceRanking();
 }
