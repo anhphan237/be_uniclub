@@ -30,6 +30,9 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final WalletRepository walletRepo;
     private final WalletService walletService;
 
+    // 👇👇 THÊM DÒNG NÀY: dùng để expire staff khi kết thúc event
+    private final EventStaffRepository eventStaffRepository;
+
     // =========================================================
     // 🔹 REGISTER
     // =========================================================
@@ -155,7 +158,7 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-    // 🔹 END EVENT
+    // 🔹 END EVENT (kèm auto expire staff)
     // =========================================================
     @Override
     @Transactional
@@ -169,6 +172,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         Wallet eventWallet = ensureEventWallet(event);
 
+        // 1) Hoàn/trả thưởng cho các bạn đã check-in
         List<EventRegistration> checkedIns =
                 regRepo.findByEvent_EventIdAndStatus(event.getEventId(), RegistrationStatusEnum.CHECKED_IN);
 
@@ -191,41 +195,62 @@ public class EventPointsServiceImpl implements EventPointsService {
             regRepo.save(reg);
         }
 
+        // 2) Đánh dấu sự kiện hoàn tất
         event.setStatus(EventStatusEnum.COMPLETED);
         eventRepo.save(event);
 
-        // =====================================================
-        // 🧮 Xử lý điểm dư → chia đều cho Host + Co-host
-        // =====================================================
+        // 3) ⛳ EXPIRE TOÀN BỘ STAFF CỦA EVENT NGAY LÚC KẾT THÚC
+        List<EventStaff> staffs = eventStaffRepository.findByEvent_EventId(event.getEventId());
+        for (EventStaff s : staffs) {
+            if (s.getState() == EventStaffStateEnum.ACTIVE) {
+                s.setState(EventStaffStateEnum.EXPIRED);
+                s.setUnassignedAt(LocalDateTime.now());
+            }
+        }
+        if (!staffs.isEmpty()) {
+            eventStaffRepository.saveAll(staffs);
+        }
+
+        // 4) Chia điểm dư cho Host + Co-host (nếu còn)
         int leftover = eventWallet.getBalancePoints();
         if (leftover > 0) {
             List<Club> clubsToReward = event.getCoHostedClubs();
-            clubsToReward.add(event.getHostClub());
-
-            int share = leftover / clubsToReward.size();
-
-            for (Club club : clubsToReward) {
-                Wallet clubWallet = club.getWallet();
-                if (clubWallet == null) {
-                    clubWallet = walletRepo.save(Wallet.builder()
-                            .ownerType(WalletOwnerTypeEnum.CLUB)
-                            .club(club)
-                            .balancePoints(0)
-                            .build());
-                    club.setWallet(clubWallet);
+            if (clubsToReward != null) {
+                // đảm bảo có chứa hostClub
+                if (event.getHostClub() != null && !clubsToReward.contains(event.getHostClub())) {
+                    clubsToReward.add(event.getHostClub());
                 }
-                walletService.decrease(eventWallet, share);
-                walletService.increase(clubWallet, share);
+            } else {
+                clubsToReward = new java.util.ArrayList<>();
+                if (event.getHostClub() != null) clubsToReward.add(event.getHostClub());
+            }
+
+            if (!clubsToReward.isEmpty()) {
+                int share = leftover / clubsToReward.size();
+                for (Club club : clubsToReward) {
+                    Wallet clubWallet = club.getWallet();
+                    if (clubWallet == null) {
+                        clubWallet = walletRepo.save(Wallet.builder()
+                                .ownerType(WalletOwnerTypeEnum.CLUB)
+                                .club(club)
+                                .balancePoints(0)
+                                .build());
+                        club.setWallet(clubWallet);
+                    }
+                    walletService.decrease(eventWallet, share);
+                    walletService.increase(clubWallet, share);
+                }
             }
         }
 
-        // Xóa ví event (đã phân phối xong)
+        // 5) Xóa ví event (đã phân phối xong)
         walletRepo.delete(eventWallet);
         event.setWallet(null);
         eventRepo.save(event);
 
         return "🏁 Event completed. Total " + totalPayout +
-                " points distributed. Remaining points (" + leftover + ") shared among host/co-host clubs.";
+                " points distributed. Remaining points (" + leftover + ") shared among host/co-host clubs. " +
+                "All event staffs have been set to EXPIRED.";
     }
 
     // =========================================================

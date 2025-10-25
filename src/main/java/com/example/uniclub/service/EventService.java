@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.response.EventResponse;
+import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
@@ -40,5 +41,5 @@ public interface EventService {
 
     List<Membership> getEventStaffs(CustomUserDetails principal, Long eventId);
 
-
+    List<EventStaffResponse> getEventStaffList(Long eventId);
 }

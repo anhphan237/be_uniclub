@@ -38,4 +38,5 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findEventsByUserId(@Param("userId") Long userId);
 
     long countByStatus(EventStatusEnum status);
+
 }

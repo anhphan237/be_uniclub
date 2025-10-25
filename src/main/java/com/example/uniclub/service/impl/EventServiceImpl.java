@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.response.EventResponse;
+import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -35,6 +36,9 @@ public class EventServiceImpl implements EventService {
     private final WalletRepository walletRepository;
     private final EventRegistrationRepository regRepo;
     private final EventStaffRepository eventStaffRepo;
+    private final EventRepository eventRepository;
+    private final EventStaffRepository eventStaffRepository;
+
     // =========================================================
     // 🔹 MAPPING ENTITY → RESPONSE
     // =========================================================
@@ -406,5 +410,27 @@ public class EventServiceImpl implements EventService {
                 .map(EventStaff::getMembership)
                 .collect(Collectors.toList());
     }
+    @Override
+    public List<EventStaffResponse> getEventStaffList(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        List<EventStaff> staffs = eventStaffRepository.findByEvent_EventId(eventId);
+
+        return staffs.stream().map(staff -> EventStaffResponse.builder()
+                .id(staff.getId())
+                .eventId(event.getEventId())
+                .eventName(event.getName())
+                .membershipId(staff.getMembership().getMembershipId())
+                .memberName(staff.getMembership().getUser() != null
+                        ? staff.getMembership().getUser().getFullName() : null)
+                .duty(staff.getDuty())
+                .state(staff.getState())
+                .assignedAt(staff.getAssignedAt())
+                .unassignedAt(staff.getUnassignedAt())
+                .build()
+        ).toList();
+    }
+
 
 }
