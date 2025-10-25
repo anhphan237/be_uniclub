@@ -42,4 +42,9 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
     @Query("SELECT COUNT(m) FROM Membership m WHERE m.club.clubId = :clubId AND m.state = :state")
     long countByClubIdAndState(Long clubId, MembershipStateEnum state);
+
+    // ✅ Lấy tất cả membership của 1 club
+    List<Membership> findByClub_ClubId(Long clubId);
+
+
 }
