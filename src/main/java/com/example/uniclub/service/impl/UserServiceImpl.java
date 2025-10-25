@@ -236,4 +236,18 @@ public class UserServiceImpl implements UserService {
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
     }
+    @Override
+    public void changePassword(String email, String oldPassword, String newPassword) {
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Old password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setFirstLogin(false); // ✅ Sau khi đổi mật khẩu lần đầu, bỏ cờ này
+        userRepo.save(user);
+    }
+
 }

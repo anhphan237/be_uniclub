@@ -33,4 +33,7 @@ public interface UserService {
 
     // ===================== Internal Use =====================
     User getByEmail(String email);
+
+    void changePassword(String email, String oldPassword, String newPassword);
+
 }

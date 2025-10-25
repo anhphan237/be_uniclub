@@ -82,7 +82,8 @@ public class AuthServiceImpl {
                 .fullName(user.getFullName())
                 .role(roleName)
                 .clubId(clubId)
-                .clubIds(clubIds);
+                .clubIds(clubIds)
+                .requirePasswordChange(user.isFirstLogin());
 
         if (isClubStaff != null) {
             responseBuilder.staff(isClubStaff);

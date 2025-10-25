@@ -56,4 +56,8 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference // ✅ tránh vòng lặp user <-> membership
     private List<Membership> memberships = new ArrayList<>();
+
+    @Column(name = "is_first_login")
+    private boolean isFirstLogin = true;
+
 }

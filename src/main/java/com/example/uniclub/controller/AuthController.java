@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.uniclub.dto.request.ChangePasswordRequest;
+import com.example.uniclub.service.UserService;
+import org.springframework.security.core.Authentication;
 
 import java.util.Map;
 
@@ -32,6 +35,8 @@ public class AuthController {
     private final UserRepository userRepo;
     private final RoleRepository roleRepo;
     private final JwtUtil jwtUtil;
+    private final UserService userService;
+
 
     // ===== Login/Register =====
     @PostMapping("/login")
@@ -96,4 +101,15 @@ public class AuthController {
         authServiceImpl.resetPassword(req.getEmail(), req.getToken(), req.getNewPassword());
         return ResponseEntity.ok(ApiResponse.msg("Your password has been successfully reset."));
     }
+    // ===== Change Password (Yêu cầu JWT) =====
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<String>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest req,
+            Authentication authentication
+    ) {
+        String email = authentication.getName(); // lấy từ JWT
+        userService.changePassword(email, req.getOldPassword(), req.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.msg("Password changed successfully. Please re-login."));
+    }
+
 }
