@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.UserResponse;
+import com.example.uniclub.dto.response.WalletResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -52,6 +53,15 @@ public class UserServiceImpl implements UserService {
                 .bio(u.getBio())
                 .avatarUrl(u.getAvatarUrl())
                 .clubs(clubInfos)
+                .build();
+    }
+
+    private WalletResponse toWalletResp(Wallet w) {
+        if (w == null) return null;
+        return WalletResponse.builder()
+                .walletId(w.getWalletId())
+                .balancePoints(w.getBalancePoints())
+                .ownerType(w.getOwnerType())
                 .build();
     }
 
@@ -207,7 +217,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse getProfileResponse(String email) {
         User user = getByEmail(email);
-        return toResp(user);
+        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+
+        UserResponse resp = toResp(user);
+        resp.setWallet(toWalletResp(wallet));
+        return resp;
     }
 
     @Override
@@ -217,7 +231,11 @@ public class UserServiceImpl implements UserService {
         if (req.getBio() != null && !req.getBio().isBlank()) user.setBio(req.getBio());
         if (req.getMajorName() != null && !req.getMajorName().isBlank()) user.setMajorName(req.getMajorName());
         userRepo.save(user);
-        return toResp(user);
+
+        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+        UserResponse resp = toResp(user);
+        resp.setWallet(toWalletResp(wallet));
+        return resp;
     }
 
     @Override
@@ -227,7 +245,11 @@ public class UserServiceImpl implements UserService {
         User user = getByEmail(email);
         user.setAvatarUrl(avatarUrl);
         userRepo.save(user);
-        return toResp(user);
+
+        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+        UserResponse resp = toResp(user);
+        resp.setWallet(toWalletResp(wallet));
+        return resp;
     }
 
     // ===================== Internal use =====================
@@ -236,6 +258,7 @@ public class UserServiceImpl implements UserService {
         return userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
     }
+
     @Override
     public void changePassword(String email, String oldPassword, String newPassword) {
         User user = userRepo.findByEmail(email)
@@ -246,8 +269,7 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
-        user.setFirstLogin(false); // ✅ Sau khi đổi mật khẩu lần đầu, bỏ cờ này
+        user.setFirstLogin(false);
         userRepo.save(user);
     }
-
 }

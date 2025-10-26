@@ -5,15 +5,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
-/**
- * ✅ DTO: Dùng để trả thông tin ví về cho FE mà không trả entity gốc (tránh lỗi Hibernate proxy)
- * Áp dụng cho cả ví CLB và ví User.
- */
-@Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Builder
-@NoArgsConstructor
+@Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class WalletResponse {
 
     private Long walletId;

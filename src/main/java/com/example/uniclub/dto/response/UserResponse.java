@@ -20,7 +20,7 @@ public class UserResponse {
     private String majorName;
     private String bio;
     private String avatarUrl;
-
+    private WalletResponse wallet;
     private List<ClubInfo> clubs;
 
     @Getter
