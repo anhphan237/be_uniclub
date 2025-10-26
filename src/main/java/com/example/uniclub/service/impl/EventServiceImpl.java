@@ -42,30 +42,38 @@ public class EventServiceImpl implements EventService {
     // =========================================================
     // 🔹 MAPPING ENTITY → RESPONSE
     // =========================================================
-    private EventResponse toResp(Event e) {
+    private EventResponse toResp(Event event) {
         return EventResponse.builder()
-                .id(e.getEventId())
-                .name(e.getName())
-                .description(e.getDescription())
-                .type(e.getType())
-                .date(e.getDate())
-                .startTime(e.getStartTime())
-                .endTime(e.getEndTime())
-                .status(e.getStatus())
-                .checkInCode(e.getCheckInCode())
-                .locationName(e.getLocation() != null ? e.getLocation().getName() : null)
-                .maxCheckInCount(e.getMaxCheckInCount())
-                .currentCheckInCount(e.getCurrentCheckInCount())
-                .hostClub(e.getHostClub() != null
-                        ? new EventResponse.SimpleClub(e.getHostClub().getClubId(), e.getHostClub().getName())
-                        : null)
-                .coHostedClubs(e.getCoHostedClubs() != null
-                        ? e.getCoHostedClubs().stream()
-                        .map(c -> new EventResponse.SimpleClub(c.getClubId(), c.getName()))
-                        .collect(Collectors.toList())
-                        : List.of())
+                .id(event.getEventId())
+                .name(event.getName())
+                .description(event.getDescription())
+                .type(event.getType())
+                .date(event.getDate())
+                .startTime(event.getStartTime())
+                .endTime(event.getEndTime())
+                .status(event.getStatus())
+                .checkInCode(event.getCheckInCode())
+                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
+                .maxCheckInCount(event.getMaxCheckInCount())
+                .currentCheckInCount(event.getCurrentCheckInCount())
+                .hostClub(new EventResponse.SimpleClub(
+                        event.getHostClub().getClubId(),
+                        event.getHostClub().getName(),
+                        EventCoHostStatusEnum.APPROVED
+                ))
+                .coHostedClubs(
+                        event.getCoHostRelations() == null ? List.of() :
+                                event.getCoHostRelations().stream()
+                                        .map(rel -> new EventResponse.SimpleClub(
+                                                rel.getClub().getClubId(),
+                                                rel.getClub().getName(),
+                                                rel.getStatus() // gán status của cohost
+                                        ))
+                                        .toList()
+                )
                 .build();
     }
+
 
     // =========================================================
     // 🔹 TẠO SỰ KIỆN (CLUB LEADER GỬI YÊU CẦU)
@@ -90,7 +98,7 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club không tồn tại"));
 
         // 4️⃣ Lấy danh sách CLB đồng tổ chức (nếu có)
-        List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
+        List<Club> coHostClubs = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
 
@@ -102,10 +110,9 @@ public class EventServiceImpl implements EventService {
         // 6️⃣ Tạo mã sự kiện ngẫu nhiên
         String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // 7️⃣ Khởi tạo đối tượng Event
+        // 7️⃣ Tạo đối tượng Event (chưa set coHostRelations)
         Event event = Event.builder()
                 .hostClub(hostClub)
-                .coHostedClubs(coHosts)
                 .name(req.name())
                 .description(req.description())
                 .type(req.type())
@@ -121,12 +128,23 @@ public class EventServiceImpl implements EventService {
                 .rewardMultiplierCap(2)
                 .build();
 
+        // 8️⃣ Gắn danh sách đồng tổ chức vào (với status = PENDING)
+        List<EventCoClub> coHostRelations = coHostClubs.stream()
+                .map(club -> EventCoClub.builder()
+                        .event(event)
+                        .club(club)
+                        .status(EventCoHostStatusEnum.PENDING)
+                        .build())
+                .toList();
+
+        event.setCoHostRelations(coHostRelations);
+
+        // 9️⃣ Lưu toàn bộ
         eventRepo.save(event);
 
-        // 8️⃣ Gửi thông báo cho UniStaff
-        String staffEmail = "uniclub.contacts@gmail.com";
+        // 10️⃣ Gửi thông báo cho UniStaff
         notificationService.sendEventApprovalRequest(
-                staffEmail,
+                "uniclub.contacts@gmail.com",
                 hostClub.getName(),
                 req.name()
         );
@@ -243,11 +261,12 @@ public class EventServiceImpl implements EventService {
     public List<EventResponse> getByClubId(Long clubId) {
         clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-        return eventRepo.findByHostClub_ClubId(clubId)
-                .stream()
+
+        List<Event> events = eventRepo.findByClubParticipation(clubId);
+
+        return events.stream()
                 .map(this::toResp)
                 .toList();
-
     }
 
     // =========================================================
@@ -292,27 +311,47 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse cloneEvent(Long eventId) {
+        // 1️⃣ Lấy event gốc
         Event original = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        // 2️⃣ Clone bản event mới (chưa set coHostRelations)
         Event clone = Event.builder()
                 .hostClub(original.getHostClub())
-                .coHostedClubs(original.getCoHostedClubs())
                 .name(original.getName() + " (Next Term)")
                 .description(original.getDescription())
                 .date(original.getDate() != null ? original.getDate().plusMonths(6) : null)
                 .startTime(original.getStartTime())
                 .endTime(original.getEndTime())
                 .type(original.getType())
+                .location(original.getLocation())
                 .status(EventStatusEnum.PENDING)
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .maxCheckInCount(original.getMaxCheckInCount())
                 .currentCheckInCount(0)
+                .commitPointCost(original.getCommitPointCost())
+                .rewardMultiplierCap(original.getRewardMultiplierCap())
                 .build();
 
+        // 3️⃣ Clone danh sách đồng tổ chức (status = PENDING lại từ đầu)
+        List<EventCoClub> clonedRelations = original.getCoHostRelations() != null
+                ? original.getCoHostRelations().stream()
+                .map(rel -> EventCoClub.builder()
+                        .event(clone)
+                        .club(rel.getClub())
+                        .status(EventCoHostStatusEnum.PENDING)
+                        .build())
+                .toList()
+                : List.of();
+
+        clone.setCoHostRelations(clonedRelations);
+
+        // 4️⃣ Lưu toàn bộ (cascade ALL)
         eventRepo.save(clone);
+
         return toResp(clone);
     }
+
 
     @Override
     public Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable) {

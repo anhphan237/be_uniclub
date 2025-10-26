@@ -1,5 +1,6 @@
 package com.example.uniclub.dto.response;
 
+import com.example.uniclub.enums.EventCoHostStatusEnum;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.EventTypeEnum;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -41,5 +42,6 @@ public class EventResponse {
     public static class SimpleClub {
         private Long id;
         private String name;
+        private EventCoHostStatusEnum coHostStatus;
     }
 }

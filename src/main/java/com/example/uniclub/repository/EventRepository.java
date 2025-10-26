@@ -39,4 +39,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     long countByStatus(EventStatusEnum status);
 
+    @Query("""
+        SELECT DISTINCT e FROM Event e
+        LEFT JOIN e.coHostRelations r
+        WHERE e.hostClub.clubId = :clubId
+           OR r.club.clubId = :clubId
+    """)
+    List<Event> findByClubParticipation(@Param("clubId") Long clubId);
+
+
 }

@@ -27,13 +27,8 @@ public class Event {
     @JoinColumn(name = "host_club_id")
     private Club hostClub;
 
-    @ManyToMany
-    @JoinTable(
-            name = "event_co_clubs",
-            joinColumns = @JoinColumn(name = "event_id"),
-            inverseJoinColumns = @JoinColumn(name = "club_id")
-    )
-    private List<Club> coHostedClubs;
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EventCoClub> coHostRelations;
 
     @Column(nullable = false)
     private String name;
@@ -76,4 +71,11 @@ public class Event {
     @OneToOne
     @JoinColumn(name = "wallet_id")
     private Wallet wallet;
+
+    @Transient
+    public List<Club> getCoHostedClubs() {
+        return coHostRelations.stream()
+                .map(EventCoClub::getClub)
+                .toList();
+    }
 }
