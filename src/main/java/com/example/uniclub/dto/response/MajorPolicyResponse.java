@@ -2,27 +2,18 @@ package com.example.uniclub.dto.response;
 
 import lombok.*;
 
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class MajorPolicyResponse {
-
     private Long id;
-
     private String policyName;
-
     private String description;
-
     private Long majorId;
-
-    private String majorName; // 🟢 thêm để khớp với entity và service
-
-    private String name;
-
+    private String majorName;
     private Integer maxClubJoin;
-
     private Double rewardMultiplier;
-
     private boolean active;
 }

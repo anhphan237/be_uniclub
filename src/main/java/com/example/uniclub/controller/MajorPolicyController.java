@@ -9,38 +9,65 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 🎓 MajorPolicyController
+ * Quản lý chính sách thưởng điểm theo ngành học (Major Policy)
+ * Chỉ dành cho ADMIN hoặc UNIVERSITY_STAFF.
+ *
+ * API Base Path: /api/admin/major-policies
+ */
 @RestController
-@RequestMapping("/api/university/policies")
+@RequestMapping("/api/admin/major-policies")
 @RequiredArgsConstructor
 public class MajorPolicyController {
 
     private final MajorPolicyService majorPolicyService;
 
-    // Lấy tất cả policies
+    // ==========================================================
+    // 🧩 1️⃣ Lấy danh sách tất cả Major Policies
+    // GET /api/admin/major-policies
+    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // ==========================================================
     @GetMapping
     public ResponseEntity<List<MajorPolicyResponse>> getAll() {
         return ResponseEntity.ok(majorPolicyService.getAll());
     }
 
-    // Lấy policy theo ID
+    // ==========================================================
+    // 🧩 2️⃣ Lấy chi tiết 1 Policy theo ID
+    // GET /api/admin/major-policies/{id}
+    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // ==========================================================
     @GetMapping("/{id}")
     public ResponseEntity<MajorPolicyResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(majorPolicyService.getById(id));
     }
 
-    // Tạo mới policy
+    // ==========================================================
+    // 🧩 3️⃣ Tạo mới Policy
+    // POST /api/admin/major-policies
+    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // ==========================================================
     @PostMapping
     public ResponseEntity<MajorPolicyResponse> create(@RequestBody MajorPolicyRequest request) {
         return ResponseEntity.ok(majorPolicyService.create(request));
     }
 
-    // Cập nhật policy
+    // ==========================================================
+    // 🧩 4️⃣ Cập nhật Policy
+    // PUT /api/admin/major-policies/{id}
+    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // ==========================================================
     @PutMapping("/{id}")
     public ResponseEntity<MajorPolicyResponse> update(@PathVariable Long id, @RequestBody MajorPolicyRequest request) {
         return ResponseEntity.ok(majorPolicyService.update(id, request));
     }
 
-    // Xóa policy
+    // ==========================================================
+    // 🧩 5️⃣ Xóa Policy
+    // DELETE /api/admin/major-policies/{id}
+    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // ==========================================================
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         majorPolicyService.delete(id);

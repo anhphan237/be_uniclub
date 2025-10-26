@@ -9,6 +9,7 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.repository.WalletRepository;
+import com.example.uniclub.service.MajorPolicyService;
 import com.example.uniclub.service.RewardService;
 import com.example.uniclub.service.WalletRewardService;
 import com.example.uniclub.service.WalletService;
@@ -28,6 +29,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final UserRepository userRepo;
     private final RewardService rewardService;
     private final WalletRepository walletRepository;
+    private final MajorPolicyService majorPolicyService;
 
     @Override
     public Wallet getWalletByUserId(Long userId) {
@@ -42,8 +44,9 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         boolean isAdmin = role.equalsIgnoreCase("ADMIN");
         boolean isStaff = role.equalsIgnoreCase("UNIVERSITY_STAFF");
         boolean isLeader = role.equalsIgnoreCase("CLUB_LEADER");
+        boolean isVice = role.equalsIgnoreCase("VICE_LEADER"); // ✅ Vice có quyền tương đương Leader
 
-        if (!(isAdmin || isStaff || isLeader)) {
+        if (!(isAdmin || isStaff || isLeader || isVice)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to reward points.");
         }
 
@@ -58,13 +61,14 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         Long targetUserId = membership.getUser().getUserId();
         Long targetClubId = membership.getClub().getClubId();
 
-        // ✅ Nếu là Leader, phải thuộc cùng CLB và ví CLB bị trừ điểm
-        if (isLeader) {
-            boolean isClubLeader = membershipRepo.findByUser_UserId(operator.getUserId()).stream()
-                    .anyMatch(m -> m.getClub().getClubId().equals(targetClubId)
-                            && m.getClubRole().name().equalsIgnoreCase("LEADER"));
-            if (!isClubLeader) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "You are not the leader of this club.");
+        // ✅ Nếu là Leader hoặc Vice, phải thuộc cùng CLB và ví CLB bị trừ điểm
+        if (isLeader || isVice) {
+            boolean isClubLeaderOrVice = membershipRepo.findByUser_UserId(operator.getUserId()).stream()
+                    .anyMatch(m -> m.getClub().getClubId().equals(targetClubId) &&
+                            (m.getClubRole().name().equalsIgnoreCase("LEADER") ||
+                                    m.getClubRole().name().equalsIgnoreCase("VICE_LEADER")));
+            if (!isClubLeaderOrVice) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "You are not the leader or vice leader of this club.");
             }
 
             // Trừ điểm từ ví CLB
@@ -74,6 +78,26 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             }
             walletService.decrease(clubWallet, points);
         }
+
+        // 🎓 Tính multiplier theo Major (dựa trên MajorPolicy)
+        double majorMultiplier = 1.0;
+        try {
+            Long majorId = membership.getUser().getMajorId();
+            if (majorId != null) {
+                majorMultiplier = majorPolicyService.getRewardMultiplierForMajor(majorId);
+            }
+
+        } catch (Exception e) {
+            // Không có policy nào cho major này => giữ nguyên 1.0
+            majorMultiplier = 1.0;
+        }
+
+        // 🏫 Club multiplier (có thể mở rộng sau này)
+        double clubMultiplier = 1.0;
+
+        // 💰 Tổng multiplier
+        double totalMultiplier = majorMultiplier * clubMultiplier;
+        int finalPoints = (int) Math.round(points * totalMultiplier);
 
         // ✅ Cộng điểm cho user
         Wallet userWallet = walletRepository.findByUser_UserId(targetUserId)
@@ -85,17 +109,21 @@ public class WalletRewardServiceImpl implements WalletRewardService {
                     return walletRepository.save(newWallet);
                 });
 
-        walletService.increase(userWallet, points);
+        walletService.increase(userWallet, finalPoints);
         int totalPoints = userWallet.getBalancePoints();
 
-        // ✅ Gửi mail và milestone (nếu có)
-        rewardService.sendManualBonusEmail(targetUserId, points, reason, totalPoints);
-        if (totalPoints >= 500 && totalPoints - points < 500) rewardService.sendMilestoneEmail(targetUserId, 500);
-        if (totalPoints >= 1000 && totalPoints - points < 1000) rewardService.sendMilestoneEmail(targetUserId, 1000);
-        if (totalPoints >= 2000 && totalPoints - points < 2000) rewardService.sendMilestoneEmail(targetUserId, 2000);
+        // ✅ Gửi mail + milestone (tính theo tổng điểm)
+        rewardService.sendManualBonusEmail(targetUserId, finalPoints, reason, totalPoints);
+        if (totalPoints >= 500 && totalPoints - finalPoints < 500)
+            rewardService.sendMilestoneEmail(targetUserId, 500);
+        if (totalPoints >= 1000 && totalPoints - finalPoints < 1000)
+            rewardService.sendMilestoneEmail(targetUserId, 1000);
+        if (totalPoints >= 2000 && totalPoints - finalPoints < 2000)
+            rewardService.sendMilestoneEmail(targetUserId, 2000);
 
         return userWallet;
     }
+
 
     // ✅ Reward tất cả members của CLB (Admin/Staff)
     @Transactional

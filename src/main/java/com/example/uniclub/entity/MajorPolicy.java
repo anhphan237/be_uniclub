@@ -37,6 +37,5 @@ public class MajorPolicy {
     @Column(nullable = false)
     private boolean active;
 
-    @Column(nullable = false)
-    private String name; // same as policyName
+
 }

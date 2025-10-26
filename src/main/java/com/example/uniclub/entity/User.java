@@ -48,6 +48,8 @@ public class User {
 
     @Column(name = "major_name")
     private String majorName;
+    @Column(name = "major_id")
+    private Long majorId;
 
     @Column(name = "bio", length = 500)
     private String bio;

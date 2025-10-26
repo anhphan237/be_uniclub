@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.MajorPolicyRequest;
 import com.example.uniclub.dto.response.MajorPolicyResponse;
+import com.example.uniclub.entity.MajorPolicy;
 
 import java.util.List;
 
@@ -16,4 +17,6 @@ public interface MajorPolicyService {
     MajorPolicyResponse update(Long id, MajorPolicyRequest request);
 
     void delete(Long id);
+    MajorPolicy getActivePolicyByMajor(Long majorId);
+    double getRewardMultiplierForMajor(Long majorId);
 }
