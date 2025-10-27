@@ -4,8 +4,14 @@ import lombok.Getter;
 
 @Getter
 public enum WalletOwnerTypeEnum {
-    USER("USER", "Wallet owned by a user"),
+
+    // 🏫 Ví của CLB
     CLUB("CLUB", "Wallet owned by a club"),
+
+    // 👥 Ví của Membership (User–Club)
+    MEMBERSHIP("MEMBERSHIP", "Wallet owned by a user within a club"),
+
+    // 🎉 Ví của sự kiện
     EVENT("EVENT", "Wallet owned by an event");
 
     private final String code;
@@ -15,6 +21,4 @@ public enum WalletOwnerTypeEnum {
         this.code = code;
         this.description = description;
     }
-
 }
-

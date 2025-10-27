@@ -21,16 +21,19 @@ public class WalletServiceImpl implements WalletService {
     private final WalletRepository walletRepo;
     private final WalletTransactionRepository txRepo;
 
-    @Override
-    public Wallet getWalletByUserId(Long userId) {
-        return walletRepo.findByUser_UserId(userId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for userId: " + userId));
-    }
-
+    // ================================================================
+    // 🔍 LẤY VÍ THEO CLUB / MEMBERSHIP / ID
+    // ================================================================
     @Override
     public Wallet getWalletByClubId(Long clubId) {
         return walletRepo.findByClub_ClubId(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for clubId: " + clubId));
+    }
+
+    @Override
+    public Wallet getWalletByMembershipId(Long membershipId) {
+        return walletRepo.findByMembership_MembershipId(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for membershipId: " + membershipId));
     }
 
     @Override
@@ -39,6 +42,34 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found: " + walletId));
     }
 
+    // ================================================================
+    // 🏗️ TẠO VÍ NẾU CHƯA CÓ
+    // ================================================================
+    @Override
+    @Transactional
+    public Wallet getOrCreateClubWallet(Club club) {
+        return walletRepo.findByClub(club)
+                .orElseGet(() -> walletRepo.save(Wallet.builder()
+                        .club(club)
+                        .ownerType(WalletOwnerTypeEnum.CLUB)
+                        .balancePoints(0)
+                        .build()));
+    }
+
+    @Override
+    @Transactional
+    public Wallet getOrCreateMembershipWallet(Membership membership) {
+        return walletRepo.findByMembership(membership)
+                .orElseGet(() -> walletRepo.save(Wallet.builder()
+                        .membership(membership)
+                        .ownerType(WalletOwnerTypeEnum.MEMBERSHIP)
+                        .balancePoints(0)
+                        .build()));
+    }
+
+    // ================================================================
+    // 💰 TĂNG / GIẢM ĐIỂM (KHÔNG GHI LOG)
+    // ================================================================
     @Override
     @Transactional
     public void increase(Wallet wallet, int points) {
@@ -55,28 +86,9 @@ public class WalletServiceImpl implements WalletService {
         walletRepo.save(wallet);
     }
 
-    @Override
-    @Transactional
-    public Wallet getOrCreateUserWallet(User user) {
-        return walletRepo.findByUser(user)
-                .orElseGet(() -> walletRepo.save(Wallet.builder()
-                        .user(user)
-                        .ownerType(WalletOwnerTypeEnum.USER)
-                        .balancePoints(0)
-                        .build()));
-    }
-
-    @Override
-    @Transactional
-    public Wallet getOrCreateClubWallet(Club club) {
-        return walletRepo.findByClub(club)
-                .orElseGet(() -> walletRepo.save(Wallet.builder()
-                        .club(club)
-                        .ownerType(WalletOwnerTypeEnum.CLUB)
-                        .balancePoints(0)
-                        .build()));
-    }
-
+    // ================================================================
+    // 📜 TÁC VỤ CÓ GHI LOG GIAO DỊCH
+    // ================================================================
     @Override
     @Transactional
     public void addPoints(Wallet wallet, int points, String description) {
@@ -124,6 +136,9 @@ public class WalletServiceImpl implements WalletService {
         addPoints(to, points, "[IN] " + description);
     }
 
+    // ================================================================
+    // 🧾 LỊCH SỬ GIAO DỊCH
+    // ================================================================
     @Override
     public List<WalletTransaction> getTransactionsByWallet(Long walletId) {
         return txRepo.findByWallet_WalletIdOrderByCreatedAtDesc(walletId);
@@ -138,5 +153,4 @@ public class WalletServiceImpl implements WalletService {
     public List<WalletTransaction> getAllMemberRewards() {
         return txRepo.findRewardToMembers();
     }
-
 }

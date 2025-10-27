@@ -29,11 +29,11 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
     private final MembershipRepository membershipRepo;
     private final ClubRepository clubRepo;
-    private final WalletRepository walletRepo;
 
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
         List<Membership> memberships = membershipRepo.findByUser_UserId(u.getUserId());
+
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
                 .map(m -> new UserResponse.ClubInfo(
                         m.getClub().getClubId(),
@@ -217,7 +217,10 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse getProfileResponse(String email) {
         User user = getByEmail(email);
-        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+
+        // 🔹 Lấy ví đầu tiên của user (nếu có)
+        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
 
         UserResponse resp = toResp(user);
         resp.setWallet(toWalletResp(wallet));
@@ -232,7 +235,9 @@ public class UserServiceImpl implements UserService {
         if (req.getMajorName() != null && !req.getMajorName().isBlank()) user.setMajorName(req.getMajorName());
         userRepo.save(user);
 
-        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
+
         UserResponse resp = toResp(user);
         resp.setWallet(toWalletResp(wallet));
         return resp;
@@ -242,11 +247,14 @@ public class UserServiceImpl implements UserService {
     public UserResponse updateAvatarResponse(String email, String avatarUrl) {
         if (avatarUrl == null || avatarUrl.isBlank())
             throw new ApiException(HttpStatus.BAD_REQUEST, "avatarUrl is required");
+
         User user = getByEmail(email);
         user.setAvatarUrl(avatarUrl);
         userRepo.save(user);
 
-        Wallet wallet = walletRepo.findByUser(user).orElse(null);
+        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
+
         UserResponse resp = toResp(user);
         resp.setWallet(toWalletResp(wallet));
         return resp;

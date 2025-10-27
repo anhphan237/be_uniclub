@@ -95,6 +95,7 @@ public class AuthServiceImpl {
     // ==============================================
     // 🔹 Đăng ký
     // ==============================================
+
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
@@ -118,13 +119,6 @@ public class AuthServiceImpl {
 
         user = userRepository.save(user);
 
-        Wallet wallet = Wallet.builder()
-                .ownerType(WalletOwnerTypeEnum.USER)
-                .user(user)
-                .balancePoints(0)
-                .build();
-        walletRepository.save(wallet);
-
         String token = jwtUtil.generateToken(user.getEmail());
 
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
@@ -140,6 +134,7 @@ public class AuthServiceImpl {
 
         return responseBuilder.build();
     }
+
 
     // ==============================================
     // 🔹 Quên mật khẩu — Gửi email reset password

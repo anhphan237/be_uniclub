@@ -180,7 +180,7 @@ public class EventController {
      * Method: POST /api/events/{id}/staffs
      */
     @PostMapping("/{id}/staffs")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','CLUB_VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<EventStaffResponse>> assignStaff(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long id,
@@ -198,7 +198,7 @@ public class EventController {
      * Method: DELETE /api/events/{id}/staffs/{staffId}
      */
     @DeleteMapping("/{id}/staffs/{staffId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','CLUB_VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<String>> unassignStaff(
             @PathVariable Long id,
             @PathVariable Long staffId) {
@@ -212,7 +212,7 @@ public class EventController {
      * Method: GET /api/events/{id}/staffs
      */
     @GetMapping("/{id}/staffs")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','CLUB_VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<List<EventStaffResponse>>> getEventStaffs(
             @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getEventStaffList(id)));

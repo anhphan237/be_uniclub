@@ -28,7 +28,7 @@ public class Club {
     @Column(name = "vision", length = 500)
     private String vision;
 
-    //Liên kết đến User làm chủ nhiệm CLB
+    // 👤 User làm chủ nhiệm CLB
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "leader_id")
     private User leader;
@@ -37,8 +37,8 @@ public class Club {
     @JoinColumn(name = "created_by")
     private User createdBy;
 
-    @OneToOne
-    @JoinColumn(name = "wallet_id")
+    // 💰 Ví riêng của CLB (liên kết 1–1 với Wallet)
+    @OneToOne(mappedBy = "club", cascade = CascadeType.ALL)
     private Wallet wallet;
 
     @Builder.Default

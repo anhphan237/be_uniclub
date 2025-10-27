@@ -1,7 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.User;
+import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.Wallet;
 import com.example.uniclub.entity.WalletTransaction;
 
@@ -9,26 +9,26 @@ import java.util.List;
 
 public interface WalletService {
 
-    // 🔍 Lấy ví theo User / Club / ID
-    Wallet getWalletByUserId(Long userId);
+    // 🔍 Lấy ví theo CLB / Membership / ID
     Wallet getWalletByClubId(Long clubId);
+    Wallet getWalletByMembershipId(Long membershipId);
     Wallet getWalletById(Long walletId);
 
-    // 🔧 Tăng / giảm điểm (không log transaction)
+    // 💰 Tạo ví nếu chưa có
+    Wallet getOrCreateClubWallet(Club club);
+    Wallet getOrCreateMembershipWallet(Membership membership);
+
+    // 🔧 Tăng / giảm điểm
     void increase(Wallet wallet, int points);
     void decrease(Wallet wallet, int points);
 
-    // 🏗️ Tự tạo ví nếu chưa có
-    Wallet getOrCreateUserWallet(User user);
-    Wallet getOrCreateClubWallet(Club club);
-
-    // 💰 Tác vụ logic có log giao dịch (transaction log)
+    // 💸 Tác vụ có log giao dịch
     void addPoints(Wallet wallet, int points, String description);
     void reducePoints(Wallet wallet, int points, String description);
     void transferPoints(Wallet from, Wallet to, int points, String description);
 
+    // 📜 Lịch sử giao dịch
     List<WalletTransaction> getTransactionsByWallet(Long walletId);
     List<WalletTransaction> getAllClubTopups();
     List<WalletTransaction> getAllMemberRewards();
-
 }

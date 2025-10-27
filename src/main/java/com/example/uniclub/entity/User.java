@@ -39,27 +39,23 @@ public class User {
     @JoinColumn(name = "role_id")
     private Role role;
 
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
-    @JsonManagedReference // ✅ tránh vòng lặp user <-> wallet
-    private Wallet wallet;
-
     @Column(name = "student_code", nullable = false, unique = true)
     private String studentCode; // MSSV
 
     @Column(name = "major_name")
     private String majorName;
+
     @Column(name = "major_id")
     private Long majorId;
 
     @Column(name = "bio", length = 500)
     private String bio;
 
-    // Liên kết đến membership (student có thể tham nhiều CLB)
+    // 🔗 Danh sách membership (user có thể tham nhiều CLB)
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference // ✅ tránh vòng lặp user <-> membership
+    @JsonManagedReference
     private List<Membership> memberships = new ArrayList<>();
 
     @Column(name = "is_first_login")
     private boolean isFirstLogin = true;
-
 }

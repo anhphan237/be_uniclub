@@ -3,9 +3,7 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.request.WalletAdjustRequest;
 import com.example.uniclub.dto.request.WalletTransferRequest;
 import com.example.uniclub.dto.response.WalletResponse;
-import com.example.uniclub.entity.User;
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Wallet;
+import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
@@ -18,6 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
@@ -26,51 +27,55 @@ public class WalletController {
     private final WalletRewardService walletRewardService;
     private final WalletService walletService;
     private final WalletRepository walletRepo;
-    private final UserRepository userRepository;
-    private final ClubRepository clubRepository;
+    private final UserRepository userRepo;
+    private final ClubRepository clubRepo;
     private final MembershipRepository membershipRepo;
     private final JwtUtil jwtUtil;
 
     // ================================================================
-    // 🧩 1️⃣ LẤY VÍ CỦA NGƯỜI DÙNG HIỆN TẠI
+    // 🧩 1️⃣ LẤY TẤT CẢ VÍ CỦA NGƯỜI DÙNG HIỆN TẠI (THEO CLB)
     // ------------------------------------------------
-    // ✅ Endpoint: GET /api/wallets/me
-    // ✅ Quyền: bất kỳ người dùng đã đăng nhập (STUDENT / CLUB_LEADER / STAFF / ADMIN)
-    // ✅ Chức năng: lấy thông tin ví cá nhân (user wallet)
+    // ✅ Endpoint: GET /api/wallets/me/memberships
+    // ✅ Trả về danh sách ví (1 ví cho mỗi CLB user đã tham gia)
     // ================================================================
-    @GetMapping("/me")
-    public ResponseEntity<?> getMyWallet(HttpServletRequest request) {
+    @GetMapping("/me/memberships")
+    public ResponseEntity<?> getMyMembershipWallets(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
         if (token == null || !token.startsWith("Bearer "))
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing token");
 
         String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
-        User user = userRepository.findByEmail(email)
+        User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        // Nếu chưa có ví thì tự động tạo
-        Wallet wallet = walletRewardService.getWalletByUserId(user.getUserId());
-        if (wallet == null)
-            wallet = walletService.getOrCreateUserWallet(user);
+        // Lấy tất cả membership của user
+        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        if (memberships.isEmpty())
+            return ResponseEntity.ok(List.of());
 
-        WalletResponse response = WalletResponse.builder()
-                .walletId(wallet.getWalletId())
-                .balancePoints(wallet.getBalancePoints())
-                .ownerType(wallet.getOwnerType())
-                .userId(user.getUserId())
-                .userFullName(user.getFullName())
-                .build();
+        // Map sang danh sách ví
+        List<WalletResponse> responses = memberships.stream()
+                .map(m -> {
+                    Wallet wallet = walletService.getOrCreateMembershipWallet(m);
+                    return WalletResponse.builder()
+                            .walletId(wallet.getWalletId())
+                            .balancePoints(wallet.getBalancePoints())
+                            .ownerType(wallet.getOwnerType())
+                            .clubId(m.getClub().getClubId())
+                            .clubName(m.getClub().getName())
+                            .userId(user.getUserId())
+                            .userFullName(user.getFullName())
+                            .build();
+                })
+                .collect(Collectors.toList());
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(responses);
     }
 
     // ================================================================
     // 🎁 2️⃣ THƯỞNG ĐIỂM CHO 1 THÀNH VIÊN CỤ THỂ
     // ------------------------------------------------
     // ✅ Endpoint: POST /api/wallets/reward/{membershipId}?points=50&reason=Excellent+Work
-    // ✅ Quyền: CLUB_LEADER / UNIVERSITY_STAFF / ADMIN
-    // ✅ Chức năng: cộng điểm vào ví của 1 thành viên trong CLB
-    // ✅ Tác động: trừ điểm ví CLB (nếu có logic Reward) và cộng vào ví cá nhân
     // ================================================================
     @PostMapping("/reward/{membershipId}")
     public ResponseEntity<?> rewardMember(
@@ -87,34 +92,27 @@ public class WalletController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing or invalid token.");
 
         String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        User operator = userRepository.findByEmail(email)
+        User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
         Wallet updatedWallet = walletRewardService.rewardPointsByMembershipId(operator, membershipId, points, reason);
 
-        WalletResponse.WalletResponseBuilder builder = WalletResponse.builder()
+        WalletResponse response = WalletResponse.builder()
                 .walletId(updatedWallet.getWalletId())
                 .balancePoints(updatedWallet.getBalancePoints())
-                .ownerType(updatedWallet.getOwnerType());
+                .ownerType(updatedWallet.getOwnerType())
+                .clubId(updatedWallet.getMembership().getClub().getClubId())
+                .clubName(updatedWallet.getMembership().getClub().getName())
+                .userId(updatedWallet.getMembership().getUser().getUserId())
+                .userFullName(updatedWallet.getMembership().getUser().getFullName())
+                .build();
 
-        if (updatedWallet.getUser() != null)
-            builder.userId(updatedWallet.getUser().getUserId())
-                    .userFullName(updatedWallet.getUser().getFullName());
-
-        if (updatedWallet.getClub() != null)
-            builder.clubId(updatedWallet.getClub().getClubId())
-                    .clubName(updatedWallet.getClub().getName());
-
-        return ResponseEntity.ok(builder.build());
+        return ResponseEntity.ok(response);
     }
 
     // ================================================================
-    // 🏫 3️⃣ THƯỞNG ĐIỂM CHO TOÀN BỘ THÀNH VIÊN TRONG CLB
+    // 🏫 3️⃣ THƯỞNG ĐIỂM CHO TOÀN BỘ THÀNH VIÊN CLB
     // ------------------------------------------------
-    // ✅ Endpoint: POST /api/wallets/reward/club/{clubId}?points=100&reason=Club+Achievement
-    // ✅ Quyền: UNIVERSITY_STAFF / ADMIN
-    // ✅ Chức năng: cộng điểm cho tất cả thành viên của CLB
-    // ================================================================
     @PostMapping("/reward/club/{clubId}")
     public ResponseEntity<?> rewardEntireClub(
             @PathVariable Long clubId,
@@ -130,70 +128,36 @@ public class WalletController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing or invalid token.");
 
         String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
-        User operator = userRepository.findByEmail(email)
+        User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
-
-        String role = operator.getRole().getRoleName();
-        boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
-
-        // ✅ Cho phép Leader hoặc Vice Leader của CLB này
-        boolean isClubLeaderOrVice = membershipRepo.findByUser_UserId(operator.getUserId()).stream()
-                .anyMatch(m -> m.getClub().getClubId().equals(clubId)
-                        && (m.getClubRole().name().equalsIgnoreCase("LEADER")
-                        || m.getClubRole().name().equalsIgnoreCase("VICE_LEADER")));
-
-        if (!isAdminOrStaff && !isClubLeaderOrVice)
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("You do not have permission to reward this club.");
 
         int count = walletRewardService.rewardPointsByClubId(operator, clubId, points, reason);
         return ResponseEntity.ok("Rewarded " + count + " members successfully.");
     }
 
     // ================================================================
-    // 💰 4️⃣ XEM VÍ CỦA CLB
+    // 💰 4️⃣ XEM VÍ CLB
     // ------------------------------------------------
-    // ✅ Endpoint: GET /api/wallets/club/{clubId}
-    // ✅ Quyền: ADMIN / UNIVERSITY_STAFF / CLUB_LEADER
-    // ✅ Chức năng: lấy thông tin ví của CLB
-    // ================================================================
     @GetMapping("/club/{clubId}")
     public ResponseEntity<?> getClubWallet(@PathVariable Long clubId, HttpServletRequest request) {
-
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer "))
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing or invalid token.");
 
         String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        User operator = userRepository.findByEmail(email)
+        User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
-        String role = operator.getRole().getRoleName();
-        boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
-
-        // ✅ Club Leader chỉ được xem ví CLB của mình
-        if (!isAdminOrStaff) {
-            boolean isClubLeader = membershipRepo.findByUser_UserId(operator.getUserId()).stream()
-                    .anyMatch(m -> m.getClub().getClubId().equals(clubId)
-                            && m.getClubRole().name().equalsIgnoreCase("LEADER"));
-
-            if (!isClubLeader)
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("You do not have permission to view this club's wallet.");
-        }
-
-        Wallet wallet = walletService.getWalletByClubId(clubId);
-        if (wallet == null) {
-            Club club = clubRepository.findById(clubId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-            wallet = walletService.getOrCreateClubWallet(club);
-        }
+        Wallet wallet = walletService.getOrCreateClubWallet(
+                clubRepo.findById(clubId)
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"))
+        );
 
         WalletResponse response = WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
                 .ownerType(wallet.getOwnerType())
-                .clubId(wallet.getClub().getClubId())
+                .clubId(clubId)
                 .clubName(wallet.getClub().getName())
                 .build();
 
@@ -203,11 +167,6 @@ public class WalletController {
     // ================================================================
     // 🪙 5️⃣ NẠP ĐIỂM CHO CLB (Top-up)
     // ------------------------------------------------
-    // ✅ Endpoint: POST /api/wallets/club/{clubId}/topup?points=1000&reason=Event+Budget
-    // ✅ Quyền: UNIVERSITY_STAFF / ADMIN
-    // ✅ Chức năng: nạp thêm điểm vào ví của CLB
-    // ✅ Tác động: tăng balancePoints và ghi lại transaction log
-    // ================================================================
     @PostMapping("/club/{clubId}/topup")
     public ResponseEntity<?> topUpClubWallet(
             @PathVariable Long clubId,
@@ -223,25 +182,15 @@ public class WalletController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing or invalid token.");
 
         String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        User operator = userRepository.findByEmail(email)
+        User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
-        String role = operator.getRole().getRoleName();
-        if (!(role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF")))
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Only Admin or University Staff can top up club wallets.");
-
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
-
-        Wallet wallet = walletService.getOrCreateClubWallet(club);
-        walletService.addPoints(wallet, points, reason == null ? "Top-up by staff" : reason);
-
+        Wallet wallet = walletRewardService.topUpClubWallet(operator, clubId, points, reason);
         WalletResponse response = WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
                 .ownerType(wallet.getOwnerType())
-                .clubId(wallet.getClub().getClubId())
+                .clubId(clubId)
                 .clubName(wallet.getClub().getName())
                 .build();
 
@@ -249,15 +198,8 @@ public class WalletController {
     }
 
     // ================================================================
-    // ⚙️ 6️⃣ QUẢN TRỊ: CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
+    // ⚙️ 6️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
     // ------------------------------------------------
-    // ✅ Endpoint:
-    //    - POST /api/wallets/{id}/add
-    //    - POST /api/wallets/{id}/reduce
-    //    - POST /api/wallets/transfer
-    // ✅ Quyền: ADMIN / UNIVERSITY_STAFF
-    // ✅ Chức năng: dùng cho thao tác thủ công hoặc xử lý đặc biệt
-    // ================================================================
     @PostMapping("/{id}/add")
     public ResponseEntity<Void> add(@PathVariable Long id, @Valid @RequestBody WalletAdjustRequest req) {
         Wallet wallet = walletRepo.findById(id)
@@ -283,31 +225,22 @@ public class WalletController {
         walletService.transferPoints(from, to, req.amount(), req.description());
         return ResponseEntity.ok().build();
     }
+
     // ================================================================
-// 📜 7️⃣ LỊCH SỬ GIAO DỊCH CỦA 1 VÍ
-// ------------------------------------------------
+    // 📜 7️⃣ LỊCH SỬ GIAO DỊCH
+    // ------------------------------------------------
     @GetMapping("/{walletId}/transactions")
     public ResponseEntity<?> getTransactionsByWallet(@PathVariable Long walletId) {
-        var txList = walletService.getTransactionsByWallet(walletId);
-        return ResponseEntity.ok(txList);
+        return ResponseEntity.ok(walletService.getTransactionsByWallet(walletId));
     }
 
-    // ================================================================
-// 🏫 8️⃣ LỊCH SỬ PHÁT ĐIỂM: UNI → CLUB
-// ------------------------------------------------
     @GetMapping("/transactions/uni-to-club")
     public ResponseEntity<?> getUniToClubTransactions() {
-        var txList = walletService.getAllClubTopups();
-        return ResponseEntity.ok(txList);
+        return ResponseEntity.ok(walletService.getAllClubTopups());
     }
 
-    // ================================================================
-// 👥 9️⃣ LỊCH SỬ PHÁT ĐIỂM: CLUB → MEMBER
-// ------------------------------------------------
     @GetMapping("/transactions/club-to-member")
     public ResponseEntity<?> getClubToMemberTransactions() {
-        var txList = walletService.getAllMemberRewards();
-        return ResponseEntity.ok(txList);
+        return ResponseEntity.ok(walletService.getAllMemberRewards());
     }
-
 }

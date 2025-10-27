@@ -7,6 +7,7 @@ import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.RedeemService;
+import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,56 +17,63 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RedeemServiceImpl implements RedeemService {
 
-    private final MembershipRepository membershipRepository;
-    private final ProductRepository productRepository;
-    private final WalletRepository walletRepository;
-    private final RedeemRepository redeemRepository;
-    private final ProductTransactionRepository productTxRepository;
+    private final MembershipRepository membershipRepo;
+    private final ProductRepository productRepo;
+    private final WalletRepository walletRepo;
+    private final RedeemRepository redeemRepo;
+    private final ProductTransactionRepository productTxRepo;
+    private final WalletService walletService;
 
     @Override
     @Transactional
     public Redeem redeemProduct(Long userId, Long productId, Integer quantity, Long eventId) {
         if (quantity == null || quantity <= 0) quantity = 1;
 
-        Membership member = membershipRepository.findAll().stream()
-                .filter(m -> m.getUser() != null && m.getUser().getUserId().equals(userId))
+        // 🔍 Tìm membership đang hoạt động của user
+        Membership membership = membershipRepo.findAll().stream()
+                .filter(m -> m.getUser() != null
+                        && m.getUser().getUserId().equals(userId)
+                        && m.getState().name().equals("ACTIVE"))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Active membership not found for user."));
 
-        Product product = productRepository.findById(productId)
+        Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
         int totalCost = product.getPricePoints() * quantity;
 
-        Wallet userWallet = walletRepository.findByUser_UserId(member.getUser().getUserId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+        // 🪙 Dùng ví Membership thay vì User Wallet
+        Wallet wallet = walletService.getOrCreateMembershipWallet(membership);
 
-        if (userWallet.getOwnerType() != WalletOwnerTypeEnum.USER)
+        if (wallet.getOwnerType() != WalletOwnerTypeEnum.MEMBERSHIP)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid wallet owner type");
 
-        if (userWallet.getBalancePoints() < totalCost)
+        if (wallet.getBalancePoints() < totalCost)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points");
 
-        userWallet.setBalancePoints(userWallet.getBalancePoints() - totalCost);
-        walletRepository.save(userWallet);
+        // Trừ điểm và lưu ví
+        wallet.setBalancePoints(wallet.getBalancePoints() - totalCost);
+        walletRepo.save(wallet);
 
+        // 💾 Tạo bản ghi redeem
         Redeem redeem = Redeem.builder()
-                .member(member)
+                .member(membership)
                 .event(eventId == null ? null : Event.builder().eventId(eventId).build())
                 .product(product)
                 .quantity(quantity)
                 .totalCostPoints(totalCost)
                 .status(RedeemStatusEnum.PENDING)
                 .build();
-        redeemRepository.save(redeem);
+        redeemRepo.save(redeem);
 
+        // 📦 Ghi log giao dịch sản phẩm
         ProductTransaction tx = ProductTransaction.builder()
                 .product(product)
                 .redeem(redeem)
                 .quantity(quantity)
                 .status(ProductTxStatusEnum.RESERVED)
                 .build();
-        productTxRepository.save(tx);
+        productTxRepo.save(tx);
 
         return redeem;
     }

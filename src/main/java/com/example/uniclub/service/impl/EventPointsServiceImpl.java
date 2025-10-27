@@ -29,9 +29,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final UserRepository userRepo;
     private final WalletRepository walletRepo;
     private final WalletService walletService;
-
-    // 👇👇 THÊM DÒNG NÀY: dùng để expire staff khi kết thúc event
-    private final EventStaffRepository eventStaffRepository;
+    private final MembershipRepository membershipRepo;
+    private final EventStaffRepository eventStaffRepo;
 
     // =========================================================
     // 🔹 REGISTER
@@ -41,27 +40,31 @@ public class EventPointsServiceImpl implements EventPointsService {
     public String register(CustomUserDetails principal, EventRegisterRequest req) {
         User user = userRepo.findById(principal.getUser().getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED) {
+        if (event.getStatus() != EventStatusEnum.APPROVED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration");
-        }
 
-        if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())) {
+        if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId()))
             throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event");
-        }
 
-        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now())) {
+        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended");
-        }
 
-        Wallet userWallet = walletService.getWalletByUserId(user.getUserId());
+        // 🔍 Lấy Membership của user trong CLB tổ chức event
+        Club hostClub = event.getHostClub();
+        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), hostClub.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You must be a member of the host club to join this event"));
+
+        Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
         Wallet eventWallet = ensureEventWallet(event);
 
         int commitPoints = event.getCommitPointCost();
-        walletService.decrease(userWallet, commitPoints);
+        if (memberWallet.getBalancePoints() < commitPoints)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points to register");
+
+        walletService.decrease(memberWallet, commitPoints);
         walletService.increase(eventWallet, commitPoints);
 
         EventRegistration reg = EventRegistration.builder()
@@ -73,7 +76,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .build();
         regRepo.save(reg);
 
-        return "✅ Registration successful. " + commitPoints + " commitment points have been deducted.";
+        return "✅ Registered successfully. " + commitPoints + " commitment points deducted from your membership wallet.";
     }
 
     // =========================================================
@@ -83,33 +86,33 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Transactional
     public String checkin(CustomUserDetails principal, EventCheckinRequest req) {
         User user = principal.getUser();
+
         Event event = eventRepo.findByCheckInCode(req.checkInCode())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Invalid check-in code"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED) {
+        if (event.getStatus() != EventStatusEnum.APPROVED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for check-in");
-        }
 
-        if (event.getMaxCheckInCount() != null &&
-                event.getCurrentCheckInCount() >= event.getMaxCheckInCount()) {
+        if (event.getMaxCheckInCount() != null
+                && event.getCurrentCheckInCount() >= event.getMaxCheckInCount())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event has reached full capacity");
-        }
 
         EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not registered for this event"));
 
-        if (reg.getStatus() == RegistrationStatusEnum.CHECKED_IN) {
+        if (reg.getStatus() == RegistrationStatusEnum.CHECKED_IN)
             return "ℹ️ You have already checked in earlier.";
-        }
 
         AttendanceLevelEnum level = req.level();
         int capped = Math.min(level.getFactor(), event.getRewardMultiplierCap());
+        reg.setAttendanceLevel(
+                switch (capped) {
+                    case 1 -> AttendanceLevelEnum.X1;
+                    case 2 -> AttendanceLevelEnum.X2;
+                    default -> AttendanceLevelEnum.X3;
+                }
+        );
 
-        reg.setAttendanceLevel(switch (capped) {
-            case 1 -> AttendanceLevelEnum.X1;
-            case 2 -> AttendanceLevelEnum.X2;
-            default -> AttendanceLevelEnum.X3;
-        });
         reg.setCheckinAt(LocalDateTime.now());
         reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
         regRepo.save(reg);
@@ -128,37 +131,38 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Transactional
     public String cancelRegistration(CustomUserDetails principal, Long eventId) {
         User user = principal.getUser();
-
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(eventId, user.getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not registered for this event"));
 
-        if (reg.getStatus() == RegistrationStatusEnum.CANCELED) {
-            return "ℹ️ You have already canceled this registration.";
-        }
+        if (reg.getStatus() == RegistrationStatusEnum.CANCELED)
+            return "ℹ️ Already canceled.";
 
-        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot cancel after the event date.");
-        }
+        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot cancel after event date.");
 
+        Club hostClub = event.getHostClub();
+        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), hostClub.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found in host club"));
+
+        Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
         Wallet eventWallet = ensureEventWallet(event);
-        Wallet userWallet = walletService.getWalletByUserId(user.getUserId());
 
         int refund = reg.getCommittedPoints();
         walletService.decrease(eventWallet, refund);
-        walletService.increase(userWallet, refund);
+        walletService.increase(memberWallet, refund);
 
         reg.setStatus(RegistrationStatusEnum.CANCELED);
         reg.setCanceledAt(LocalDateTime.now());
         regRepo.save(reg);
 
-        return "❌ Registration canceled. " + refund + " commitment points have been refunded to your wallet.";
+        return "❌ Registration canceled. " + refund + " points refunded to your membership wallet.";
     }
 
     // =========================================================
-    // 🔹 END EVENT (kèm auto expire staff)
+    // 🔹 END EVENT
     // =========================================================
     @Override
     @Transactional
@@ -166,96 +170,84 @@ public class EventPointsServiceImpl implements EventPointsService {
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not in a state that can be ended");
-        }
+        if (event.getStatus() != EventStatusEnum.APPROVED)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event not active");
 
         Wallet eventWallet = ensureEventWallet(event);
-
-        // 1) Hoàn/trả thưởng cho các bạn đã check-in
-        List<EventRegistration> checkedIns =
-                regRepo.findByEvent_EventIdAndStatus(event.getEventId(), RegistrationStatusEnum.CHECKED_IN);
+        List<EventRegistration> checkedIns = regRepo.findByEvent_EventIdAndStatus(event.getEventId(), RegistrationStatusEnum.CHECKED_IN);
 
         int totalPayout = 0;
         for (EventRegistration reg : checkedIns) {
+            Club hostClub = event.getHostClub();
+            Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(
+                            reg.getUser().getUserId(), hostClub.getClubId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found for participant"));
+
+            Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
+
             int commit = reg.getCommittedPoints();
             int factor = reg.getAttendanceLevel() == null ? 1 : reg.getAttendanceLevel().getFactor();
             factor = Math.min(factor, event.getRewardMultiplierCap());
+            int payout = commit * factor;
 
-            int refund = commit;
-            int bonus = commit * (factor - 1);
-            int payout = refund + bonus;
-
-            Wallet userWallet = walletService.getWalletByUserId(reg.getUser().getUserId());
             walletService.decrease(eventWallet, payout);
-            walletService.increase(userWallet, payout);
+            walletService.increase(memberWallet, payout);
             totalPayout += payout;
 
             reg.setStatus(RegistrationStatusEnum.REFUNDED);
             regRepo.save(reg);
         }
 
-        // 2) Đánh dấu sự kiện hoàn tất
         event.setStatus(EventStatusEnum.COMPLETED);
         eventRepo.save(event);
 
-        // 3) ⛳ EXPIRE TOÀN BỘ STAFF CỦA EVENT NGAY LÚC KẾT THÚC
-        List<EventStaff> staffs = eventStaffRepository.findByEvent_EventId(event.getEventId());
+        // 🔸 Expire staff
+        List<EventStaff> staffs = eventStaffRepo.findByEvent_EventId(event.getEventId());
         for (EventStaff s : staffs) {
             if (s.getState() == EventStaffStateEnum.ACTIVE) {
                 s.setState(EventStaffStateEnum.EXPIRED);
                 s.setUnassignedAt(LocalDateTime.now());
             }
         }
-        if (!staffs.isEmpty()) {
-            eventStaffRepository.saveAll(staffs);
-        }
+        eventStaffRepo.saveAll(staffs);
 
-        // 4) Chia điểm dư cho Host + Co-host (nếu còn)
+        // 🔸 Distribute leftover
         int leftover = eventWallet.getBalancePoints();
         if (leftover > 0) {
             List<Club> clubsToReward = event.getCoHostedClubs();
-            if (clubsToReward != null) {
-                // đảm bảo có chứa hostClub
-                if (event.getHostClub() != null && !clubsToReward.contains(event.getHostClub())) {
-                    clubsToReward.add(event.getHostClub());
-                }
-            } else {
+            if (clubsToReward == null || clubsToReward.isEmpty())
                 clubsToReward = new java.util.ArrayList<>();
-                if (event.getHostClub() != null) clubsToReward.add(event.getHostClub());
-            }
+            if (event.getHostClub() != null && !clubsToReward.contains(event.getHostClub()))
+                clubsToReward.add(event.getHostClub());
 
-            if (!clubsToReward.isEmpty()) {
-                int share = leftover / clubsToReward.size();
-                for (Club club : clubsToReward) {
-                    Wallet clubWallet = club.getWallet();
-                    if (clubWallet == null) {
-                        clubWallet = walletRepo.save(Wallet.builder()
-                                .ownerType(WalletOwnerTypeEnum.CLUB)
-                                .club(club)
-                                .balancePoints(0)
-                                .build());
-                        club.setWallet(clubWallet);
-                    }
-                    walletService.decrease(eventWallet, share);
-                    walletService.increase(clubWallet, share);
-                }
+            int share = leftover / clubsToReward.size();
+            for (Club club : clubsToReward) {
+                Wallet clubWallet = walletService.getOrCreateClubWallet(club);
+                walletService.decrease(eventWallet, share);
+                walletService.increase(clubWallet, share);
             }
         }
 
-        // 5) Xóa ví event (đã phân phối xong)
         walletRepo.delete(eventWallet);
         event.setWallet(null);
         eventRepo.save(event);
 
-        return "🏁 Event completed. Total " + totalPayout +
-                " points distributed. Remaining points (" + leftover + ") shared among host/co-host clubs. " +
-                "All event staffs have been set to EXPIRED.";
+        return "🏁 Event completed: " + totalPayout + " points rewarded; remaining " +
+                leftover + " shared among host/co-host.";
     }
 
     // =========================================================
-    // 🔹 EVENT REGISTRATIONS
+    // 🔹 UTIL
     // =========================================================
+    private Wallet ensureEventWallet(Event event) {
+        Wallet w = event.getWallet();
+        if (w == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet not found. Please APPROVE the event first.");
+        return w;
+    }
+    // =========================================================
+// 🔹 EVENT REGISTRATIONS
+// =========================================================
     @Override
     @Transactional(readOnly = true)
     public List<EventRegistration> getEventRegistrations(Long eventId) {
@@ -265,8 +257,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-    // 🔹 EVENT SUMMARY
-    // =========================================================
+// 🔹 EVENT SUMMARY
+// =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventSummary(Long eventId) {
@@ -288,8 +280,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-    // 🔹 EVENT WALLET
-    // =========================================================
+// 🔹 EVENT WALLET INFO
+// =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventWallet(Long eventId) {
@@ -306,14 +298,4 @@ public class EventPointsServiceImpl implements EventPointsService {
         );
     }
 
-    // =========================================================
-    // 🔹 UTIL
-    // =========================================================
-    private Wallet ensureEventWallet(Event event) {
-        Wallet w = event.getWallet();
-        if (w == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet not found. Please APPROVE the event first.");
-        }
-        return w;
-    }
 }

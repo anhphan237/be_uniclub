@@ -4,10 +4,12 @@ import com.example.uniclub.dto.request.EventCheckinRequest;
 import com.example.uniclub.dto.request.EventEndRequest;
 import com.example.uniclub.dto.request.EventRegisterRequest;
 import com.example.uniclub.security.CustomUserDetails;
+
 import java.util.List;
 import java.util.Map;
 
 public interface EventPointsService {
+
 
     String register(CustomUserDetails principal, EventRegisterRequest req);
 
