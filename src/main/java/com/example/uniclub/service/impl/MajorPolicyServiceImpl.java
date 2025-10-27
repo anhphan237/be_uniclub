@@ -21,8 +21,10 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
 
     private final MajorPolicyRepository majorPolicyRepository;
     private final MajorRepository majorRepository;
-    private final MajorPolicyRepository majorPolicyRepo;
-    // ✅ Lấy tất cả
+
+    // ================================================================
+    // 🧾 LẤY TẤT CẢ
+    // ================================================================
     @Override
     public List<MajorPolicyResponse> getAll() {
         return majorPolicyRepository.findAll()
@@ -31,7 +33,9 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
                 .collect(Collectors.toList());
     }
 
-    // ✅ Lấy theo ID
+    // ================================================================
+    // 🔍 LẤY THEO ID
+    // ================================================================
     @Override
     public MajorPolicyResponse getById(Long id) {
         MajorPolicy policy = majorPolicyRepository.findById(id)
@@ -39,19 +43,19 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         return toResponse(policy);
     }
 
-    // ✅ Tạo mới
+    // ================================================================
+    // ➕ TẠO MỚI
+    // ================================================================
     @Override
     public MajorPolicyResponse create(MajorPolicyRequest request) {
         MajorPolicy policy = new MajorPolicy();
         policy.setPolicyName(request.getPolicyName());
         policy.setDescription(request.getDescription());
         policy.setMajorId(request.getMajorId());
-
         policy.setActive(true);
 
         // ⚙️ Gán mặc định tránh lỗi null
         policy.setMaxClubJoin(request.getMaxClubJoin() != null ? request.getMaxClubJoin() : 3);
-        policy.setRewardMultiplier(request.getRewardMultiplier() != null ? request.getRewardMultiplier() : 1.0);
 
         // ⚙️ Lấy tên ngành từ MajorRepository
         String majorName = majorRepository.findById(request.getMajorId())
@@ -63,7 +67,9 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         return toResponse(saved);
     }
 
-    // ✅ Cập nhật
+    // ================================================================
+    // ✏️ CẬP NHẬT
+    // ================================================================
     @Override
     public MajorPolicyResponse update(Long id, MajorPolicyRequest request) {
         MajorPolicy existing = majorPolicyRepository.findById(id)
@@ -72,10 +78,10 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         existing.setPolicyName(request.getPolicyName());
         existing.setDescription(request.getDescription());
         existing.setMajorId(request.getMajorId());
-
         existing.setActive(true);
-        existing.setMaxClubJoin(request.getMaxClubJoin() != null ? request.getMaxClubJoin() : existing.getMaxClubJoin());
-        existing.setRewardMultiplier(request.getRewardMultiplier() != null ? request.getRewardMultiplier() : existing.getRewardMultiplier());
+        existing.setMaxClubJoin(
+                request.getMaxClubJoin() != null ? request.getMaxClubJoin() : existing.getMaxClubJoin()
+        );
 
         // cập nhật major name
         String majorName = majorRepository.findById(request.getMajorId())
@@ -87,7 +93,9 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         return toResponse(updated);
     }
 
-    // ✅ Xóa
+    // ================================================================
+    // ❌ XOÁ
+    // ================================================================
     @Override
     public void delete(Long id) {
         if (!majorPolicyRepository.existsById(id)) {
@@ -96,30 +104,28 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         majorPolicyRepository.deleteById(id);
     }
 
-    // ✅ Chuyển sang DTO Response
+    // ================================================================
+    // 🔄 CHUYỂN ENTITY → RESPONSE DTO
+    // ================================================================
     private MajorPolicyResponse toResponse(MajorPolicy entity) {
         return MajorPolicyResponse.builder()
                 .id(entity.getId())
                 .policyName(entity.getPolicyName())
                 .description(entity.getDescription())
                 .majorId(entity.getMajorId())
-                .majorName(entity.getMajorName()) // ✅ bây giờ builder nhận được rồi
+                .majorName(entity.getMajorName())
                 .maxClubJoin(entity.getMaxClubJoin())
-                .rewardMultiplier(entity.getRewardMultiplier())
                 .active(entity.isActive())
                 .build();
     }
+
+    // ================================================================
+    // 📘 LẤY CHÍNH SÁCH ĐANG HOẠT ĐỘNG CỦA NGÀNH
+    // ================================================================
     @Override
     public MajorPolicy getActivePolicyByMajor(Long majorId) {
-        return majorPolicyRepo.findByMajorIdAndActiveTrue(majorId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No active policy for this major"));
+        return majorPolicyRepository.findByMajorIdAndActiveTrue(majorId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "No active policy for this major"));
     }
-
-    @Override
-    public double getRewardMultiplierForMajor(Long majorId) {
-        return majorPolicyRepo.findByMajorIdAndActiveTrue(majorId)
-                .map(MajorPolicy::getRewardMultiplier)
-                .orElse(1.0); // default multiplier = 1.0 (no change)
-    }
-
 }

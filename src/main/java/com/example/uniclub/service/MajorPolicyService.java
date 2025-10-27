@@ -17,6 +17,6 @@ public interface MajorPolicyService {
     MajorPolicyResponse update(Long id, MajorPolicyRequest request);
 
     void delete(Long id);
+
     MajorPolicy getActivePolicyByMajor(Long majorId);
-    double getRewardMultiplierForMajor(Long majorId);
 }

@@ -14,6 +14,5 @@ public class MajorPolicyResponse {
     private Long majorId;
     private String majorName;
     private Integer maxClubJoin;
-    private Double rewardMultiplier;
     private boolean active;
 }

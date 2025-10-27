@@ -31,8 +31,6 @@ public class MajorPolicy {
     @Column(name = "max_club_join", nullable = false)
     private Integer maxClubJoin;
 
-    @Column(name = "reward_multiplier")
-    private Double rewardMultiplier;
 
     @Column(nullable = false)
     private boolean active;
