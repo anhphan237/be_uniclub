@@ -1,5 +1,6 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.Wallet;
@@ -29,6 +30,6 @@ public interface WalletService {
 
     // 📜 Lịch sử giao dịch
     List<WalletTransaction> getTransactionsByWallet(Long walletId);
-    List<WalletTransaction> getAllClubTopups();
-    List<WalletTransaction> getAllMemberRewards();
+    List<WalletTransactionResponse> getAllClubTopups();
+    List<WalletTransactionResponse> getAllMemberRewards();
 }

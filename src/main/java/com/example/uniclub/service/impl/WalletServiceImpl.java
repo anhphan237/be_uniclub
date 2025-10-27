@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.enums.WalletTransactionTypeEnum;
@@ -68,7 +69,7 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // ================================================================
-    // 💰 TĂNG / GIẢM ĐIỂM (KHÔNG GHI LOG)
+    // 💰 TĂNG / GIẢM ĐIỂM (CHUNG)
     // ================================================================
     @Override
     @Transactional
@@ -87,7 +88,7 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // ================================================================
-    // 📜 TÁC VỤ CÓ GHI LOG GIAO DỊCH
+    // 📜 GIAO DỊCH CÓ GHI LOG
     // ================================================================
     @Override
     @Transactional
@@ -134,6 +135,36 @@ public class WalletServiceImpl implements WalletService {
 
         reducePoints(from, points, "[OUT] " + description);
         addPoints(to, points, "[IN] " + description);
+
+        txRepo.save(WalletTransaction.builder()
+                .wallet(to)
+                .type(WalletTransactionTypeEnum.TRANSFER)
+                .amount(points)
+                .description("Transfer: " + description)
+                .build());
+    }
+
+    // ================================================================
+    // 🎓 GHI LOG CHÍNH XÁC THEO NGHIỆP VỤ
+    // ================================================================
+    @Transactional
+    public void logUniToClubTopup(Wallet clubWallet, int points, String reason) {
+        txRepo.save(WalletTransaction.builder()
+                .wallet(clubWallet)
+                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+                .amount(points)
+                .description(reason)
+                .build());
+    }
+
+    @Transactional
+    public void logClubToMemberReward(Wallet memberWallet, int points, String reason) {
+        txRepo.save(WalletTransaction.builder()
+                .wallet(memberWallet)
+                .type(WalletTransactionTypeEnum.CLUB_TO_MEMBER)
+                .amount(points)
+                .description(reason)
+                .build());
     }
 
     // ================================================================
@@ -145,12 +176,30 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public List<WalletTransaction> getAllClubTopups() {
-        return txRepo.findTopupFromUniStaff();
+    public List<WalletTransactionResponse> getAllClubTopups() {
+        return txRepo.findTopupFromUniStaff()
+                .stream()
+                .map(tx -> WalletTransactionResponse.builder()
+                        .id(tx.getId())
+                        .type(tx.getType().name())
+                        .amount(tx.getAmount())
+                        .description(tx.getDescription())
+                        .createdAt(tx.getCreatedAt())
+                        .build())
+                .toList();
     }
 
     @Override
-    public List<WalletTransaction> getAllMemberRewards() {
-        return txRepo.findRewardToMembers();
+    public List<WalletTransactionResponse> getAllMemberRewards() {
+        return txRepo.findRewardToMembers()
+                .stream()
+                .map(tx -> WalletTransactionResponse.builder()
+                        .id(tx.getId())
+                        .type(tx.getType().name())
+                        .amount(tx.getAmount())
+                        .description(tx.getDescription())
+                        .createdAt(tx.getCreatedAt())
+                        .build())
+                .toList();
     }
 }
