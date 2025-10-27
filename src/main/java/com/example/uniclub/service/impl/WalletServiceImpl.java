@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class WalletServiceImpl implements WalletService {
@@ -121,4 +123,20 @@ public class WalletServiceImpl implements WalletService {
         reducePoints(from, points, "[OUT] " + description);
         addPoints(to, points, "[IN] " + description);
     }
+
+    @Override
+    public List<WalletTransaction> getTransactionsByWallet(Long walletId) {
+        return txRepo.findByWallet_WalletIdOrderByCreatedAtDesc(walletId);
+    }
+
+    @Override
+    public List<WalletTransaction> getAllClubTopups() {
+        return txRepo.findTopupFromUniStaff();
+    }
+
+    @Override
+    public List<WalletTransaction> getAllMemberRewards() {
+        return txRepo.findRewardToMembers();
+    }
+
 }

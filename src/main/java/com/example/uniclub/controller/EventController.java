@@ -217,4 +217,12 @@ public class EventController {
             @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getEventStaffList(id)));
     }
+//    21 lấy co club
+
+    @GetMapping("/club/{clubId}/cohost")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
+    public ResponseEntity<List<EventResponse>> getCoHostedEvents(@PathVariable Long clubId) {
+        return ResponseEntity.ok(eventService.getCoHostedEvents(clubId));
+    }
+
 }

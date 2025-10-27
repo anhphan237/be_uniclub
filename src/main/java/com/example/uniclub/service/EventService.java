@@ -42,4 +42,7 @@ public interface EventService {
     List<Membership> getEventStaffs(CustomUserDetails principal, Long eventId);
 
     List<EventStaffResponse> getEventStaffList(Long eventId);
+
+    List<EventResponse> getCoHostedEvents(Long clubId);
+
 }

@@ -283,4 +283,31 @@ public class WalletController {
         walletService.transferPoints(from, to, req.amount(), req.description());
         return ResponseEntity.ok().build();
     }
+    // ================================================================
+// 📜 7️⃣ LỊCH SỬ GIAO DỊCH CỦA 1 VÍ
+// ------------------------------------------------
+    @GetMapping("/{walletId}/transactions")
+    public ResponseEntity<?> getTransactionsByWallet(@PathVariable Long walletId) {
+        var txList = walletService.getTransactionsByWallet(walletId);
+        return ResponseEntity.ok(txList);
+    }
+
+    // ================================================================
+// 🏫 8️⃣ LỊCH SỬ PHÁT ĐIỂM: UNI → CLUB
+// ------------------------------------------------
+    @GetMapping("/transactions/uni-to-club")
+    public ResponseEntity<?> getUniToClubTransactions() {
+        var txList = walletService.getAllClubTopups();
+        return ResponseEntity.ok(txList);
+    }
+
+    // ================================================================
+// 👥 9️⃣ LỊCH SỬ PHÁT ĐIỂM: CLUB → MEMBER
+// ------------------------------------------------
+    @GetMapping("/transactions/club-to-member")
+    public ResponseEntity<?> getClubToMemberTransactions() {
+        var txList = walletService.getAllMemberRewards();
+        return ResponseEntity.ok(txList);
+    }
+
 }
