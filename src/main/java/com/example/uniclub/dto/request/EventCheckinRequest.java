@@ -1,10 +1,16 @@
 package com.example.uniclub.dto.request;
 
-import com.example.uniclub.enums.AttendanceLevelEnum;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.NotBlank;
+import lombok.*;
 
-public record EventCheckinRequest(
-        @NotBlank String checkInCode,
-        @NotNull AttendanceLevelEnum level
-) {}
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EventCheckinRequest {
+    // ⚙️ Token JWT từ QR code (bắt buộc)
+    private String eventJwtToken;
+
+    // 🏅 Cấp độ tham dự (NONE / GOOD / EXCELLENT / STAFF)
+    private String level;
+}

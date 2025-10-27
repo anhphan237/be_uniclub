@@ -175,51 +175,57 @@ public class EventServiceImpl implements EventService {
     // =========================================================
     @Override
     @Transactional
-    public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status) {
+    public EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status, Integer budgetPoints) {
         var user = principal.getUser();
 
-        // Chỉ cho phép University Staff hoặc Admin duyệt
+        // 🔒 Kiểm tra quyền: chỉ UniStaff hoặc Admin
         String roleName = user.getRole().getRoleName();
         if (!"UNIVERSITY_STAFF".equals(roleName) && !"ADMIN".equals(roleName)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only University Staff or Admin can approve events.");
         }
 
+        // 🔎 Lấy event
         Event event = eventRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         event.setStatus(status);
 
-        // Khi APPROVED → tạo ví Event + cấp điểm
+        // =====================================================
+        // 🎯 Khi trạng thái là APPROVED → tạo ví + nạp ngân sách
+        // =====================================================
         if (status == EventStatusEnum.APPROVED) {
+
+            // 🪙 Tạo ví nếu chưa có
             if (event.getWallet() == null) {
                 Wallet eventWallet = new Wallet();
                 eventWallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
                 eventWallet.setBalancePoints(0L);
-//                eventWallet.setClub(event.getHostClub());
+                eventWallet.setEvent(event); // ✅ Quan trọng: liên kết ngược
                 walletRepository.save(eventWallet);
                 event.setWallet(eventWallet);
             }
 
-            int capacity = event.getMaxCheckInCount() != null ? event.getMaxCheckInCount() : 0;
-            if (capacity <= 0) {
+            // 💰 Nếu UniStaff nhập budget → dùng giá trị thủ công
+            if (budgetPoints == null || budgetPoints <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
-                        "Cannot approve event without setting expected participant count.");
+                        "Budget points must be provided manually by UniStaff when approving.");
             }
 
-            int basePointPerMember = 100;
-            int totalGrant = capacity * basePointPerMember;
+            // 💾 Lưu ngân sách & cập nhật ví
+            event.setBudgetPoints(budgetPoints);
 
             Wallet wallet = event.getWallet();
-            wallet.setBalancePoints(wallet.getBalancePoints() + totalGrant);
+            wallet.setBalancePoints(wallet.getBalancePoints() + budgetPoints);
             walletRepository.save(wallet);
 
-            System.out.printf("🎓 University granted %d points to Event ID %d (%s)%n",
-                    totalGrant, event.getEventId(), event.getName());
+            System.out.printf("🎓 UniStaff manually granted %d points to Event ID %d (%s)%n",
+                    budgetPoints, event.getEventId(), event.getName());
         }
 
+        // Lưu event
         eventRepo.save(event);
 
-        // Gửi email thông báo kết quả duyệt
+        // 📧 Gửi mail thông báo kết quả
         String contactEmail = resolveClubContactEmail(event.getHostClub().getClubId())
                 .orElseGet(() -> event.getHostClub().getCreatedBy() != null
                         ? event.getHostClub().getCreatedBy().getEmail()
@@ -232,6 +238,8 @@ public class EventServiceImpl implements EventService {
 
         return toResp(event);
     }
+
+
 
     // =========================================================
     // 🔹 TÌM KIẾM SỰ KIỆN QUA MÃ CHECK-IN
@@ -480,6 +488,94 @@ public class EventServiceImpl implements EventService {
         return events.stream()
                 .map(this::toResp)
                 .toList();
+    }
+
+    @Override
+    public Event getEntity(Long id) {
+        return eventRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+    }
+    @Override
+    @Transactional
+    public String acceptCohost(Long eventId, CustomUserDetails principal) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        User user = userRepo.findById(principal.getUser().getUserId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Club club = user.getMemberships().stream()
+                .map(Membership::getClub)
+                .filter(c -> event.getCoHostedClubs().contains(c))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not invited as a co-host"));
+
+        // 🔹 Cập nhật status trong EventCoClub
+        event.getCoHostRelations().stream()
+                .filter(rel -> rel.getClub().equals(club))
+                .findFirst()
+                .ifPresent(rel -> rel.setStatus(EventCoHostStatusEnum.APPROVED));
+
+        eventRepo.save(event);
+
+        return "✅ Club '" + club.getName() + "' accepted co-host invitation for event '" + event.getName() + "'.";
+    }
+
+    @Override
+    @Transactional
+    public String rejectCohost(Long eventId, CustomUserDetails principal) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        User user = userRepo.findById(principal.getUser().getUserId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Club club = user.getMemberships().stream()
+                .map(Membership::getClub)
+                .filter(c -> event.getCoHostedClubs().contains(c))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not invited as a co-host"));
+
+        // 🔹 Cập nhật status trong EventCoClub
+        event.getCoHostRelations().stream()
+                .filter(rel -> rel.getClub().equals(club))
+                .findFirst()
+                .ifPresent(rel -> rel.setStatus(EventCoHostStatusEnum.REJECTED));
+
+        eventRepo.save(event);
+
+        return "❌ Club '" + club.getName() + "' rejected co-host invitation for event '" + event.getName() + "'.";
+    }
+
+
+    @Override
+    @Transactional
+    public String submitEventToUniStaff(Long eventId, CustomUserDetails principal) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        User user = userRepo.findById(principal.getUser().getUserId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Club hostClub = event.getHostClub();
+
+        boolean isHostLeader = user.getMemberships().stream()
+                .anyMatch(m -> m.getClub().getClubId().equals(hostClub.getClubId())
+                        && (m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER));
+
+        if (!isHostLeader)
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Host Club's Leader or Vice Leader can submit event to UniStaff.");
+
+        // 🔹 Kiểm tra tất cả co-host đã accept
+        if (event.getAcceptedClubs() == null ||
+                event.getCoHostedClubs().size() != event.getAcceptedClubs().size())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "All co-host clubs must accept before submission.");
+
+        // 🔹 Cập nhật trạng thái
+        event.setStatus(EventStatusEnum.PENDING);
+        eventRepo.save(event);
+
+        return "📤 Event '" + event.getName() + "' submitted to UniStaff for approval.";
     }
 
 

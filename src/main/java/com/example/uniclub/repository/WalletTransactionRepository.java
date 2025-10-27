@@ -28,4 +28,5 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         ORDER BY tx.createdAt DESC
     """)
     List<WalletTransaction> findRewardToMembers();
+
 }

@@ -8,7 +8,7 @@ import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-
+import com.example.uniclub.entity.Event;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -20,7 +20,7 @@ public interface EventService {
 
     Page<EventResponse> list(Pageable pageable);
 
-    EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status);
+    EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status, Integer budgetPoints);
 
     void delete(Long id);
 
@@ -44,5 +44,10 @@ public interface EventService {
     List<EventStaffResponse> getEventStaffList(Long eventId);
 
     List<EventResponse> getCoHostedEvents(Long clubId);
+    Event getEntity(Long id);
+    String acceptCohost(Long eventId, CustomUserDetails principal);
+    String rejectCohost(Long eventId, CustomUserDetails principal);
+    String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
+
 
 }

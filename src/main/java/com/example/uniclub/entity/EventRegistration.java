@@ -36,6 +36,8 @@ public class EventRegistration {
     private LocalDateTime registeredAt;
     private LocalDateTime checkinAt;
     private LocalDateTime canceledAt;
+    @Column
+    private LocalDateTime updatedAt;
 
     @Enumerated(EnumType.STRING)
     private AttendanceLevelEnum attendanceLevel;

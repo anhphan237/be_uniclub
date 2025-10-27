@@ -55,4 +55,8 @@ public class Wallet {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
 }

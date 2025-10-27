@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 
 public interface JwtEventTokenService {
-    String generateEventToken(Long eventId, int expMinutes);
+    String generateEventToken(Long eventId, int expireMinutes);
+    Long parseEventId(String token);
     Jws<Claims> parseAndVerify(String token);
 }
+

@@ -10,4 +10,5 @@ import lombok.Setter;
 public class EventStatusUpdateRequest {
     @NotNull
     private EventStatusEnum status;
+    private Integer budgetPoints;
 }

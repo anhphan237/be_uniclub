@@ -4,6 +4,8 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
+import com.example.uniclub.dto.response.EventWalletResponse;
+import com.example.uniclub.entity.Event;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
@@ -23,6 +25,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+
+import com.example.uniclub.service.EventWalletService;
+import com.example.uniclub.service.EventSettlementService;
+import com.example.uniclub.service.AttendanceService;
 
 @RestController
 @RequestMapping("/api/events")
@@ -32,6 +39,9 @@ public class EventController {
     private final EventService eventService;
     private final EventPointsService eventPointsService;
     private final EventStaffService eventStaffService;
+    private final EventWalletService eventWalletService;
+    private final EventSettlementService eventSettlementService;
+    private final AttendanceService attendanceService;
 
     // =========================================================
     // 🔹 1. CRUD APIs (Quản lý sự kiện)
@@ -61,9 +71,10 @@ public class EventController {
             @PathVariable Long id,
             @Valid @RequestBody EventStatusUpdateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(
-                eventService.updateStatus(principal, id, req.getStatus())
+                eventService.updateStatus(principal, id, req.getStatus(), req.getBudgetPoints())
         ));
     }
+
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
@@ -223,6 +234,78 @@ public class EventController {
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<List<EventResponse>> getCoHostedEvents(@PathVariable Long clubId) {
         return ResponseEntity.ok(eventService.getCoHostedEvents(clubId));
+    }
+// =========================================================
+// 🔹 6. EVENT APPROVE + SETTLE
+// =========================================================
+
+    @PostMapping("/{eventId}/approve")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> approveEvent(@PathVariable Long eventId) {
+        Event event = eventService.getEntity(eventId);
+        eventWalletService.createEventWallet(event);
+        eventWalletService.grantBudgetToEvent(event, event.getBudgetPoints());
+        event.setStatus(EventStatusEnum.APPROVED);
+        return ResponseEntity.ok(ApiResponse.msg("Event approved and wallet funded"));
+    }
+
+    @PostMapping("/{eventId}/settle")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> settleEvent(@PathVariable Long eventId) {
+        Event event = eventService.getEntity(eventId);
+        eventSettlementService.settleEvent(event);
+        eventWalletService.returnSurplusToClubs(event);
+        return ResponseEntity.ok(ApiResponse.msg("Event settled successfully"));
+    }
+    @PostMapping("/{eventId}/attendance/verify")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> verifyAttendance(
+            @PathVariable Long eventId,
+            @RequestParam Long userId) {
+        String msg = attendanceService.verifyAttendance(eventId, userId);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+// =========================================================
+// 🔹 7. CO-HOST CONFIRMATION & SUBMIT TO UNISTAFF
+// =========================================================
+
+    @PostMapping("/{eventId}/cohost/accept")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<String>> acceptCohost(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long eventId) {
+        String msg = eventService.acceptCohost(eventId, principal);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+
+    @PostMapping("/{eventId}/cohost/reject")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<String>> rejectCohost(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long eventId) {
+        String msg = eventService.rejectCohost(eventId, principal);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+
+    @PutMapping("/{eventId}/submit")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<String>> submitEventToUniStaff(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long eventId) {
+        String msg = eventService.submitEventToUniStaff(eventId, principal);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+    @GetMapping("/{eventId}/wallet/detail")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','ADMIN')")
+    public ResponseEntity<ApiResponse<EventWalletResponse>> getEventWalletDetail(
+            @PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventWalletService.getEventWalletDetail(eventId)));
+    }
+    @GetMapping("/{eventId}/attendance/qr")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getAttendanceQr(
+            @PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(attendanceService.getQrTokenForEvent(eventId)));
     }
 
 }
