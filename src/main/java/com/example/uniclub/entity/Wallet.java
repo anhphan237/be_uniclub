@@ -4,6 +4,10 @@ import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "wallets")
@@ -18,24 +22,37 @@ public class Wallet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long walletId;
 
-    // 🧩 Loại ví: CLUB / MEMBERSHIP / EVENT
+    @Column(nullable = false)
+    private Long balancePoints = 0L;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WalletOwnerTypeEnum ownerType;
+    private WalletOwnerTypeEnum ownerType; // CLUB / EVENT / MEMBERSHIP
 
-    // 🏫 Ví của CLB (mỗi CLB có 1 ví riêng)
-    @OneToOne
-    @JoinColumn(name = "club_id", unique = true)
-    @JsonBackReference
-    private Club club;
+    // ======================= RELATIONS =======================
 
-    // 👥 Ví của từng Membership (mỗi user–CLB có 1 ví riêng)
+    // Ví thuộc về 1 membership (per-user-per-club)
     @OneToOne
     @JoinColumn(name = "membership_id", unique = true)
     @JsonBackReference
     private Membership membership;
 
-    // 💰 Số điểm hiện có
-    @Column(nullable = false)
-    private Integer balancePoints = 0;
+    // Ví thuộc về 1 club
+    @OneToOne
+    @JoinColumn(name = "club_id", unique = true)
+    @JsonBackReference
+    private Club club;
+
+    // Ví thuộc về 1 event
+    @OneToOne
+    @JoinColumn(name = "event_id", unique = true)
+    @JsonBackReference
+    private Event event;
+
+    // ======================= AUDIT FIELDS =======================
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

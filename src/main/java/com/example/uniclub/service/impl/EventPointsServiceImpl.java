@@ -17,8 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -52,7 +51,6 @@ public class EventPointsServiceImpl implements EventPointsService {
         if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended");
 
-        // 🔍 Lấy Membership của user trong CLB tổ chức event
         Club hostClub = event.getHostClub();
         Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), hostClub.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You must be a member of the host club to join this event"));
@@ -212,11 +210,11 @@ public class EventPointsServiceImpl implements EventPointsService {
         eventStaffRepo.saveAll(staffs);
 
         // 🔸 Distribute leftover
-        int leftover = eventWallet.getBalancePoints();
+        int leftover = eventWallet.getBalancePoints().intValue();
         if (leftover > 0) {
             List<Club> clubsToReward = event.getCoHostedClubs();
             if (clubsToReward == null || clubsToReward.isEmpty())
-                clubsToReward = new java.util.ArrayList<>();
+                clubsToReward = new ArrayList<>();
             if (event.getHostClub() != null && !clubsToReward.contains(event.getHostClub()))
                 clubsToReward.add(event.getHostClub());
 
@@ -228,12 +226,13 @@ public class EventPointsServiceImpl implements EventPointsService {
             }
         }
 
+
         walletRepo.delete(eventWallet);
         event.setWallet(null);
         eventRepo.save(event);
 
-        return "🏁 Event completed: " + totalPayout + " points rewarded; remaining " +
-                leftover + " shared among host/co-host.";
+        return "🏁 Event completed: " + totalPayout + " points rewarded; remaining "
+                + leftover + " shared among host/co-host.";
     }
 
     // =========================================================
@@ -245,9 +244,10 @@ public class EventPointsServiceImpl implements EventPointsService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet not found. Please APPROVE the event first.");
         return w;
     }
+
     // =========================================================
-// 🔹 EVENT REGISTRATIONS
-// =========================================================
+    // 🔹 EVENT REGISTRATIONS
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public List<EventRegistration> getEventRegistrations(Long eventId) {
@@ -257,8 +257,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-// 🔹 EVENT SUMMARY
-// =========================================================
+    // 🔹 EVENT SUMMARY
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventSummary(Long eventId) {
@@ -266,11 +266,17 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
         List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
 
-        int totalCommit = regs.stream().mapToInt(r -> r.getCommittedPoints() == null ? 0 : r.getCommittedPoints()).sum();
-        int refunded = (int) regs.stream().filter(r -> r.getStatus() == RegistrationStatusEnum.REFUNDED).count();
-        int checkedIn = (int) regs.stream().filter(r -> r.getStatus() == RegistrationStatusEnum.CHECKED_IN).count();
+        int totalCommit = regs.stream()
+                .mapToInt(r -> r.getCommittedPoints() == null ? 0 : r.getCommittedPoints())
+                .sum();
+        long refunded = regs.stream()
+                .filter(r -> r.getStatus() == RegistrationStatusEnum.REFUNDED)
+                .count();
+        long checkedIn = regs.stream()
+                .filter(r -> r.getStatus() == RegistrationStatusEnum.CHECKED_IN)
+                .count();
 
-        return Map.of(
+        return Map.<String, Object>of(
                 "eventName", event.getName(),
                 "totalCommitPoints", totalCommit,
                 "checkedInCount", checkedIn,
@@ -280,8 +286,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-// 🔹 EVENT WALLET INFO
-// =========================================================
+    // 🔹 EVENT WALLET INFO
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventWallet(Long eventId) {
@@ -289,7 +295,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
         Wallet wallet = ensureEventWallet(event);
 
-        return Map.of(
+        return Map.<String, Object>of(
                 "eventId", event.getEventId(),
                 "eventName", event.getName(),
                 "walletBalance", wallet.getBalancePoints(),
@@ -297,5 +303,4 @@ public class EventPointsServiceImpl implements EventPointsService {
                 "hostClubId", event.getHostClub().getClubId()
         );
     }
-
 }

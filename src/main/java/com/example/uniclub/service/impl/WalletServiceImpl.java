@@ -52,7 +52,7 @@ public class WalletServiceImpl implements WalletService {
                 .orElseGet(() -> walletRepo.save(Wallet.builder()
                         .club(club)
                         .ownerType(WalletOwnerTypeEnum.CLUB)
-                        .balancePoints(0)
+                        .balancePoints(0L)
                         .build()));
     }
 
@@ -63,7 +63,7 @@ public class WalletServiceImpl implements WalletService {
                 .orElseGet(() -> walletRepo.save(Wallet.builder()
                         .membership(membership)
                         .ownerType(WalletOwnerTypeEnum.MEMBERSHIP)
-                        .balancePoints(0)
+                        .balancePoints(0L)
                         .build()));
     }
 

@@ -23,7 +23,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final WalletRepository walletRepo;
 
     // ================================================================
-    // 🎯 LẤY VÍ THEO MEMBERSHIP ID
+    // 🎯 LẤY VÍ THEO USER ID (ĐÃ KHÔNG DÙNG NỮA)
     // ================================================================
     @Override
     public Wallet getWalletByUserId(Long userId) {
@@ -78,16 +78,16 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             walletService.decrease(clubWallet, points);
         }
 
-
-        int finalPoints = points;
+        Long finalPoints = (long) points;
 
         // 💰 Cộng điểm cho ví membership
         Wallet membershipWallet = walletService.getOrCreateMembershipWallet(membership);
-        walletService.increase(membershipWallet, finalPoints);
+        walletService.increase(membershipWallet, finalPoints.intValue());
 
         // 📩 Gửi email & milestone
-        int totalPoints = membershipWallet.getBalancePoints();
-        rewardService.sendManualBonusEmail(membership.getUser().getUserId(), finalPoints, reason, totalPoints);
+        Long totalPoints = membershipWallet.getBalancePoints();
+        rewardService.sendManualBonusEmail(membership.getUser().getUserId(),
+                finalPoints.intValue(), reason, totalPoints.intValue());
 
         if (totalPoints >= 500 && totalPoints - finalPoints < 500)
             rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 500);
@@ -122,7 +122,10 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             Wallet wallet = walletService.getOrCreateMembershipWallet(m);
             walletService.increase(wallet, points);
             rewardService.sendManualBonusEmail(
-                    m.getUser().getUserId(), points, reason, wallet.getBalancePoints());
+                    m.getUser().getUserId(),
+                    points,
+                    reason,
+                    wallet.getBalancePoints().intValue());
             count++;
         }
         return count;

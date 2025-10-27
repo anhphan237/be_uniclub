@@ -15,7 +15,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class WalletResponse {
 
     private Long walletId;
-    private Integer balancePoints;
+    private Long balancePoints;
+
     private WalletOwnerTypeEnum ownerType;
 
     // Thông tin cho ví CLB (nếu có)

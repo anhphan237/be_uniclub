@@ -23,6 +23,9 @@ public class UniversityServiceImpl implements UniversityService {
     private final WalletRepository walletRepo;
     private final AttendanceRecordRepository attendanceRecordRepo;
 
+    // ================================================================
+    // 🎓 1️⃣ TỔNG QUAN TRƯỜNG
+    // ================================================================
     @Override
     public UniversityStatisticsResponse getUniversitySummary() {
         long totalClubs = clubRepo.count();
@@ -36,6 +39,9 @@ public class UniversityServiceImpl implements UniversityService {
                 .build();
     }
 
+    // ================================================================
+    // 🏫 2️⃣ TỔNG QUAN CLB
+    // ================================================================
     @Override
     public ClubStatisticsResponse getClubSummary(Long clubId) {
         Club club = clubRepo.findById(clubId)
@@ -52,19 +58,22 @@ public class UniversityServiceImpl implements UniversityService {
                 .build();
     }
 
+    // ================================================================
+    // 💰 3️⃣ XẾP HẠNG ĐIỂM TOÀN TRƯỜNG
+    // ================================================================
     @Override
     public UniversityPointsResponse getPointsRanking() {
         long totalPoints = walletRepo.sumAllPoints();
-        List<Object[]> rawRank = walletRepo.findClubPointsRanking();
+        List<ClubPointsRankingDTO> rawRank = walletRepo.findClubPointsRanking(); // ✅ DTO thay cho Object[]
 
         AtomicInteger rankCounter = new AtomicInteger(1);
 
         List<ClubRankingResponse> rankings = rawRank.stream()
-                .map(obj -> ClubRankingResponse.builder()
+                .map(dto -> ClubRankingResponse.builder()
                         .rank(rankCounter.getAndIncrement())
-                        .clubId((Long) obj[0])
-                        .clubName((String) obj[1])
-                        .totalPoints((Long) obj[2])
+                        .clubId(dto.getClubId())
+                        .clubName(dto.getClubName())
+                        .totalPoints(dto.getTotalPoints())
                         .build())
                 .toList();
 
@@ -74,6 +83,9 @@ public class UniversityServiceImpl implements UniversityService {
                 .build();
     }
 
+    // ================================================================
+    // 📅 4️⃣ XẾP HẠNG THAM GIA SỰ KIỆN
+    // ================================================================
     @Override
     public UniversityAttendanceResponse getAttendanceRanking() {
         long totalAttendances = attendanceRecordRepo.countTotalAttendances();
@@ -96,6 +108,9 @@ public class UniversityServiceImpl implements UniversityService {
                 .build();
     }
 
+    // ================================================================
+    // 📊 5️⃣ BIỂU ĐỒ TỔNG HỢP THAM GIA
+    // ================================================================
     @Override
     public AttendanceSummaryResponse getAttendanceSummary(int year) {
         List<Object[]> result = attendanceRecordRepo.getMonthlyAttendanceSummary(year);
@@ -148,7 +163,4 @@ public class UniversityServiceImpl implements UniversityService {
                 .monthlySummary(monthly)
                 .build();
     }
-
-
 }
-

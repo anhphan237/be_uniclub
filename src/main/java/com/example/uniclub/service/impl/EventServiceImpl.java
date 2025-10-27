@@ -194,7 +194,7 @@ public class EventServiceImpl implements EventService {
             if (event.getWallet() == null) {
                 Wallet eventWallet = new Wallet();
                 eventWallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
-                eventWallet.setBalancePoints(0);
+                eventWallet.setBalancePoints(0L);
 //                eventWallet.setClub(event.getHostClub());
                 walletRepository.save(eventWallet);
                 event.setWallet(eventWallet);
