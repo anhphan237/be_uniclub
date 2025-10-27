@@ -47,5 +47,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     """)
     List<Event> findByClubParticipation(@Param("clubId") Long clubId);
 
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    JOIN e.coHostRelations rel
+    WHERE rel.club.clubId = :clubId
+      AND e.hostClub.clubId <> :clubId
+""")
+    List<Event> findCoHostedEvents(@Param("clubId") Long clubId);
+
 
 }

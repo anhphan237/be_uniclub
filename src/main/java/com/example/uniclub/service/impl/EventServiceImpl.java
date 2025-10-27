@@ -470,6 +470,17 @@ public class EventServiceImpl implements EventService {
                 .build()
         ).toList();
     }
+    @Override
+    public List<EventResponse> getCoHostedEvents(Long clubId) {
+        clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        List<Event> events = eventRepo.findCoHostedEvents(clubId);
+
+        return events.stream()
+                .map(this::toResp)
+                .toList();
+    }
 
 
 }

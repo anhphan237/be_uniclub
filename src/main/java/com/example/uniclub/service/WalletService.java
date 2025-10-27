@@ -3,6 +3,9 @@ package com.example.uniclub.service;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.entity.Wallet;
+import com.example.uniclub.entity.WalletTransaction;
+
+import java.util.List;
 
 public interface WalletService {
 
@@ -23,4 +26,9 @@ public interface WalletService {
     void addPoints(Wallet wallet, int points, String description);
     void reducePoints(Wallet wallet, int points, String description);
     void transferPoints(Wallet from, Wallet to, int points, String description);
+
+    List<WalletTransaction> getTransactionsByWallet(Long walletId);
+    List<WalletTransaction> getAllClubTopups();
+    List<WalletTransaction> getAllMemberRewards();
+
 }
