@@ -32,4 +32,7 @@ public interface WalletService {
     List<WalletTransaction> getTransactionsByWallet(Long walletId);
     List<WalletTransactionResponse> getAllClubTopups();
     List<WalletTransactionResponse> getAllMemberRewards();
+
+    void logUniToClubTopup(Wallet clubWallet, int points, String reason);
+    void logClubToMemberReward(Wallet memberWallet, int points, String reason);
 }

@@ -23,7 +23,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final WalletRepository walletRepo;
 
     // ================================================================
-    // 🎯 LẤY VÍ THEO USER ID (ĐÃ KHÔNG DÙNG NỮA)
+    // 🎯 LẤY VÍ THEO USER ID (KHÔNG DÙNG NỮA)
     // ================================================================
     @Override
     public Wallet getWalletByUserId(Long userId) {
@@ -32,7 +32,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     }
 
     // ================================================================
-    // 🎁 THƯỞNG ĐIỂM CHO 1 THÀNH VIÊN (LEADER / VICE / STAFF / ADMIN)
+    // 🎁 THƯỞNG ĐIỂM CHO 1 THÀNH VIÊN
     // ================================================================
     @Transactional
     @Override
@@ -78,22 +78,28 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             walletService.decrease(clubWallet, points);
         }
 
-        Long finalPoints = (long) points;
-
         // 💰 Cộng điểm cho ví membership
         Wallet membershipWallet = walletService.getOrCreateMembershipWallet(membership);
-        walletService.increase(membershipWallet, finalPoints.intValue());
+        walletService.increase(membershipWallet, points);
+
+        // 🧾 ✅ Ghi log transaction (Club → Member)
+        walletService.logClubToMemberReward(membershipWallet, points,
+                reason == null ? "Manual reward" : reason);
 
         // 📩 Gửi email & milestone
         Long totalPoints = membershipWallet.getBalancePoints();
-        rewardService.sendManualBonusEmail(membership.getUser().getUserId(),
-                finalPoints.intValue(), reason, totalPoints.intValue());
+        rewardService.sendManualBonusEmail(
+                membership.getUser().getUserId(),
+                points,
+                reason,
+                totalPoints.intValue()
+        );
 
-        if (totalPoints >= 500 && totalPoints - finalPoints < 500)
+        if (totalPoints >= 500 && totalPoints - points < 500)
             rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 500);
-        if (totalPoints >= 1000 && totalPoints - finalPoints < 1000)
+        if (totalPoints >= 1000 && totalPoints - points < 1000)
             rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 1000);
-        if (totalPoints >= 2000 && totalPoints - finalPoints < 2000)
+        if (totalPoints >= 2000 && totalPoints - points < 2000)
             rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 2000);
 
         return membershipWallet;
@@ -121,11 +127,17 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         for (Membership m : members) {
             Wallet wallet = walletService.getOrCreateMembershipWallet(m);
             walletService.increase(wallet, points);
+
+            // ✅ Ghi log Club → Member cho từng người
+            walletService.logClubToMemberReward(wallet, points,
+                    reason == null ? "Mass reward" : reason);
+
             rewardService.sendManualBonusEmail(
                     m.getUser().getUserId(),
                     points,
                     reason,
-                    wallet.getBalancePoints().intValue());
+                    wallet.getBalancePoints().intValue()
+            );
             count++;
         }
         return count;
@@ -151,6 +163,11 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         Wallet clubWallet = walletService.getOrCreateClubWallet(club);
         walletService.addPoints(clubWallet, points,
                 reason == null ? "Top-up by staff" : reason);
+
+        // ✅ Ghi log transaction (Uni → Club)
+        walletService.logUniToClubTopup(clubWallet, points,
+                reason == null ? "Top-up by staff" : reason);
+
         return clubWallet;
     }
 }
