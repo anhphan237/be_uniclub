@@ -47,4 +47,5 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     List<Membership> findByClub_ClubId(Long clubId);
 
 
+
 }

@@ -4,6 +4,7 @@ import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -37,7 +38,7 @@ public class CustomUserDetails implements UserDetails {
         return user.getUserId();
     }
 
-    // ✅ Lấy Role
+    // ✅ Lấy Role (Entity)
     public Role getRole() {
         return user.getRole();
     }
@@ -49,26 +50,20 @@ public class CustomUserDetails implements UserDetails {
         return roleName.startsWith("ROLE_") ? roleName.substring(5) : roleName;
     }
 
-    // ✅ Chuẩn hóa authorities (đảm bảo prefix ROLE_)
+    // ✅ SỬA PHẦN NÀY — chuẩn hóa authorities (KHÔNG dùng lambda)
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         if (authorities == null) return List.of();
+
+        // Dùng SimpleGrantedAuthority để Spring Security hiểu đúng quyền
         return authorities.stream()
-                .map(auth -> {
-                    String roleName = auth.getAuthority();
-                    if (!roleName.startsWith("ROLE_")) {
-                        roleName = "ROLE_" + roleName;
-                    }
-                    String finalRole = roleName;
-                    return (GrantedAuthority) () -> finalRole;
-                })
+                .map(auth -> new SimpleGrantedAuthority(auth.getAuthority()))
                 .collect(Collectors.toList());
     }
 
     // === Spring Security Required Methods ===
     @Override
     public String getPassword() {
-        // ✅ Lấy trực tiếp từ entity
         return user.getPasswordHash();
     }
 
