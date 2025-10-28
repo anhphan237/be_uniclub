@@ -68,5 +68,14 @@ public class ClubAttendanceController {
                                              @RequestBody ClubAttendanceSessionRequest req) {
         return attendanceService.createSession(clubId, req);
     }
+    /** ✅ Điểm danh nhiều thành viên cùng lúc */
+    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','VICE_LEADER')")
+    @PutMapping("/{sessionId}/mark-bulk")
+    public Map<String, Object> markBulk(@PathVariable Long sessionId,
+                                        @RequestBody com.example.uniclub.dto.request.BulkAttendanceRequest req,
+                                        @org.springframework.security.core.annotation.AuthenticationPrincipal
+                                        com.example.uniclub.security.CustomUserDetails user) {
+        return attendanceService.markBulk(sessionId, req, user);
+    }
 
 }
