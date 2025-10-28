@@ -312,6 +312,11 @@ public class EventController {
     public ApiResponse<?> getMyRegisteredEvents(@AuthenticationPrincipal CustomUserDetails principal) {
         return new ApiResponse<>(true, "success", eventPointsService.getMyRegisteredEvents(principal));
     }
+    @GetMapping("/active")
+    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<?>> getActiveEvents() {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getActiveEvents()));
+    }
 
 
 }

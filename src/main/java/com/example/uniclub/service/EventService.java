@@ -48,6 +48,7 @@ public interface EventService {
     String acceptCohost(Long eventId, CustomUserDetails principal);
     String rejectCohost(Long eventId, CustomUserDetails principal);
     String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
+    List<EventResponse> getActiveEvents();
 
 
 }

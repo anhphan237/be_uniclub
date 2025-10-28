@@ -584,5 +584,15 @@ public class EventServiceImpl implements EventService {
         return "📤 Event '" + event.getName() + "' submitted to UniStaff for approval.";
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventResponse> getActiveEvents() {
+        LocalDate today = LocalDate.now();
+        return eventRepo.findActiveEvents(EventStatusEnum.APPROVED, today)
+                .stream()
+                .map(this::toResp)
+                .toList();
+    }
+
 
 }
