@@ -1,10 +1,13 @@
 package com.example.uniclub.controller;
 
+import com.example.uniclub.dto.request.BulkAttendanceRequest;
 import com.example.uniclub.dto.request.ClubAttendanceSessionRequest;
 import com.example.uniclub.enums.AttendanceStatusEnum;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubAttendanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -16,23 +19,29 @@ public class ClubAttendanceController {
 
     private final ClubAttendanceService attendanceService;
 
-    /** Lấy danh sách điểm danh hôm nay (tự tạo session nếu chưa có). */
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    // ============================================================
+    // 📅 LẤY DANH SÁCH ĐIỂM DANH HÔM NAY (TỰ TẠO SESSION NẾU CHƯA CÓ)
+    // ============================================================
+    @PreAuthorize("hasAuthority('CLUB_LEADER')")
     @GetMapping("/{clubId}/today")
     public Map<String, Object> getTodayAttendance(@PathVariable Long clubId) {
         return attendanceService.getTodayAttendance(clubId);
     }
 
-    /** Xem lịch sử điểm danh CLB theo ngày. */
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    // ============================================================
+    // 📜 XEM LỊCH SỬ ĐIỂM DANH CLB THEO NGÀY
+    // ============================================================
+    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','UNIVERSITY_STAFF')")
     @GetMapping("/{clubId}/history")
     public Map<String, Object> getHistory(@PathVariable Long clubId,
                                           @RequestParam String date) {
         return attendanceService.getAttendanceHistory(clubId, date);
     }
 
-    /** Điểm danh 1 thành viên + ghi chú. */
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    // ============================================================
+    // ✅ ĐIỂM DANH 1 THÀNH VIÊN + GHI CHÚ
+    // ============================================================
+    @PreAuthorize("hasAuthority('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark")
     public void markAttendance(@PathVariable Long sessionId,
                                @RequestParam Long membershipId,
@@ -41,40 +50,52 @@ public class ClubAttendanceController {
         attendanceService.markAttendance(sessionId, membershipId, status, note);
     }
 
-    /** Cập nhật trạng thái điểm danh hàng loạt. */
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    // ============================================================
+    // 🔄 CẬP NHẬT TRẠNG THÁI ĐIỂM DANH HÀNG LOẠT
+    // ============================================================
+    @PreAuthorize("hasAuthority('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark-all")
     public void markAll(@PathVariable Long sessionId,
                         @RequestParam AttendanceStatusEnum status) {
         attendanceService.markAll(sessionId, status);
     }
 
-    /** Thành viên xem lịch sử điểm danh cá nhân. */
-    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
+    // ============================================================
+    // 👤 THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CÁ NHÂN
+    // ============================================================
+    @PreAuthorize("hasAnyAuthority('STUDENT','CLUB_LEADER')")
     @GetMapping("/member/{membershipId}/history")
     public Map<String, Object> getMemberHistory(@PathVariable Long membershipId) {
         return attendanceService.getMemberAttendanceHistory(membershipId);
     }
 
-    /** University Staff xem tổng quan điểm danh toàn CLB. */
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    // ============================================================
+    // 🏫 UNI STAFF XEM TỔNG QUAN ĐIỂM DANH TOÀN TRƯỜNG
+    // ============================================================
+    @PreAuthorize("hasAuthority('UNIVERSITY_STAFF')")
     @GetMapping("/university/overview")
     public Map<String, Object> getUniversityOverview(@RequestParam(required = false) String date) {
         return attendanceService.getUniversityAttendanceOverview(date);
     }
+
+    // ============================================================
+    // 🆕 TẠO BUỔI ĐIỂM DANH MỚI (SESSION)
+    // ============================================================
+    @PreAuthorize("hasAuthority('CLUB_LEADER')")
     @PostMapping("/{clubId}/create-session")
-    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','VICE_LEADER')")
     public Map<String, Object> createSession(@PathVariable Long clubId,
                                              @RequestBody ClubAttendanceSessionRequest req) {
         return attendanceService.createSession(clubId, req);
     }
-    /** ✅ Điểm danh nhiều thành viên cùng lúc */
-    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','VICE_LEADER')")
+
+    // ============================================================
+    // 📦 ĐIỂM DANH NHIỀU THÀNH VIÊN CÙNG LÚC
+    // ============================================================
+    @PreAuthorize("hasAuthority('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark-bulk")
     public Map<String, Object> markBulk(@PathVariable Long sessionId,
-                                        @RequestBody com.example.uniclub.dto.request.BulkAttendanceRequest req,
-                                        @org.springframework.security.core.annotation.AuthenticationPrincipal
-                                        com.example.uniclub.security.CustomUserDetails user) {
+                                        @RequestBody BulkAttendanceRequest req,
+                                        @AuthenticationPrincipal CustomUserDetails user) {
         return attendanceService.markBulk(sessionId, req, user);
     }
 
