@@ -1,8 +1,11 @@
 package com.example.uniclub.controller;
 
+import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.WalletAdjustRequest;
+import com.example.uniclub.dto.request.WalletRewardBatchRequest;
 import com.example.uniclub.dto.request.WalletTransferRequest;
 import com.example.uniclub.dto.response.WalletResponse;
+import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.exception.ApiException;
@@ -14,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -243,4 +247,18 @@ public class WalletController {
     public ResponseEntity<?> getClubToMemberTransactions() {
         return ResponseEntity.ok(walletService.getAllMemberRewards());
     }
+    @PostMapping("/reward/clubs")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> rewardMultipleClubs(
+            @Valid @RequestBody WalletRewardBatchRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleClubs(req)));
+    }
+
+    @PostMapping("/reward/members")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> rewardMultipleMembers(
+            @Valid @RequestBody WalletRewardBatchRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleMembers(req)));
+    }
+
 }

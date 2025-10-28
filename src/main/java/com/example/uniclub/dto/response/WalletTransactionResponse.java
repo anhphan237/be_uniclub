@@ -14,4 +14,5 @@ public class WalletTransactionResponse {
     private Integer amount;       // Số điểm thay đổi (+ / -)
     private String description;   // Mô tả giao dịch
     private LocalDateTime createdAt; // Thời điểm tạo
+    private String receiverName;
 }

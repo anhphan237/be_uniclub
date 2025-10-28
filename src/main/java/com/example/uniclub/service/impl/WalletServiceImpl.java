@@ -202,4 +202,11 @@ public class WalletServiceImpl implements WalletService {
                         .build())
                 .toList();
     }
+    @Override
+    public Wallet getUniversityWallet() {
+        // Giả định UniStaff có 1 wallet duy nhất (ownerType = CLUB và name = "University")
+        return walletRepo.findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum.CLUB, "University")
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "University wallet not found"));
+    }
+
 }

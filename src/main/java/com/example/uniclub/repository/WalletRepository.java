@@ -4,6 +4,7 @@ import com.example.uniclub.dto.response.ClubPointsRankingDTO;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.Wallet;
+import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -58,6 +59,6 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     ORDER BY COALESCE(SUM(w.balancePoints), 0) DESC
 """)
     List<ClubPointsRankingDTO> findClubPointsRanking();
-
+    Optional<Wallet> findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum ownerType, String clubName);
 
 }

@@ -1,8 +1,11 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.request.WalletRewardBatchRequest;
+import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.exception.ApiException;
+import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.WalletRepository;
 import com.example.uniclub.service.*;
@@ -10,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.uniclub.repository.ClubRepository;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -21,6 +27,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final MembershipRepository membershipRepo;
     private final RewardService rewardService;
     private final WalletRepository walletRepo;
+    private final ClubRepository clubRepo;
 
     // ================================================================
     // 🎯 LẤY VÍ THEO USER ID (KHÔNG DÙNG NỮA)
@@ -170,4 +177,56 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         return clubWallet;
     }
+    @Override
+    @Transactional
+    public List<WalletTransactionResponse> rewardMultipleClubs(WalletRewardBatchRequest req) {
+        List<WalletTransactionResponse> responses = new ArrayList<>();
+
+        for (Long clubId : req.getTargetIds()) {
+            Wallet clubWallet = walletService.getOrCreateClubWallet(
+                    clubRepo.findById(clubId)
+                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found: " + clubId))
+            );
+
+            Wallet uniWallet = walletService.getUniversityWallet();
+            walletService.transferPoints(uniWallet, clubWallet, req.getPoints(), req.getReason());
+
+            responses.add(WalletTransactionResponse.builder()
+                    .type("UNI_TO_CLUB")
+                    .amount(req.getPoints())
+                    .description(req.getReason())
+                    .receiverName(clubWallet.getClub().getName())
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
+
+        return responses;
+    }
+
+    @Override
+    @Transactional
+    public List<WalletTransactionResponse> rewardMultipleMembers(WalletRewardBatchRequest req) {
+        List<WalletTransactionResponse> responses = new ArrayList<>();
+
+        for (Long membershipId : req.getTargetIds()) {
+            Membership membership = membershipRepo.findById(membershipId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found: " + membershipId));
+
+            Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
+            Wallet clubWallet = walletService.getOrCreateClubWallet(membership.getClub());
+
+            walletService.transferPoints(clubWallet, memberWallet, req.getPoints(), req.getReason());
+
+            responses.add(WalletTransactionResponse.builder()
+                    .type("CLUB_TO_MEMBER")
+                    .amount(req.getPoints())
+                    .description(req.getReason())
+                    .receiverName(membership.getUser().getFullName())
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
+
+        return responses;
+    }
+
 }
