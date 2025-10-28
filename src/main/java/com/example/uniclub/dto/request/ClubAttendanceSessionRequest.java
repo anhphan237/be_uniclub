@@ -1,8 +1,9 @@
 package com.example.uniclub.dto.request;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import lombok.*;
 
 @Getter
 @Setter
@@ -10,8 +11,14 @@ import java.time.LocalTime;
 @AllArgsConstructor
 @Builder
 public class ClubAttendanceSessionRequest {
-    private LocalDate date;        // Ngày sinh hoạt
-    private LocalTime startTime;   // Giờ bắt đầu
-    private LocalTime endTime;     // Giờ kết thúc
-    private String note;           // Ghi chú (tuỳ chọn)
+    private LocalDate date;
+
+    @JsonFormat(pattern = "HH:mm:ss")
+    private LocalTime startTime;
+
+    @JsonFormat(pattern = "HH:mm:ss")
+    private LocalTime endTime;
+
+    private String note;
 }
+

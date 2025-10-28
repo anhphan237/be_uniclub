@@ -22,7 +22,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 📅 LẤY DANH SÁCH ĐIỂM DANH HÔM NAY (TỰ TẠO SESSION NẾU CHƯA CÓ)
     // ============================================================
-    @PreAuthorize("hasAuthority('CLUB_LEADER')")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
     @GetMapping("/{clubId}/today")
     public Map<String, Object> getTodayAttendance(@PathVariable Long clubId) {
         return attendanceService.getTodayAttendance(clubId);
@@ -31,7 +31,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 📜 XEM LỊCH SỬ ĐIỂM DANH CLB THEO NGÀY
     // ============================================================
-    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','UNIVERSITY_STAFF')")
+    @PreAuthorize("hasRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     @GetMapping("/{clubId}/history")
     public Map<String, Object> getHistory(@PathVariable Long clubId,
                                           @RequestParam String date) {
@@ -41,7 +41,7 @@ public class ClubAttendanceController {
     // ============================================================
     // ✅ ĐIỂM DANH 1 THÀNH VIÊN + GHI CHÚ
     // ============================================================
-    @PreAuthorize("hasAuthority('CLUB_LEADER')")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark")
     public void markAttendance(@PathVariable Long sessionId,
                                @RequestParam Long membershipId,
@@ -53,7 +53,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 🔄 CẬP NHẬT TRẠNG THÁI ĐIỂM DANH HÀNG LOẠT
     // ============================================================
-    @PreAuthorize("hasAuthority('CLUB_LEADER')")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark-all")
     public void markAll(@PathVariable Long sessionId,
                         @RequestParam AttendanceStatusEnum status) {
@@ -63,7 +63,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 👤 THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CÁ NHÂN
     // ============================================================
-    @PreAuthorize("hasAnyAuthority('STUDENT','CLUB_LEADER')")
+    @PreAuthorize("hasRole('STUDENT','CLUB_LEADER')")
     @GetMapping("/member/{membershipId}/history")
     public Map<String, Object> getMemberHistory(@PathVariable Long membershipId) {
         return attendanceService.getMemberAttendanceHistory(membershipId);
@@ -72,7 +72,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 🏫 UNI STAFF XEM TỔNG QUAN ĐIỂM DANH TOÀN TRƯỜNG
     // ============================================================
-    @PreAuthorize("hasAuthority('UNIVERSITY_STAFF')")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @GetMapping("/university/overview")
     public Map<String, Object> getUniversityOverview(@RequestParam(required = false) String date) {
         return attendanceService.getUniversityAttendanceOverview(date);
@@ -81,7 +81,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 🆕 TẠO BUỔI ĐIỂM DANH MỚI (SESSION)
     // ============================================================
-    @PreAuthorize("hasAuthority('CLUB_LEADER')")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
     @PostMapping("/{clubId}/create-session")
     public Map<String, Object> createSession(@PathVariable Long clubId,
                                              @RequestBody ClubAttendanceSessionRequest req) {
@@ -91,7 +91,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 📦 ĐIỂM DANH NHIỀU THÀNH VIÊN CÙNG LÚC
     // ============================================================
-    @PreAuthorize("hasAuthority('CLUB_LEADER')")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
     @PutMapping("/{sessionId}/mark-bulk")
     public Map<String, Object> markBulk(@PathVariable Long sessionId,
                                         @RequestBody BulkAttendanceRequest req,
