@@ -307,5 +307,11 @@ public class EventController {
             @PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(attendanceService.getQrTokenForEvent(eventId)));
     }
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/my-registrations")
+    public ApiResponse<?> getMyRegisteredEvents(@AuthenticationPrincipal CustomUserDetails principal) {
+        return new ApiResponse<>(true, "success", eventPointsService.getMyRegisteredEvents(principal));
+    }
+
 
 }

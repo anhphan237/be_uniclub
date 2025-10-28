@@ -24,4 +24,7 @@ public interface EventPointsService {
     Map<String, Object> getEventSummary(Long eventId);
 
     Map<String, Object> getEventWallet(Long eventId);
+
+    List<Map<String, Object>> getMyRegisteredEvents(CustomUserDetails principal);
+
 }

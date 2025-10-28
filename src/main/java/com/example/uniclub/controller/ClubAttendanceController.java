@@ -1,5 +1,6 @@
 package com.example.uniclub.controller;
 
+import com.example.uniclub.dto.request.ClubAttendanceSessionRequest;
 import com.example.uniclub.enums.AttendanceStatusEnum;
 import com.example.uniclub.service.ClubAttendanceService;
 import lombok.RequiredArgsConstructor;
@@ -61,4 +62,11 @@ public class ClubAttendanceController {
     public Map<String, Object> getUniversityOverview(@RequestParam(required = false) String date) {
         return attendanceService.getUniversityAttendanceOverview(date);
     }
+    @PostMapping("/{clubId}/create-session")
+    @PreAuthorize("hasAnyAuthority('CLUB_LEADER','VICE_LEADER')")
+    public Map<String, Object> createSession(@PathVariable Long clubId,
+                                             @RequestBody ClubAttendanceSessionRequest req) {
+        return attendanceService.createSession(clubId, req);
+    }
+
 }

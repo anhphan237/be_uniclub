@@ -76,8 +76,8 @@ public class EventServiceImpl implements EventService {
 
 
     // =========================================================
-    // 🔹 TẠO SỰ KIỆN (CLUB LEADER GỬI YÊU CẦU)
-    // =========================================================
+// 🔹 TẠO SỰ KIỆN (CLUB LEADER GỬI YÊU CẦU DUYỆT)
+// =========================================================
     @Override
     public EventResponse create(EventCreateRequest req) {
 
@@ -107,10 +107,15 @@ public class EventServiceImpl implements EventService {
                 ? req.commitPointCost()
                 : 100;
 
-        // 6️⃣ Tạo mã sự kiện ngẫu nhiên
+        // 6️⃣ Kiểm tra ngân sách nhập vào
+        if (req.budgetPoints() == null || req.budgetPoints() <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập ngân sách (budgetPoints) hợp lệ.");
+        }
+
+        // 7️⃣ Tạo mã sự kiện ngẫu nhiên
         String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // 7️⃣ Tạo đối tượng Event (chưa set coHostRelations)
+        // 8️⃣ Tạo đối tượng Event
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -120,15 +125,16 @@ public class EventServiceImpl implements EventService {
                 .startTime(req.startTime())
                 .endTime(req.endTime())
                 .location(location)
-                .status(EventStatusEnum.PENDING)
+                .status(EventStatusEnum.PENDING)          // ⏳ Gửi duyệt UniStaff
                 .checkInCode(randomCode)
                 .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
                 .commitPointCost(finalCommitCost)
                 .rewardMultiplierCap(2)
+                .budgetPoints(req.budgetPoints())         // 💰 Leader nhập sẵn ngân sách
                 .build();
 
-        // 8️⃣ Gắn danh sách đồng tổ chức vào (với status = PENDING)
+        // 9️⃣ Gắn danh sách đồng tổ chức
         List<EventCoClub> coHostRelations = coHostClubs.stream()
                 .map(club -> EventCoClub.builder()
                         .event(event)
@@ -136,21 +142,21 @@ public class EventServiceImpl implements EventService {
                         .status(EventCoHostStatusEnum.PENDING)
                         .build())
                 .toList();
-
         event.setCoHostRelations(coHostRelations);
 
-        // 9️⃣ Lưu toàn bộ
+        // 🔟 Lưu sự kiện
         eventRepo.save(event);
 
-        // 10️⃣ Gửi thông báo cho UniStaff
+        // 1️⃣1️⃣ Gửi thông báo đến UniStaff
         notificationService.sendEventApprovalRequest(
                 "uniclub.contacts@gmail.com",
                 hostClub.getName(),
-                req.name()
+                req.name() + " (Ngân sách đề xuất: " + req.budgetPoints() + " điểm)"
         );
 
         return toResp(event);
     }
+
 
     // =========================================================
     // 🔹 LẤY CHI TIẾT SỰ KIỆN

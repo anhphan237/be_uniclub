@@ -253,4 +253,27 @@ public class EventPointsServiceImpl implements EventPointsService {
                 "active", wallet.isActive()
         );
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getMyRegisteredEvents(CustomUserDetails principal) {
+        Long userId = principal.getUser().getUserId();
+        List<EventRegistration> regs = regRepo.findByUser_UserIdOrderByRegisteredAtDesc(userId);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (EventRegistration r : regs) {
+            Event e = r.getEvent();
+            result.add(Map.of(
+                    "eventId", e.getEventId(),
+                    "eventName", e.getName(),
+                    "date", e.getDate(),
+                    "status", e.getStatus().name(),
+                    "attendanceLevel", r.getAttendanceLevel().name(),
+                    "committedPoints", r.getCommittedPoints(),
+                    "clubName", e.getHostClub().getName(),
+                    "registeredAt", r.getRegisteredAt()
+            ));
+        }
+        return result;
+    }
+
 }

@@ -38,5 +38,10 @@ public record EventCreateRequest(
         Integer maxCheckInCount,
 
         @PositiveOrZero(message = "commitPointCost must be >= 0")
-        Integer commitPointCost
+        Integer commitPointCost,
+
+        // 🆕 Leader nhập luôn ngân sách mong muốn khi tạo event
+        @NotNull(message = "Budget point is required")
+        @Min(value = 0, message = "Budget point must be non-negative")
+        Integer budgetPoints
 ) {}

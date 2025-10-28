@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.request.ClubAttendanceSessionRequest;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.AttendanceStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
@@ -241,4 +242,44 @@ public class ClubAttendanceServiceImpl implements ClubAttendanceService {
                 "averageAttendance", avgRate
         );
     }
+    // =========================
+// 8. 🆕 Tạo buổi sinh hoạt thủ công
+// =========================
+    @Override
+    @Transactional
+    public Map<String, Object> createSession(Long clubId, ClubAttendanceSessionRequest req) {
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy CLB"));
+
+        // ❌ Ngày đã có session
+        if (sessionRepo.findByClub_ClubIdAndDate(clubId, req.getDate()).isPresent()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ngày này đã có buổi sinh hoạt.");
+        }
+
+        // ❌ Ngày trong quá khứ
+        if (req.getDate().isBefore(LocalDate.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Không thể tạo buổi sinh hoạt cho ngày trong quá khứ.");
+        }
+
+        ClubAttendanceSession session = sessionRepo.save(ClubAttendanceSession.builder()
+                .club(club)
+                .date(req.getDate())
+                .startTime(req.getStartTime())
+                .endTime(req.getEndTime())
+                .note(req.getNote())
+                .isLocked(false)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        return Map.of(
+                "message", "Tạo buổi sinh hoạt thành công",
+                "sessionId", session.getId(),
+                "clubId", club.getClubId(),
+                "date", session.getDate(),
+                "startTime", session.getStartTime(),
+                "endTime", session.getEndTime(),
+                "note", session.getNote()
+        );
+    }
+
 }
