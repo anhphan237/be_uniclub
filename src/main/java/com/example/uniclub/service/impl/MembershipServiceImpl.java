@@ -10,7 +10,9 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubService;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MembershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +32,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final ClubService clubService;
+    private final EmailService emailService;
 
     // ========================== 🔹 Helper Mapping ==========================
     private MembershipResponse toResp(Membership m) {
@@ -74,8 +79,46 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        if (membershipRepo.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new ApiException(HttpStatus.CONFLICT, "Already applied or member of this club");
+        Optional<Membership> existing = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
+
+        if (existing.isPresent()) {
+            Membership old = existing.get();
+
+            if (old.getState() == MembershipStateEnum.KICKED ||
+                    old.getState() == MembershipStateEnum.INACTIVE ||
+                    old.getState() == MembershipStateEnum.REJECTED) {
+
+                old.setState(MembershipStateEnum.PENDING);
+                old.setJoinedDate(LocalDate.now());
+                membershipRepo.save(old);
+
+                // 📧 Gửi email thông báo cho Leader/Phó CLB
+                List<Membership> leaders = membershipRepo.findByClub_ClubId(clubId)
+                        .stream()
+                        .filter(m -> m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER)
+                        .toList();
+
+                String subject = "Member re-applied after being kicked - " + club.getName();
+                String body = """
+                    <p>Dear Leader/Vice Leader,</p>
+                    <p>The member <b>%s</b> (%s) who was previously <b>kicked</b> has re-applied to join your club <b>%s</b>.</p>
+                    <p>Please review their new application in the UniClub system.</p>
+                    <br>
+                    <p>UniClub Platform</p>
+                """.formatted(user.getFullName(), user.getEmail(), club.getName());
+
+                for (Membership leader : leaders) {
+                    try {
+                        emailService.sendEmail(leader.getUser().getEmail(), subject, body);
+                    } catch (Exception e) {
+                        System.out.println("⚠️ Failed to send re-apply email to " + leader.getUser().getEmail());
+                    }
+                }
+
+                return toResp(old);
+            } else {
+                throw new ApiException(HttpStatus.CONFLICT, "Already applied or member of this club");
+            }
         }
 
         Membership m = Membership.builder()
@@ -99,8 +142,6 @@ public class MembershipServiceImpl implements MembershipService {
 
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
-
-        // ✅ Cập nhật lại member_count trong DB
         clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
@@ -113,8 +154,6 @@ public class MembershipServiceImpl implements MembershipService {
 
         m.setState(MembershipStateEnum.REJECTED);
         membershipRepo.save(m);
-
-        // ✅ Rejected không tính vào count → vẫn cập nhật để đảm bảo chính xác
         clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
@@ -127,8 +166,6 @@ public class MembershipServiceImpl implements MembershipService {
 
         m.setState(MembershipStateEnum.INACTIVE);
         membershipRepo.save(m);
-
-        // ✅ Sau khi xóa → cập nhật lại member_count
         clubService.updateMemberCount(m.getClub().getClubId());
     }
 
@@ -182,7 +219,6 @@ public class MembershipServiceImpl implements MembershipService {
                 .toList();
     }
 
-    // ========================== 🔹 5. Lấy danh sách theo Leader ==========================
     @Override
     public List<MembershipResponse> getMembersByLeaderName(String leaderName) {
         Membership leaderMembership = membershipRepo
@@ -193,7 +229,6 @@ public class MembershipServiceImpl implements MembershipService {
         return getMembersByClub(clubId);
     }
 
-    // ========================== 🔹 6. Update vai trò từ chuỗi ==========================
     @Override
     public MembershipResponse updateRole(Long membershipId, Long approverId, String newRole) {
         ClubRoleEnum roleEnum;
@@ -205,7 +240,6 @@ public class MembershipServiceImpl implements MembershipService {
         return updateClubRole(membershipId, roleEnum, approverId);
     }
 
-    // ========================== 🔹 7. Cập nhật số lượng thành viên CLB ==========================
     @Transactional
     public void updateClubMemberCount(Long clubId) {
         int total = (int) membershipRepo.countByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE);
@@ -214,6 +248,7 @@ public class MembershipServiceImpl implements MembershipService {
         club.setMemberCount(total);
         clubRepo.save(club);
     }
+
     @Override
     public List<MembershipResponse> getPendingMembers(Long clubId) {
         return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.PENDING)
@@ -222,4 +257,58 @@ public class MembershipServiceImpl implements MembershipService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public String kickMember(CustomUserDetails principal, Long membershipId) {
+        Membership membership = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        Club club = membership.getClub();
+
+        Membership actorMembership = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(principal.getUser().getUserId(), club.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
+
+        if (!(actorMembership.getClubRole() == ClubRoleEnum.LEADER
+                || actorMembership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can kick members");
+        }
+
+        if (Objects.equals(membership.getUser().getUserId(), principal.getUser().getUserId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot kick yourself");
+        }
+
+        if (membership.getClubRole() == ClubRoleEnum.LEADER
+                || membership.getClubRole() == ClubRoleEnum.VICE_LEADER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot kick the Club Leader or Vice Leader");
+        }
+
+        membership.setState(MembershipStateEnum.KICKED);
+        membershipRepo.save(membership);
+
+        String kickerName = principal.getUser().getFullName();
+        String receiverName = membership.getUser().getFullName();
+        String clubName = club.getName();
+
+        String subject = "You have been removed from " + clubName + " by " + kickerName;
+
+        String body = """
+        <p>Dear %s,</p>
+        <p>You have been <b>removed</b> from the club <b>%s</b> by <b>%s</b>.</p>
+        <p>If you believe this was a mistake, please reach out to your Club Leader or University Staff.</p>
+        <br>
+        <p>Best regards,<br>
+        %s<br>
+        %s Club<br>
+        UniClub Platform</p>
+        """.formatted(receiverName, clubName, kickerName, kickerName, clubName);
+
+        try {
+            emailService.sendEmail(membership.getUser().getEmail(), subject, body);
+        } catch (Exception e) {
+            System.out.println("⚠️ Failed to send email to " + membership.getUser().getEmail());
+        }
+
+        return "👢 Member " + receiverName + " has been kicked from " + clubName + " by " + kickerName;
+    }
 }

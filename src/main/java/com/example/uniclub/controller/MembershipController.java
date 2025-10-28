@@ -121,5 +121,14 @@ public class MembershipController {
             @AuthenticationPrincipal CustomUserDetails user) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMyMemberships(user.getId())));
     }
+    @PatchMapping("/memberships/{membershipId}/kick")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<String>> kickMember(
+            @PathVariable Long membershipId,
+            @AuthenticationPrincipal CustomUserDetails user) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                membershipService.kickMember(user, membershipId)
+        ));
+    }
 
 }
