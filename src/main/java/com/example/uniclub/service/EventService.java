@@ -50,5 +50,9 @@ public interface EventService {
     String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
     List<EventResponse> getActiveEvents();
 
+    String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
+    String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
+    String finishEvent(Long eventId, CustomUserDetails principal);
+    String settleEvent(Long eventId, CustomUserDetails principal);
 
 }

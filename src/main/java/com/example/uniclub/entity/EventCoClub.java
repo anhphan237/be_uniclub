@@ -4,7 +4,7 @@ import com.example.uniclub.enums.EventCoHostStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "event_co_clubs")
@@ -28,6 +28,12 @@ public class EventCoClub {
     private Club club;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "varchar(255) default 'PENDING'")
+    @Column(nullable = false)
     private EventCoHostStatusEnum status = EventCoHostStatusEnum.PENDING;
+
+    @Column
+    private LocalDateTime respondedAt;
+
+    @Column(length = 255)
+    private String note;
 }

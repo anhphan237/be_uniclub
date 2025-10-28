@@ -1,5 +1,7 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.entity.Club;
+import com.example.uniclub.entity.Event;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -69,4 +71,40 @@ public class NotificationServiceImpl implements NotificationService {
 
         emailService.sendEmail(leaderEmail, subject, content);
     }
+    @Override
+    public void notifyCoHostInvite(Club coHost, Event event) {
+        System.out.printf("📩 Notify Co-Host [%s] about new event [%s]%n",
+                coHost.getName(), event.getName());
+    }
+
+    @Override
+    public void notifyUniStaffWaiting(Event event) {
+        System.out.printf("📩 Notify UniStaff: Event [%s] waiting for co-host confirmation%n",
+                event.getName());
+    }
+
+    @Override
+    public void notifyHostEventRejectedByCoHost(Event event, Club coClub) {
+        System.out.printf("❌ Notify Host [%s]: Co-Host [%s] rejected event [%s]%n",
+                event.getHostClub().getName(), coClub.getName(), event.getName());
+    }
+
+    @Override
+    public void notifyUniStaffReadyForReview(Event event) {
+        System.out.printf("✅ Notify UniStaff: All co-hosts accepted event [%s], ready for review%n",
+                event.getName());
+    }
+
+    @Override
+    public void notifyEventRejected(Event event) {
+        System.out.printf("❌ Notify Host [%s]: Event [%s] rejected by UniStaff%n",
+                event.getHostClub().getName(), event.getName());
+    }
+
+    @Override
+    public void notifyEventApproved(Event event) {
+        System.out.printf("🎉 Notify Host [%s]: Event [%s] approved by UniStaff%n",
+                event.getHostClub().getName(), event.getName());
+    }
+
 }

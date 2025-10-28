@@ -45,6 +45,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
     // ✅ Lấy tất cả membership của 1 club
     List<Membership> findByClub_ClubId(Long clubId);
+    boolean existsByUser_UserIdAndClub_ClubIdAndClubRoleIn(Long userId, Long clubId, List<com.example.uniclub.enums.ClubRoleEnum> roles);
 
 
 
