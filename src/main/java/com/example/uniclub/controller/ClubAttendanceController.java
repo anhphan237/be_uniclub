@@ -6,10 +6,12 @@ import com.example.uniclub.enums.AttendanceStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubAttendanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 @RestController
@@ -31,11 +33,13 @@ public class ClubAttendanceController {
     // ============================================================
     // 📜 XEM LỊCH SỬ ĐIỂM DANH CLB THEO NGÀY
     // ============================================================
-    @PreAuthorize("hasRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     @GetMapping("/{clubId}/history")
     public Map<String, Object> getHistory(@PathVariable Long clubId,
-                                          @RequestParam String date) {
-        return attendanceService.getAttendanceHistory(clubId, date);
+                                          @RequestParam
+                                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                                          LocalDate date) {
+        return attendanceService.getAttendanceHistory(clubId, date.toString());
     }
 
     // ============================================================
@@ -63,7 +67,7 @@ public class ClubAttendanceController {
     // ============================================================
     // 👤 THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CÁ NHÂN
     // ============================================================
-    @PreAuthorize("hasRole('STUDENT','CLUB_LEADER')")
+    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
     @GetMapping("/member/{membershipId}/history")
     public Map<String, Object> getMemberHistory(@PathVariable Long membershipId) {
         return attendanceService.getMemberAttendanceHistory(membershipId);
@@ -74,8 +78,10 @@ public class ClubAttendanceController {
     // ============================================================
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @GetMapping("/university/overview")
-    public Map<String, Object> getUniversityOverview(@RequestParam(required = false) String date) {
-        return attendanceService.getUniversityAttendanceOverview(date);
+    public Map<String, Object> getUniversityOverview(@RequestParam(required = false)
+                                                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                                                     LocalDate date) {
+        return attendanceService.getUniversityAttendanceOverview(date != null ? date.toString() : null);
     }
 
     // ============================================================
@@ -98,5 +104,4 @@ public class ClubAttendanceController {
                                         @AuthenticationPrincipal CustomUserDetails user) {
         return attendanceService.markBulk(sessionId, req, user);
     }
-
 }

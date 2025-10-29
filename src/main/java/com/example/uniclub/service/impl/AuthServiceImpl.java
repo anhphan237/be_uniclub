@@ -4,8 +4,8 @@ import com.example.uniclub.dto.request.LoginRequest;
 import com.example.uniclub.dto.request.RegisterRequest;
 import com.example.uniclub.dto.response.AuthResponse;
 import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.enums.UserStatusEnum;
-import com.example.uniclub.enums.WalletOwnerTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
@@ -55,18 +55,31 @@ public class AuthServiceImpl {
         List<Long> clubIds = null;
         Boolean isClubStaff = null;
 
+        // ==============================================
+        // 🔸 CLUB_LEADER → lấy CLB có staff và ACTIVE
+        // ==============================================
         if ("CLUB_LEADER".equals(roleName)) {
             var leaderMembership = membershipRepository.findByUser_UserId(user.getUserId())
                     .stream()
                     .filter(Membership::isStaff)
+                    .filter(m -> m.getState() == MembershipStateEnum.ACTIVE) // ✅ So sánh Enum đúng cách
                     .findFirst()
                     .orElse(null);
 
             if (leaderMembership != null) {
                 clubId = leaderMembership.getClub().getClubId();
             }
-        } else if ("STUDENT".equals(roleName)) {
-            var memberships = membershipRepository.findByUser_UserId(user.getUserId());
+        }
+
+        // ==============================================
+        // 🔸 STUDENT → lấy tất cả CLB có state = ACTIVE
+        // ==============================================
+        else if ("STUDENT".equals(roleName)) {
+            var memberships = membershipRepository.findByUser_UserId(user.getUserId())
+                    .stream()
+                    .filter(m -> m.getState() == MembershipStateEnum.ACTIVE) // ✅ Lọc ACTIVE
+                    .toList();
+
             clubIds = memberships.stream()
                     .map(m -> m.getClub().getClubId())
                     .toList();
@@ -75,6 +88,9 @@ public class AuthServiceImpl {
             isClubStaff = hasStaffRole;
         }
 
+        // ==============================================
+        // 🔸 Build Response
+        // ==============================================
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
@@ -95,7 +111,6 @@ public class AuthServiceImpl {
     // ==============================================
     // 🔹 Đăng ký
     // ==============================================
-
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
@@ -135,7 +150,6 @@ public class AuthServiceImpl {
         return responseBuilder.build();
     }
 
-
     // ==============================================
     // 🔹 Quên mật khẩu — Gửi email reset password
     // ==============================================
@@ -143,10 +157,8 @@ public class AuthServiceImpl {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No account found with this email."));
 
-        // Xóa token cũ nếu có
         tokenRepository.deleteByUser_UserId(user.getUserId());
 
-        // Sinh token mới
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .token(token)
@@ -155,7 +167,6 @@ public class AuthServiceImpl {
                 .build();
         tokenRepository.save(resetToken);
 
-        // Gửi email
         String resetLink = "https://uniclub-fpt.vercel.app/reset-password?token=" + token + "&email=" + email;
         String subject = "Reset your UniClub password";
         String content = """
