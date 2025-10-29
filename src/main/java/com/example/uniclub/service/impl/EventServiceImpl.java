@@ -136,7 +136,12 @@ public class EventServiceImpl implements EventService {
         // 🔹 6) Mã check-in ngẫu nhiên
         String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // 🔹 7) Tạo event
+        // 🔹 7) Xác định trạng thái ban đầu
+        EventStatusEnum initialStatus = coHostClubs.isEmpty()
+                ? EventStatusEnum.WAITING_UNISTAFF_APPROVAL   // nếu chỉ có 1 CLB tổ chức
+                : EventStatusEnum.WAITING_COCLUB_APPROVAL;    // nếu có co-host
+
+        // 🔹 8) Tạo event
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -146,7 +151,7 @@ public class EventServiceImpl implements EventService {
                 .startTime(req.startTime())
                 .endTime(req.endTime())
                 .location(location)
-                .status(EventStatusEnum.WAITING_COCLUB_APPROVAL)
+                .status(initialStatus)
                 .checkInCode(randomCode)
                 .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
@@ -155,26 +160,35 @@ public class EventServiceImpl implements EventService {
                 .budgetPoints(req.budgetPoints())
                 .build();
 
-        // 🔹 8) Co-host relations
-        List<EventCoClub> coHostRelations = coHostClubs.stream()
-                .map(club -> EventCoClub.builder()
-                        .event(event)
-                        .club(club)
-                        .status(EventCoHostStatusEnum.PENDING)
-                        .build())
-                .toList();
-        event.setCoHostRelations(coHostRelations);
+        // 🔹 9) Nếu có co-host → tạo quan hệ chờ phê duyệt
+        if (!coHostClubs.isEmpty()) {
+            List<EventCoClub> coHostRelations = coHostClubs.stream()
+                    .map(club -> EventCoClub.builder()
+                            .event(event)
+                            .club(club)
+                            .status(EventCoHostStatusEnum.PENDING)
+                            .build())
+                    .toList();
+            event.setCoHostRelations(coHostRelations);
+        }
 
         eventRepo.save(event);
 
-        // 🔹 9) Gửi thông báo
-        for (Club co : coHostClubs) {
-            notificationService.notifyCoHostInvite(co, event);
+        // 🔹 10) Gửi thông báo tùy theo loại sự kiện
+        if (coHostClubs.isEmpty()) {
+            // Không có co-host → gửi thẳng cho UniStaff duyệt
+            notificationService.notifyUniStaffReadyForReview(event);
+        } else {
+            // Có co-host → gửi lời mời đến từng co-host và báo UniStaff chờ
+            for (Club co : coHostClubs) {
+                notificationService.notifyCoHostInvite(co, event);
+            }
+            notificationService.notifyUniStaffWaiting(event);
         }
-        notificationService.notifyUniStaffWaiting(event);
 
         return toResp(event);
     }
+
 
     // =========================================================
     // 🔹 CO-HOST PHẢN HỒI (ACCEPT / REJECT)
