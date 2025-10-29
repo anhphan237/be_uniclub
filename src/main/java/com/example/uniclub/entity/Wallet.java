@@ -58,5 +58,17 @@ public class Wallet {
 
     @Column(nullable = false)
     private boolean active = true;
-
+    @PrePersist
+    @PreUpdate
+    private void validateOwnerConsistency() {
+        int count = 0;
+        if (membership != null) count++;
+        if (club != null) count++;
+        if (event != null) count++;
+        if (count != 1) {
+            throw new IllegalStateException(
+                    "Wallet must belong to exactly one owner (club, event, or membership)"
+            );
+        }
+    }
 }

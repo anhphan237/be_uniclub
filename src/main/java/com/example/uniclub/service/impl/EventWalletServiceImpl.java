@@ -35,6 +35,7 @@ public class EventWalletServiceImpl implements EventWalletService {
                 .ownerType(WalletOwnerTypeEnum.EVENT)
                 .balancePoints(0L)
                 .event(event)
+                .club(null)
                 .build();
 
         walletRepo.save(wallet);
