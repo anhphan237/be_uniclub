@@ -148,7 +148,7 @@ public class EventController {
     }
 
     @GetMapping("/{eventId}/wallet")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<?>> getEventWallet(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventWallet(eventId)));
     }
