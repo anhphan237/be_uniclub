@@ -30,4 +30,13 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     // ✅ Đếm số event mà user đã đăng ký trong 1 khoảng thời gian (dùng cho MemberLevelScheduler)
     @Query("SELECT COUNT(r) FROM EventRegistration r WHERE r.user.userId = :userId AND r.registeredAt >= :since")
     long countByUser_UserIdAndRegisteredAtAfter(@Param("userId") Long userId, @Param("since") LocalDate since);
+
+    @Query("SELECT COUNT(r) FROM EventRegistration r " +
+            "WHERE r.user.userId = :userId " +
+            "AND r.registeredAt BETWEEN :start AND :end")
+    long countByUser_UserIdAndRegisteredAtBetween(
+            @Param("userId") Long userId,
+            @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end);
+
 }
