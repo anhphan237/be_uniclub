@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public record EventCreateRequest(
 
@@ -25,11 +26,14 @@ public record EventCreateRequest(
         @NotNull(message = "Event date is required")
         LocalDate date,
 
-        @NotNull(message = "Start time is required")
+        @Schema(type = "string", example = "09:00")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
         LocalTime startTime,
 
-        @NotNull(message = "End time is required")
+        @Schema(type = "string", example = "15:00")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
         LocalTime endTime,
+
 
         @NotNull(message = "Location ID is required")
         Long locationId,
