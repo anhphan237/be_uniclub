@@ -138,8 +138,8 @@ public class EventPointsServiceImpl implements EventPointsService {
     }
 
     // =========================================================
-    // 🔹 END EVENT → REWARD + RETURN SURPLUS
-    // =========================================================
+// 🔹 END EVENT → REWARD + RETURN SURPLUS
+// =========================================================
     @Override
     @Transactional
     public String endEvent(CustomUserDetails principal, EventEndRequest req) {
@@ -154,26 +154,33 @@ public class EventPointsServiceImpl implements EventPointsService {
             if (reg.getAttendanceLevel() == AttendanceLevelEnum.NONE) continue;
 
             int commit = reg.getCommittedPoints();
-            int payout = 0;
-            if (reg.getAttendanceLevel() == AttendanceLevelEnum.HALF) payout = commit;
-            else if (reg.getAttendanceLevel() == AttendanceLevelEnum.FULL) payout = 2 * commit;
+            int baseReward = switch (reg.getAttendanceLevel()) {
+                case HALF -> commit;
+                case FULL -> 2 * commit;
+                default -> 0;
+            };
 
-            if (payout > 0) {
+            if (baseReward > 0) {
                 Membership membership = membershipRepo
                         .findByUser_UserIdAndClub_ClubId(reg.getUser().getUserId(), event.getHostClub().getClubId())
                         .orElse(null);
                 if (membership != null) {
-                    walletService.transferPoints(eventWallet, membership.getWallet(), payout,
-                            payout == commit ? WalletTransactionTypeEnum.REFUND_COMMIT.name()
-                                    : WalletTransactionTypeEnum.BONUS_REWARD.name());
-                    totalReward += payout;
+                    double clubMultiplier = event.getHostClub().getClubMultiplier();
+                    double memberMultiplier = membership.getMemberMultiplier();
+                    double eventMultiplier = event.getType() == EventTypeEnum.SPECIAL ? 1.5 : 1.0;
+
+                    int finalReward = (int) Math.round(baseReward * clubMultiplier * memberMultiplier * eventMultiplier);
+
+                    walletService.transferPoints(eventWallet, membership.getWallet(), finalReward,
+                            WalletTransactionTypeEnum.BONUS_REWARD.name() + " (multiplied)");
+
+                    totalReward += finalReward;
                     reg.setStatus(RegistrationStatusEnum.REFUNDED);
                     regRepo.save(reg);
                 }
             }
         }
 
-        // 🔹 Set event complete
         event.setStatus(EventStatusEnum.COMPLETED);
         eventRepo.save(event);
 
@@ -190,12 +197,12 @@ public class EventPointsServiceImpl implements EventPointsService {
             }
         }
 
-        // ✅ ĐÓNG ví sự kiện thay vì xóa
         eventWallet.setActive(false);
         walletRepo.save(eventWallet);
 
-        return "🏁 Event completed. Total reward " + totalReward + " pts; leftover returned.";
+        return "🏁 Event completed. Total reward " + totalReward + " pts (multiplied); leftover returned.";
     }
+
 
     // =========================================================
     // 🔹 UTIL

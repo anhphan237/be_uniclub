@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.ClubActivityStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -44,4 +45,10 @@ public class Club {
     @Builder.Default
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ClubActivityStatusEnum activityStatus = ClubActivityStatusEnum.ACTIVE;
+
+    @Column(nullable = false)
+    private Double clubMultiplier = 1.0;
 }
