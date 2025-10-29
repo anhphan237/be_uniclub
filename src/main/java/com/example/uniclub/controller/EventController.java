@@ -241,13 +241,14 @@ public class EventController {
 
     @PostMapping("/{eventId}/approve")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> approveEvent(@PathVariable Long eventId) {
-        Event event = eventService.getEntity(eventId);
-        eventWalletService.createEventWallet(event);
-        eventWalletService.grantBudgetToEvent(event, event.getBudgetPoints());
-        event.setStatus(EventStatusEnum.APPROVED);
-        return ResponseEntity.ok(ApiResponse.msg("Event approved and wallet funded"));
+    public ResponseEntity<ApiResponse<String>> approveEvent(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long eventId,
+            @RequestParam(required = false) Integer budgetPoints) {
+        String msg = eventService.reviewByUniStaff(eventId, true, principal, budgetPoints);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
     }
+
 
     @PostMapping("/{eventId}/settle")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
@@ -316,6 +317,12 @@ public class EventController {
     @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<?>> getActiveEvents() {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getActiveEvents()));
+    }
+    @PostMapping("/{eventId}/complete")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> completeEvent(@PathVariable Long eventId) {
+        String msg = eventService.markEventCompleted(eventId);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
     }
 
 

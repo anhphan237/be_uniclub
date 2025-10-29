@@ -234,8 +234,10 @@ public class WalletController {
     // 📜 7️⃣ LỊCH SỬ GIAO DỊCH
     // ------------------------------------------------
     @GetMapping("/{walletId}/transactions")
-    public ResponseEntity<?> getTransactionsByWallet(@PathVariable Long walletId) {
-        return ResponseEntity.ok(walletService.getTransactionsByWallet(walletId));
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
+    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getWalletTransactions(
+            @PathVariable Long walletId) {
+        return ResponseEntity.ok(ApiResponse.ok(walletService.getWalletTransactions(walletId)));
     }
 
     @GetMapping("/transactions/uni-to-club")
@@ -260,5 +262,6 @@ public class WalletController {
             @Valid @RequestBody WalletRewardBatchRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleMembers(req)));
     }
+
 
 }

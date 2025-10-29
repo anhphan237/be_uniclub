@@ -54,5 +54,6 @@ public interface EventService {
     String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
     String finishEvent(Long eventId, CustomUserDetails principal);
     String settleEvent(Long eventId, CustomUserDetails principal);
+    String markEventCompleted(Long eventId);
 
 }

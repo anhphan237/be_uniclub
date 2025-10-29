@@ -36,5 +36,6 @@ public interface WalletService {
     void logUniToClubTopup(Wallet clubWallet, int points, String reason);
     void logClubToMemberReward(Wallet memberWallet, int points, String reason);
     Wallet getUniversityWallet();
+    List<WalletTransactionResponse> getWalletTransactions(Long walletId);
 
 }

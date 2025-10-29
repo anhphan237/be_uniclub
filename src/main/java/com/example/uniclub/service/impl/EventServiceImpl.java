@@ -696,5 +696,19 @@ public class EventServiceImpl implements EventService {
         return String.format("✅ Event '%s' has been SETTLED (total %.0f points processed).",
                 event.getName(), (double) totalPoints);
     }
+    @Override
+    @Transactional
+    public String markEventCompleted(Long eventId) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        if (event.getStatus() != EventStatusEnum.SETTLED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event must be SETTLED before marking as COMPLETED");
+        }
+
+        event.setStatus(EventStatusEnum.COMPLETED);
+        eventRepo.save(event);
+        return "📦 Event '" + event.getName() + "' has been archived (COMPLETED).";
+    }
 
 }

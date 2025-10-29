@@ -208,5 +208,29 @@ public class WalletServiceImpl implements WalletService {
         return walletRepo.findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum.CLUB, "University")
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "University wallet not found"));
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<WalletTransactionResponse> getWalletTransactions(Long walletId) {
+        Wallet wallet = walletRepo.findById(walletId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
+
+        return txRepo.findByWallet_WalletIdOrderByCreatedAtDesc(walletId)
+                .stream()
+                .map(tx -> WalletTransactionResponse.builder()
+                        .id(tx.getId())
+                        .type(tx.getType().name())
+                        .amount(tx.getAmount())
+                        .description(tx.getDescription())
+                        .createdAt(tx.getCreatedAt())
+                        .receiverName(
+                                (wallet.getClub() != null)
+                                        ? wallet.getClub().getName()
+                                        : (wallet.getMembership() != null && wallet.getMembership().getUser() != null)
+                                        ? wallet.getMembership().getUser().getFullName()
+                                        : null
+                        )
+                        .build())
+                .toList();
+    }
 
 }

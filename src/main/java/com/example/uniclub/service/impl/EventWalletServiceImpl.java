@@ -78,10 +78,11 @@ public class EventWalletServiceImpl implements EventWalletService {
             walletService.increase(clubWallet, share);
         }
 
-        walletRepo.delete(eventWallet);
-        event.setWallet(null);
-        eventRepo.save(event);
+        // ✅ Không xóa ví, chỉ reset số dư
+        eventWallet.setBalancePoints(0L);
+        walletRepo.save(eventWallet);
     }
+
     @Override
     @Transactional(readOnly = true)
     public EventWalletResponse getEventWalletDetail(Long eventId) {
