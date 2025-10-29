@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -62,7 +63,7 @@ public class EventServiceImpl implements EventService {
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
                         event.getHostClub().getName(),
-                        EventCoHostStatusEnum.APPROVED // host coi như approved by default
+                        EventCoHostStatusEnum.APPROVED
                 ))
                 .coHostedClubs(
                         event.getCoHostRelations() == null ? List.of() :
@@ -74,8 +75,10 @@ public class EventServiceImpl implements EventService {
                                         ))
                                         .toList()
                 )
+                .budgetPoints(event.getBudgetPoints())
                 .build();
     }
+
 
     // =========================================================
     // 🔹 TẠO SỰ KIỆN (HOST CLUB gửi → chờ Co-host phản hồi)
@@ -84,34 +87,56 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public EventResponse create(EventCreateRequest req) {
 
-        // 1) Location tồn tại
+        // 🔹 0) Kiểm tra ngày & giờ không ở quá khứ
+        LocalDate today = LocalDate.now();
+        LocalDate eventDate = req.date();
+
+        if (eventDate.isBefore(today)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ngày sự kiện không được ở quá khứ.");
+        }
+
+        if (eventDate.isEqual(today)) {
+            LocalTime now = LocalTime.now();
+            if (req.startTime() != null && req.startTime().isBefore(now)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Thời gian bắt đầu không được ở quá khứ.");
+            }
+            if (req.endTime() != null && req.endTime().isBefore(now)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Thời gian kết thúc không được ở quá khứ.");
+            }
+        }
+
+        if (req.startTime() != null && req.endTime() != null && req.endTime().isBefore(req.startTime())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời gian bắt đầu.");
+        }
+
+        // 🔹 1) Location tồn tại
         Location location = locationRepo.findById(req.locationId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Địa điểm không tồn tại"));
 
-        // 2) Sức chứa
+        // 🔹 2) Kiểm tra sức chứa
         if (req.maxCheckInCount() != null && req.maxCheckInCount() > location.getCapacity()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     String.format("Địa điểm '%s' chỉ chứa tối đa %d người.", location.getName(), location.getCapacity()));
         }
 
-        // 3) Host Club tồn tại
+        // 🔹 3) Host Club tồn tại
         Club hostClub = clubRepo.findById(req.hostClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club không tồn tại"));
 
-        // 4) Co-host list (có thể rỗng)
+        // 🔹 4) Co-host list (có thể rỗng)
         List<Club> coHostClubs = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
 
-        // 5) Ngân sách nhập
+        // 🔹 5) Ngân sách
         if (req.budgetPoints() == null || req.budgetPoints() <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập ngân sách (budgetPoints) hợp lệ (>0).");
         }
 
-        // 6) Mã check-in ngẫu nhiên
+        // 🔹 6) Mã check-in ngẫu nhiên
         String randomCode = "EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        // 7) Tạo event: chờ Co-host phản hồi
+        // 🔹 7) Tạo event
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -121,7 +146,7 @@ public class EventServiceImpl implements EventService {
                 .startTime(req.startTime())
                 .endTime(req.endTime())
                 .location(location)
-                .status(EventStatusEnum.WAITING_COCLUB_APPROVAL) // ⏳ chờ co-host
+                .status(EventStatusEnum.WAITING_COCLUB_APPROVAL)
                 .checkInCode(randomCode)
                 .maxCheckInCount(req.maxCheckInCount())
                 .currentCheckInCount(0)
@@ -130,7 +155,7 @@ public class EventServiceImpl implements EventService {
                 .budgetPoints(req.budgetPoints())
                 .build();
 
-        // 8) Tạo quan hệ Co-host (mặc định PENDING)
+        // 🔹 8) Co-host relations
         List<EventCoClub> coHostRelations = coHostClubs.stream()
                 .map(club -> EventCoClub.builder()
                         .event(event)
@@ -142,11 +167,11 @@ public class EventServiceImpl implements EventService {
 
         eventRepo.save(event);
 
-        // 9) Thông báo
+        // 🔹 9) Gửi thông báo
         for (Club co : coHostClubs) {
-            notificationService.notifyCoHostInvite(co, event); // gửi cho co-host
+            notificationService.notifyCoHostInvite(co, event);
         }
-        notificationService.notifyUniStaffWaiting(event); // unistaff thấy "waiting co-host"
+        notificationService.notifyUniStaffWaiting(event);
 
         return toResp(event);
     }
@@ -467,6 +492,7 @@ public class EventServiceImpl implements EventService {
                 .name(e.getName())
                 .date(e.getDate())
                 .status(e.getStatus())
+                .budgetPoints(e.getBudgetPoints())
                 .build();
     }
 
