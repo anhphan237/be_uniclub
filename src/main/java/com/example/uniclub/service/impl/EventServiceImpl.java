@@ -494,4 +494,12 @@ public class EventServiceImpl implements EventService {
 
         return "📤 Event '" + event.getName() + "' submitted to UniStaff (PENDING_UNISTAFF).";
     }
+    @Override
+    public List<EventResponse> getAllEvents() {
+        return eventRepo.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
 }

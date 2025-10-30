@@ -36,6 +36,7 @@ public interface EventService {
     List<EventResponse> getCoHostedEvents(Long clubId);
 
     Event getEntity(Long id);
+    List<EventResponse> getAllEvents();
 
     // Co-host handling
     String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
