@@ -271,5 +271,10 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.ok(events));
     }
 
+    @GetMapping("/settled")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<EventResponse>>> getSettledEvents() {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getSettledEvents()));
+    }
 
 }

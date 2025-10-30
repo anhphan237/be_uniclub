@@ -519,5 +519,12 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
+    @Override
+    public List<EventResponse> getSettledEvents() {
+        return eventRepo.findAllSettledEvents()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 
 }

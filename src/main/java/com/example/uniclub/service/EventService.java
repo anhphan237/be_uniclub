@@ -72,6 +72,7 @@ public interface EventService {
     List<EventStaffResponse> getEventStaffList(Long eventId);
 
     List<EventRegistrationResponse> getRegisteredEventsByUser(Long userId);
+    List<EventResponse> getSettledEvents();
 
 
 }

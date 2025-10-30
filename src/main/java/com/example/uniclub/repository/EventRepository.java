@@ -70,4 +70,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     List<Event> findAllByStatusAndDate(EventStatusEnum status, LocalDate date);
 
+    @Query("""
+    SELECT e FROM Event e
+    WHERE e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
+    ORDER BY e.date DESC
+""")
+    List<Event> findAllSettledEvents();
+
 }
