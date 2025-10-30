@@ -73,16 +73,22 @@ public class WalletServiceImpl implements WalletService {
     // ================================================================
     @Override
     @Transactional
-    public void increase(Wallet wallet, int points) {
+    public void increase(Wallet wallet, long points) {
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
         wallet.setBalancePoints(wallet.getBalancePoints() + points);
         walletRepo.save(wallet);
     }
 
     @Override
     @Transactional
-    public void decrease(Wallet wallet, int points) {
+    public void decrease(Wallet wallet, long points) {
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
+
         if (wallet.getBalancePoints() < points)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient wallet balance");
+
         wallet.setBalancePoints(wallet.getBalancePoints() - points);
         walletRepo.save(wallet);
     }
@@ -92,12 +98,11 @@ public class WalletServiceImpl implements WalletService {
     // ================================================================
     @Override
     @Transactional
-    public void addPoints(Wallet wallet, int points, String description) {
+    public void addPoints(Wallet wallet, long points, String description) {
         if (points <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
 
-        wallet.setBalancePoints(wallet.getBalancePoints() + points);
-        walletRepo.save(wallet);
+        increase(wallet, points);
 
         txRepo.save(WalletTransaction.builder()
                 .wallet(wallet)
@@ -109,15 +114,11 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public void reducePoints(Wallet wallet, int points, String description) {
+    public void reducePoints(Wallet wallet, long points, String description) {
         if (points <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
 
-        if (wallet.getBalancePoints() < points)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient points");
-
-        wallet.setBalancePoints(wallet.getBalancePoints() - points);
-        walletRepo.save(wallet);
+        decrease(wallet, points);
 
         txRepo.save(WalletTransaction.builder()
                 .wallet(wallet)
@@ -129,26 +130,46 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public void transferPoints(Wallet from, Wallet to, int points, String description) {
+    public void transferPoints(Wallet from, Wallet to, long points, String description) {
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
+        if (from == null || to == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Wallets cannot be null");
         if (from.getWalletId().equals(to.getWalletId()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot transfer to the same wallet");
+        if (from.getBalancePoints() < points)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient balance in source wallet");
 
-        reducePoints(from, points, "[OUT] " + description);
-        addPoints(to, points, "[IN] " + description);
+        // Cập nhật số dư
+        from.setBalancePoints(from.getBalancePoints() - points);
+        to.setBalancePoints(to.getBalancePoints() + points);
+
+        walletRepo.save(from);
+        walletRepo.save(to);
+
+        // Log giao dịch
+        txRepo.save(WalletTransaction.builder()
+                .wallet(from)
+                .type(WalletTransactionTypeEnum.TRANSFER)
+                .amount(-points)
+                .description("[OUT] " + description)
+                .build());
 
         txRepo.save(WalletTransaction.builder()
                 .wallet(to)
                 .type(WalletTransactionTypeEnum.TRANSFER)
                 .amount(points)
-                .description("Transfer: " + description)
+                .description("[IN] " + description)
                 .build());
     }
 
     // ================================================================
-    // 🎓 GHI LOG CHÍNH XÁC THEO NGHIỆP VỤ
+    // 🎓 GHI LOG NGHIỆP VỤ
     // ================================================================
+    @Override
     @Transactional
-    public void logUniToClubTopup(Wallet clubWallet, int points, String reason) {
+    public void logUniToClubTopup(Wallet clubWallet, long points, String reason) {
+        if (points <= 0) return;
         txRepo.save(WalletTransaction.builder()
                 .wallet(clubWallet)
                 .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
@@ -157,8 +178,10 @@ public class WalletServiceImpl implements WalletService {
                 .build());
     }
 
+    @Override
     @Transactional
-    public void logClubToMemberReward(Wallet memberWallet, int points, String reason) {
+    public void logClubToMemberReward(Wallet memberWallet, long points, String reason) {
+        if (points <= 0) return;
         txRepo.save(WalletTransaction.builder()
                 .wallet(memberWallet)
                 .type(WalletTransactionTypeEnum.CLUB_TO_MEMBER)
@@ -202,12 +225,13 @@ public class WalletServiceImpl implements WalletService {
                         .build())
                 .toList();
     }
+
     @Override
     public Wallet getUniversityWallet() {
-        // Giả định UniStaff có 1 wallet duy nhất (ownerType = CLUB và name = "University")
         return walletRepo.findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum.CLUB, "University")
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "University wallet not found"));
     }
+
     @Override
     @Transactional(readOnly = true)
     public List<WalletTransactionResponse> getWalletTransactions(Long walletId) {
@@ -232,5 +256,4 @@ public class WalletServiceImpl implements WalletService {
                         .build())
                 .toList();
     }
-
 }

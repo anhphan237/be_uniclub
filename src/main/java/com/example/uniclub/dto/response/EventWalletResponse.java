@@ -10,7 +10,7 @@ public class EventWalletResponse {
     private Long eventId;
     private String eventName;
     private String hostClubName;
-    private Integer budgetPoints;
+    private Long budgetPoints;
     private Long balancePoints;
     private String ownerType;
     private LocalDateTime createdAt;
@@ -20,7 +20,7 @@ public class EventWalletResponse {
     public static class Transaction {
         private Long id;
         private String type;
-        private Integer amount;
+        private Long amount;
         private String description;
         private LocalDateTime createdAt;
     }

@@ -62,6 +62,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 """)
     List<Event> findActiveEvents(@Param("status") EventStatusEnum status, @Param("date") LocalDate date);
 
+    @Query("SELECT e FROM Event e " +
+            "LEFT JOIN FETCH e.coHostRelations r " +
+            "LEFT JOIN FETCH r.club " +
+            "WHERE e.eventId = :eventId")
+    Optional<Event> findByIdWithCoHostRelations(Long eventId);
 
+    List<Event> findAllByStatusAndDate(EventStatusEnum status, LocalDate date);
 
 }

@@ -10,6 +10,6 @@ import java.util.List;
 @Builder
 public class WalletRewardBatchRequest {
     private List<Long> targetIds;   // danh sách clubId hoặc membershipId
-    private Integer points;         // số điểm phát
+    private Long points;         // số điểm phát
     private String reason;          // lý do
 }

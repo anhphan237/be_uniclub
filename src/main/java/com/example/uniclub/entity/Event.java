@@ -59,7 +59,7 @@ public class Event {
     // 🧩 Trạng thái sự kiện
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private EventStatusEnum status = EventStatusEnum.WAITING_COCLUB_APPROVAL;
+    private EventStatusEnum status = EventStatusEnum.PENDING_COCLUB;
 
     // 🧾 Thống kê
     @Column(nullable = false)
@@ -97,9 +97,15 @@ public class Event {
                 .toList();
     }
 
-    /** Kiểm tra event đã settle/chốt chưa */
+    /** Kiểm tra event đã kết thúc hay chưa */
     @Transient
-    public boolean isSettled() {
-        return this.status == EventStatusEnum.SETTLED || this.status == EventStatusEnum.COMPLETED;
+    public boolean isCompleted() {
+        return this.status == EventStatusEnum.COMPLETED;
+    }
+
+    /** Kiểm tra event đang diễn ra không */
+    @Transient
+    public boolean isOngoing() {
+        return this.status == EventStatusEnum.ONGOING;
     }
 }

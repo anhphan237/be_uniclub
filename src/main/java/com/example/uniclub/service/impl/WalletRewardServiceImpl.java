@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.uniclub.repository.ClubRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     // ================================================================
     @Transactional
     @Override
-    public Wallet rewardPointsByMembershipId(User operator, Long membershipId, int points, String reason) {
+    public Wallet rewardPointsByMembershipId(User operator, Long membershipId, long points, String reason) {
         // 🔒 Kiểm tra quyền
         String role = operator.getRole().getRoleName();
         boolean isAdmin = role.equalsIgnoreCase("ADMIN");
@@ -52,8 +51,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         boolean isVice = role.equalsIgnoreCase("VICE_LEADER");
 
         if (!(isAdmin || isStaff || isLeader || isVice)) {
-            throw new ApiException(HttpStatus.FORBIDDEN,
-                    "You do not have permission to reward points.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to reward points.");
         }
 
         // 🔍 Lấy membership mục tiêu
@@ -62,8 +60,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         if (membership.getState() != MembershipStateEnum.APPROVED &&
                 membership.getState() != MembershipStateEnum.ACTIVE) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Membership is not active or approved.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Membership is not active or approved.");
         }
 
         Long targetClubId = membership.getClub().getClubId();
@@ -94,12 +91,12 @@ public class WalletRewardServiceImpl implements WalletRewardService {
                 reason == null ? "Manual reward" : reason);
 
         // 📩 Gửi email & milestone
-        Long totalPoints = membershipWallet.getBalancePoints();
+        long totalPoints = membershipWallet.getBalancePoints();
         rewardService.sendManualBonusEmail(
                 membership.getUser().getUserId(),
                 points,
                 reason,
-                totalPoints.intValue()
+                totalPoints
         );
 
         if (totalPoints >= 500 && totalPoints - points < 500)
@@ -117,7 +114,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     // ================================================================
     @Transactional
     @Override
-    public int rewardPointsByClubId(User operator, Long clubId, int points, String reason) {
+    public int rewardPointsByClubId(User operator, Long clubId, long points, String reason) {
         String role = operator.getRole().getRoleName();
         boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
 
@@ -143,7 +140,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
                     m.getUser().getUserId(),
                     points,
                     reason,
-                    wallet.getBalancePoints().intValue()
+                    wallet.getBalancePoints()
             );
             count++;
         }
@@ -155,7 +152,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     // ================================================================
     @Transactional
     @Override
-    public Wallet topUpClubWallet(User operator, Long clubId, int points, String reason) {
+    public Wallet topUpClubWallet(User operator, Long clubId, long points, String reason) {
         String role = operator.getRole().getRoleName();
         boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
         if (!isAdminOrStaff)
@@ -177,6 +174,10 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         return clubWallet;
     }
+
+    // ================================================================
+    // 🏦 THƯỞNG ĐIỂM HÀNG LOẠT CHO NHIỀU CLB
+    // ================================================================
     @Override
     @Transactional
     public List<WalletTransactionResponse> rewardMultipleClubs(WalletRewardBatchRequest req) {
@@ -203,6 +204,9 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         return responses;
     }
 
+    // ================================================================
+    // 👥 THƯỞNG ĐIỂM HÀNG LOẠT CHO NHIỀU THÀNH VIÊN
+    // ================================================================
     @Override
     @Transactional
     public List<WalletTransactionResponse> rewardMultipleMembers(WalletRewardBatchRequest req) {
@@ -228,5 +232,4 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         return responses;
     }
-
 }

@@ -41,4 +41,15 @@ public class EventRegistration {
 
     @Enumerated(EnumType.STRING)
     private AttendanceLevelEnum attendanceLevel;
+    // ==== Attendance timestamps (3-phase) ====
+    private java.time.LocalDateTime checkMidAt;   // giữa buổi
+    private java.time.LocalDateTime checkoutAt;   // cuối buổi
+
+    // ==== Fraud detection ====
+    @Column(nullable = false)
+    private boolean suspicious = false;
+
+    @Column(length = 255)
+    private String fraudReason;
+
 }

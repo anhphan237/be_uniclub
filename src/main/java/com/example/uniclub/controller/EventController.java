@@ -6,18 +6,17 @@ import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.dto.response.EventWalletResponse;
 import com.example.uniclub.entity.Event;
-import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.security.CustomUserDetails;
-import com.example.uniclub.service.EventPointsService;
-import com.example.uniclub.service.EventService;
-import com.example.uniclub.service.EventStaffService;
+import com.example.uniclub.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,10 +25,6 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-
-import com.example.uniclub.service.EventWalletService;
-import com.example.uniclub.service.EventSettlementService;
-import com.example.uniclub.service.AttendanceService;
 
 @RestController
 @RequestMapping("/api/events")
@@ -44,38 +39,49 @@ public class EventController {
     private final AttendanceService attendanceService;
 
     // =========================================================
-    // 🔹 1. CRUD APIs (Quản lý sự kiện)
+    // 🔹 1. CRUD APIs
     // =========================================================
 
+    /** 🟢 Tạo mới sự kiện (Admin / Leader) */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
-    public ResponseEntity<ApiResponse<EventResponse>> createEvent(
-            @Valid @RequestBody EventCreateRequest req) {
+    public ResponseEntity<ApiResponse<EventResponse>> createEvent(@Valid @RequestBody EventCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.create(req)));
     }
 
+    /** 🟢 Lấy chi tiết 1 sự kiện */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<EventResponse>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.get(id)));
     }
 
+    /** 🟢 Lấy danh sách tất cả sự kiện (phân trang) */
     @GetMapping
-    public ResponseEntity<?> list(Pageable pageable) {
+    public ResponseEntity<Page<EventResponse>> list(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(eventService.list(pageable));
     }
 
-    @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<EventResponse>> updateStatus(
-            @AuthenticationPrincipal CustomUserDetails principal,
+    /** 🟢 UniStaff duyệt / từ chối sự kiện */
+    @PutMapping("/events/{id}/status")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<String>> updateStatus(
             @PathVariable Long id,
-            @Valid @RequestBody EventStatusUpdateRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                eventService.updateStatus(principal, id, req.getStatus(), req.getBudgetPoints())
-        ));
+            @RequestBody EventStatusUpdateRequest req,
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        String msg;
+        if (req.getStatus() == EventStatusEnum.APPROVED) {
+            msg = eventService.reviewByUniStaff(id, true, principal, req.getBudgetPoints());
+        } else if (req.getStatus() == EventStatusEnum.REJECTED) {
+            msg = eventService.reviewByUniStaff(id, false, principal, null);
+        } else {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Chỉ UniStaff được set APPROVED/REJECTED.");
+        }
+        return ResponseEntity.ok(new ApiResponse<>(true, msg, null));
     }
 
 
+    /** 🟢 Xóa sự kiện (Admin / Leader) */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
@@ -84,246 +90,197 @@ public class EventController {
     }
 
     // =========================================================
-    // 🔹 2. PARTICIPATION APIs (Đăng ký - Check-in - Hủy)
+    // 🔹 2. PARTICIPATION
     // =========================================================
 
+    /** 🟢 Sinh viên đăng ký tham gia sự kiện */
     @PostMapping("/register")
     @PreAuthorize("hasRole('STUDENT')")
-    public ResponseEntity<ApiResponse<String>> register(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @Valid @RequestBody EventRegisterRequest req) {
+    public ResponseEntity<ApiResponse<String>> register(@AuthenticationPrincipal CustomUserDetails principal,
+                                                        @Valid @RequestBody EventRegisterRequest req) {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.register(principal, req)));
     }
 
+    /** 🟢 Sinh viên check-in tham gia sự kiện */
     @PostMapping("/checkin")
     @PreAuthorize("hasRole('STUDENT')")
-    public ResponseEntity<ApiResponse<String>> checkin(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @Valid @RequestBody EventCheckinRequest req) {
+    public ResponseEntity<ApiResponse<String>> checkin(@AuthenticationPrincipal CustomUserDetails principal,
+                                                       @Valid @RequestBody EventCheckinRequest req) {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.checkin(principal, req)));
     }
 
+    /** 🟢 Sinh viên hủy đăng ký sự kiện */
     @PutMapping("/{eventId}/cancel")
     @PreAuthorize("hasRole('STUDENT')")
-    public ResponseEntity<ApiResponse<String>> cancelRegistration(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId) {
+    public ResponseEntity<ApiResponse<String>> cancelRegistration(@AuthenticationPrincipal CustomUserDetails principal,
+                                                                  @PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.cancelRegistration(principal, eventId)));
     }
 
+    /** 🟢 Kết thúc sự kiện (Leader / UniStaff) */
     @PutMapping("/end")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> endEvent(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @Valid @RequestBody EventEndRequest req) {
+    public ResponseEntity<ApiResponse<String>> endEvent(@AuthenticationPrincipal CustomUserDetails principal,
+                                                        @Valid @RequestBody EventEndRequest req) {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.endEvent(principal, req)));
     }
 
     // =========================================================
-    // 🔹 3. LOOKUP APIs (Tra cứu)
+    // 🔹 3. LOOKUP
     // =========================================================
 
+    /** 🟢 Lấy danh sách sự kiện của 1 CLB */
     @GetMapping("/club/{clubId}")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<List<EventResponse>> getByClubId(@PathVariable Long clubId) {
         return ResponseEntity.ok(eventService.getByClubId(clubId));
     }
 
+    /** 🟢 Lấy sự kiện bằng mã check-in */
     @GetMapping("/code/{code}")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<ApiResponse<EventResponse>> getByCheckInCode(@PathVariable String code) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.findByCheckInCode(code)));
     }
 
+    /** 🟢 Lấy danh sách đăng ký của 1 sự kiện */
     @GetMapping("/{eventId}/registrations")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<?>> getEventRegistrations(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventRegistrations(eventId)));
     }
 
+    /** 🟢 Tóm tắt sự kiện (thống kê tham gia, điểm, ví...) */
     @GetMapping("/{eventId}/summary")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<?>> getEventSummary(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventSummary(eventId)));
     }
 
-    @GetMapping("/{eventId}/wallet")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<?>> getEventWallet(@PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventWallet(eventId)));
+    /** 🟢 Lấy chi tiết ví của sự kiện */
+    @GetMapping("/{eventId}/wallet/detail")
+    public ResponseEntity<ApiResponse<EventWalletResponse>> getEventWalletDetail(@PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventWalletService.getEventWalletDetail(eventId)));
     }
 
+    /** 🟢 Lấy danh sách sự kiện sắp diễn ra (Student) */
     @GetMapping("/upcoming")
-    @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<?>> getUpcomingEvents() {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getUpcomingEvents()));
     }
 
+    /** 🟢 Lấy danh sách sự kiện đang hoạt động */
+    @GetMapping("/active")
+    public ResponseEntity<ApiResponse<?>> getActiveEvents() {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getActiveEvents()));
+    }
+
+    /** 🟢 Lấy danh sách sự kiện của bản thân (Student) */
     @GetMapping("/my")
-    @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<?>> getMyEvents(@AuthenticationPrincipal CustomUserDetails principal) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getMyEvents(principal)));
     }
 
-    @PostMapping("/{eventId}/clone")
-    @PreAuthorize("hasRole('CLUB_LEADER')")
-    public ResponseEntity<ApiResponse<EventResponse>> cloneEvent(@PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.ok(eventService.cloneEvent(eventId)));
+    /** 🟢 Lấy danh sách sự kiện đã đăng ký (Student) */
+    @GetMapping("/my-registrations")
+    public ApiResponse<?> getMyRegisteredEvents(@AuthenticationPrincipal CustomUserDetails principal) {
+        return new ApiResponse<>(true, "success", eventPointsService.getMyRegisteredEvents(principal));
     }
 
+    /** 🟢 Lọc sự kiện theo tên / ngày / trạng thái */
     @GetMapping("/filter")
-    public ResponseEntity<Page<EventResponse>> filter(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) EventStatusEnum status,
-            @ParameterObject Pageable pageable
-    ) {
+    public ResponseEntity<Page<EventResponse>> filter(@RequestParam(required = false) String name,
+                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                      @RequestParam(required = false) EventStatusEnum status,
+                                                      @ParameterObject Pageable pageable) {
         return ResponseEntity.ok(eventService.filter(name, date, status, pageable));
     }
 
-    // =========================================================
-    // 🔹 5. STAFF MANAGEMENT (Gộp từ EventStaffController)
-    // =========================================================
-
-    /**
-     * [18] Gán Staff cho Sự kiện
-     * Roles: CLUB_LEADER, CLUB_VICE_LEADER
-     * Method: POST /api/events/{id}/staffs
-     */
-    @PostMapping("/{id}/staffs")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<EventStaffResponse>> assignStaff(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long id,
-            @RequestParam Long membershipId,
-            @RequestParam(required = false) String duty) {
-
-        return ResponseEntity.ok(ApiResponse.ok(
-                eventStaffService.assignStaff(id, membershipId, duty)
-        ));
-    }
-
-    /**
-     * [19] Gỡ Staff khỏi Sự kiện
-     * Roles: CLUB_LEADER, CLUB_VICE_LEADER
-     * Method: DELETE /api/events/{id}/staffs/{staffId}
-     */
-    @DeleteMapping("/{id}/staffs/{staffId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<String>> unassignStaff(
-            @PathVariable Long id,
-            @PathVariable Long staffId) {
-        eventStaffService.unassignStaff(staffId);
-        return ResponseEntity.ok(ApiResponse.msg("Staff unassigned successfully"));
-    }
-
-    /**
-     * [20] Xem danh sách Staff của Sự kiện
-     * Roles: ADMIN, UNIVERSITY_STAFF, CLUB_LEADER, CLUB_VICE_LEADER
-     * Method: GET /api/events/{id}/staffs
-     */
-    @GetMapping("/{id}/staffs")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<List<EventStaffResponse>>> getEventStaffs(
-            @PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.ok(eventService.getEventStaffList(id)));
-    }
-//    21 lấy co club
-
+    /** 🟢 Lấy danh sách sự kiện đồng tổ chức của 1 CLB */
     @GetMapping("/club/{clubId}/cohost")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<List<EventResponse>> getCoHostedEvents(@PathVariable Long clubId) {
         return ResponseEntity.ok(eventService.getCoHostedEvents(clubId));
     }
-// =========================================================
-// 🔹 6. EVENT APPROVE + SETTLE
-// =========================================================
 
-    @PostMapping("/{eventId}/approve")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> approveEvent(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId,
-            @RequestParam(required = false) Integer budgetPoints) {
-        String msg = eventService.reviewByUniStaff(eventId, true, principal, budgetPoints);
-        return ResponseEntity.ok(ApiResponse.msg(msg));
-    }
+    // =========================================================
+    // 🔹 4. SETTLEMENT & COMPLETE
+    // =========================================================
 
-
+    /** 🟢 UniStaff thực hiện settle (chốt điểm + hoàn ví) */
     @PostMapping("/{eventId}/settle")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> settleEvent(@PathVariable Long eventId) {
         Event event = eventService.getEntity(eventId);
         eventSettlementService.settleEvent(event);
         eventWalletService.returnSurplusToClubs(event);
         return ResponseEntity.ok(ApiResponse.msg("Event settled successfully"));
     }
-    @PostMapping("/{eventId}/attendance/verify")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> verifyAttendance(
-            @PathVariable Long eventId,
-            @RequestParam Long userId) {
-        String msg = attendanceService.verifyAttendance(eventId, userId);
-        return ResponseEntity.ok(ApiResponse.msg(msg));
-    }
-// =========================================================
-// 🔹 7. CO-HOST CONFIRMATION & SUBMIT TO UNISTAFF
-// =========================================================
 
-    @PostMapping("/{eventId}/cohost/accept")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<String>> acceptCohost(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId) {
-        String msg = eventService.acceptCohost(eventId, principal);
+    /** 🟢 Đánh dấu hoàn tất sự kiện (Leader / UniStaff) */
+    @PostMapping("/{eventId}/complete")
+    public ResponseEntity<ApiResponse<String>> completeEvent(@AuthenticationPrincipal CustomUserDetails principal,
+                                                             @PathVariable Long eventId) {
+        String msg = eventService.finishEvent(eventId, principal);
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
 
-    @PostMapping("/{eventId}/cohost/reject")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<String>> rejectCohost(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId) {
-        String msg = eventService.rejectCohost(eventId, principal);
+    // =========================================================
+    // 🔹 5. CO-HOST
+    // =========================================================
+
+    /** 🟢 CLB đồng tổ chức phản hồi lời mời (đồng ý / từ chối) */
+    @PostMapping("/{eventId}/cohost/respond")
+    public ResponseEntity<ApiResponse<String>> respondCohost(@AuthenticationPrincipal CustomUserDetails principal,
+                                                             @PathVariable Long eventId,
+                                                             @RequestParam boolean accept) {
+        String msg = eventService.respondCoHost(eventId, principal, accept);
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
 
+    /** 🟢 Leader gửi sự kiện đã duyệt co-host lên UniStaff */
     @PutMapping("/{eventId}/submit")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER')")
-    public ResponseEntity<ApiResponse<String>> submitEventToUniStaff(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId) {
+    public ResponseEntity<ApiResponse<String>> submitEventToUniStaff(@AuthenticationPrincipal CustomUserDetails principal,
+                                                                     @PathVariable Long eventId) {
         String msg = eventService.submitEventToUniStaff(eventId, principal);
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
-    @GetMapping("/{eventId}/wallet/detail")
-    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','ADMIN')")
-    public ResponseEntity<ApiResponse<EventWalletResponse>> getEventWalletDetail(
-            @PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.ok(eventWalletService.getEventWalletDetail(eventId)));
+
+    // =========================================================
+    // 🔹 6. STAFF
+    // =========================================================
+
+    /** 🟢 Phân công thành viên làm staff sự kiện */
+    @PostMapping("/{id}/staffs")
+    public ResponseEntity<ApiResponse<EventStaffResponse>> assignStaff(@AuthenticationPrincipal CustomUserDetails principal,
+                                                                       @PathVariable Long id,
+                                                                       @RequestParam Long membershipId,
+                                                                       @RequestParam(required = false) String duty) {
+        return ResponseEntity.ok(ApiResponse.ok(eventStaffService.assignStaff(id, membershipId, duty)));
     }
+
+    /** 🟢 Gỡ staff khỏi sự kiện */
+    @DeleteMapping("/{id}/staffs/{staffId}")
+    public ResponseEntity<ApiResponse<String>> unassignStaff(@PathVariable Long id, @PathVariable Long staffId) {
+        eventStaffService.unassignStaff(staffId);
+        return ResponseEntity.ok(ApiResponse.msg("Staff unassigned successfully"));
+    }
+
+    /** 🟢 Lấy danh sách staff của sự kiện */
+    @GetMapping("/{id}/staffs")
+    public ResponseEntity<ApiResponse<List<EventStaffResponse>>> getEventStaffs(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getEventStaffList(id)));
+    }
+
+    // =========================================================
+    // 🔹 7. ATTENDANCE
+    // =========================================================
+
+    /** 🟢 Lấy QR điểm danh (leader / staff) */
     @GetMapping("/{eventId}/attendance/qr")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<Map<String, String>>> getAttendanceQr(
-            @PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.ok(attendanceService.getQrTokenForEvent(eventId)));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAttendanceQr(@PathVariable Long eventId,
+                                                                            @RequestParam(defaultValue = "START") String phase) {
+        return ResponseEntity.ok(ApiResponse.ok(attendanceService.getQrTokenForEvent(eventId, phase)));
     }
-    @PreAuthorize("hasRole('STUDENT')")
-    @GetMapping("/my-registrations")
-    public ApiResponse<?> getMyRegisteredEvents(@AuthenticationPrincipal CustomUserDetails principal) {
-        return new ApiResponse<>(true, "success", eventPointsService.getMyRegisteredEvents(principal));
-    }
-    @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
-    public ResponseEntity<ApiResponse<?>> getActiveEvents() {
-        return ResponseEntity.ok(ApiResponse.ok(eventService.getActiveEvents()));
-    }
-    @PostMapping("/{eventId}/complete")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> completeEvent(@PathVariable Long eventId) {
-        String msg = eventService.markEventCompleted(eventId);
+
+    /** 🟢 Xác minh điểm danh bằng userId */
+    @PostMapping("/{eventId}/attendance/verify")
+    public ResponseEntity<ApiResponse<String>> verifyAttendance(@PathVariable Long eventId, @RequestParam Long userId) {
+        String msg = attendanceService.verifyAttendance(eventId, userId);
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
-
-
 }

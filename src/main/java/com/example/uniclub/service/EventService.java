@@ -3,12 +3,12 @@ package com.example.uniclub.service;
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
-import com.example.uniclub.entity.Membership;
+import com.example.uniclub.entity.Event;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import com.example.uniclub.entity.Event;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -19,8 +19,7 @@ public interface EventService {
     EventResponse get(Long id);
 
     Page<EventResponse> list(Pageable pageable);
-
-    EventResponse updateStatus(CustomUserDetails principal, Long id, EventStatusEnum status, Integer budgetPoints);
+    Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable);
 
     void delete(Long id);
 
@@ -28,32 +27,27 @@ public interface EventService {
 
     List<EventResponse> getByClubId(Long clubId);
 
-    // New extended APIs
     List<EventResponse> getUpcomingEvents();
 
     List<EventResponse> getMyEvents(CustomUserDetails principal);
 
-    EventResponse cloneEvent(Long eventId);
-
-    Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable);
-
-    EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty);
-
-    List<Membership> getEventStaffs(CustomUserDetails principal, Long eventId);
-
-    List<EventStaffResponse> getEventStaffList(Long eventId);
-
-    List<EventResponse> getCoHostedEvents(Long clubId);
-    Event getEntity(Long id);
-    String acceptCohost(Long eventId, CustomUserDetails principal);
-    String rejectCohost(Long eventId, CustomUserDetails principal);
-    String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
     List<EventResponse> getActiveEvents();
 
-    String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
-    String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
-    String finishEvent(Long eventId, CustomUserDetails principal);
-    String settleEvent(Long eventId, CustomUserDetails principal);
-    String markEventCompleted(Long eventId);
+    List<EventResponse> getCoHostedEvents(Long clubId);
 
+    Event getEntity(Long id);
+
+    // Co-host handling
+    String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
+    String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
+
+    // UniStaff approval
+    String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
+
+    // Event lifecycle
+    String finishEvent(Long eventId, CustomUserDetails principal);
+
+    // Staff management
+    EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty);
+    List<EventStaffResponse> getEventStaffList(Long eventId);
 }

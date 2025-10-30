@@ -17,7 +17,7 @@ public class RewardServiceImpl implements RewardService {
     private final UserRepository userRepo;
 
     @Override
-    public void sendCheckInRewardEmail(Long userId, String eventName, int pointsEarned, int totalPoints) {
+    public void sendCheckInRewardEmail(Long userId, String eventName, long pointsEarned, long totalPoints) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
         emailService.sendEmail(
@@ -34,7 +34,7 @@ public class RewardServiceImpl implements RewardService {
     }
 
     @Override
-    public void sendManualBonusEmail(Long userId, int bonusPoints, String reason, int totalPoints) {
+    public void sendManualBonusEmail(Long userId, long bonusPoints, String reason, long totalPoints) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
         String r = (reason == null || reason.isBlank()) ? "your contribution" : reason;
@@ -51,7 +51,7 @@ public class RewardServiceImpl implements RewardService {
     }
 
     @Override
-    public void sendMilestoneEmail(Long userId, int milestone) {
+    public void sendMilestoneEmail(Long userId, long milestone) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
         emailService.sendEmail(

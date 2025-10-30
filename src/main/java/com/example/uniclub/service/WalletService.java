@@ -5,37 +5,36 @@ import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.Wallet;
 import com.example.uniclub.entity.WalletTransaction;
-
 import java.util.List;
 
 public interface WalletService {
 
-    // 🔍 Lấy ví theo CLB / Membership / ID
+    // 🔍 Lấy ví theo loại
     Wallet getWalletByClubId(Long clubId);
     Wallet getWalletByMembershipId(Long membershipId);
     Wallet getWalletById(Long walletId);
 
-    // 💰 Tạo ví nếu chưa có
+    // 🏗️ Tạo ví nếu chưa có
     Wallet getOrCreateClubWallet(Club club);
     Wallet getOrCreateMembershipWallet(Membership membership);
 
-    // 🔧 Tăng / giảm điểm
-    void increase(Wallet wallet, int points);
-    void decrease(Wallet wallet, int points);
+    // 💰 Thao tác tăng / giảm điểm
+    void increase(Wallet wallet, long points);
+    void decrease(Wallet wallet, long points);
 
-    // 💸 Tác vụ có log giao dịch
-    void addPoints(Wallet wallet, int points, String description);
-    void reducePoints(Wallet wallet, int points, String description);
-    void transferPoints(Wallet from, Wallet to, int points, String description);
+    // 💸 Thao tác có log
+    void addPoints(Wallet wallet, long points, String description);
+    void reducePoints(Wallet wallet, long points, String description);
+    void transferPoints(Wallet from, Wallet to, long points, String description);
+
+    // 🎓 Nghiệp vụ cấp / thưởng điểm
+    void logUniToClubTopup(Wallet clubWallet, long points, String reason);
+    void logClubToMemberReward(Wallet memberWallet, long points, String reason);
+    Wallet getUniversityWallet();
 
     // 📜 Lịch sử giao dịch
     List<WalletTransaction> getTransactionsByWallet(Long walletId);
+    List<WalletTransactionResponse> getWalletTransactions(Long walletId);
     List<WalletTransactionResponse> getAllClubTopups();
     List<WalletTransactionResponse> getAllMemberRewards();
-
-    void logUniToClubTopup(Wallet clubWallet, int points, String reason);
-    void logClubToMemberReward(Wallet memberWallet, int points, String reason);
-    Wallet getUniversityWallet();
-    List<WalletTransactionResponse> getWalletTransactions(Long walletId);
-
 }

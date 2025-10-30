@@ -2,30 +2,36 @@ package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.AttendanceLevelEnum;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
+import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "attendance_records")
-@Getter @Setter
+@Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class AttendanceRecord {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long attendanceId;
 
-    private Long eventId;
-    private Long studentId;
-    private LocalDateTime checkinTime;
+    // 🔹 Liên kết user (student)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    // 🔹 Liên kết event
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
+
+    // 🔹 3 pha check-in
+    private LocalDateTime startCheckInTime;
+    private LocalDateTime midCheckTime;
+    private LocalDateTime endCheckOutTime;
+
+    // 🔹 Mức độ tham dự (NONE / HALF / FULL)
     @Enumerated(EnumType.STRING)
     @Column(name = "attendance_level")
     private AttendanceLevelEnum attendanceLevel;
-
-
-
-    public AttendanceRecord(Long eventId, Long studentId) { this.eventId = eventId; this.studentId = studentId; this.checkinTime = LocalDateTime.now(); }
 }

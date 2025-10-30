@@ -6,6 +6,6 @@ import jakarta.validation.constraints.NotNull;
 public record WalletTransferRequest(
         @NotNull Long fromWalletId,
         @NotNull Long toWalletId,
-        @NotNull @Min(1) Integer amount,
+        @NotNull @Min(1) Long amount,
         String description
 ) {}

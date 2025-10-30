@@ -11,6 +11,6 @@ public class EventCheckinRequest {
     // ⚙️ Token JWT từ QR code (bắt buộc)
     private String eventJwtToken;
 
-    // 🏅 Cấp độ tham dự (NONE / GOOD / EXCELLENT / STAFF)
+    // START/MID/END
     private String level;
 }

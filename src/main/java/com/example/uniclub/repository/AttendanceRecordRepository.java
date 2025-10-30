@@ -6,9 +6,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
-    boolean existsByEventIdAndStudentId(Long eventId, Long studentId);
+
+    // ⚙️ Dùng cho logic checkin (START / MID / END)
+    Optional<AttendanceRecord> findByUser_UserIdAndEvent_EventId(Long userId, Long eventId);
+
+    boolean existsByUser_UserIdAndEvent_EventId(Long userId, Long eventId);
 
     // ✅ Tổng attendance toàn trường
     @Query(value = "SELECT COUNT(*) FROM attendance_records", nativeQuery = true)
@@ -25,12 +30,13 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
         """, nativeQuery = true)
     List<Object[]> getClubAttendanceRanking();
 
+    // ✅ Biểu đồ tổng hợp tháng
     @Query(value = """
         SELECT 
-            DATE_TRUNC('month', a.checkin_time) AS month,
-            COUNT(DISTINCT a.student_id) AS participant_count
+            DATE_TRUNC('month', a.start_check_in_time) AS month,
+            COUNT(DISTINCT a.user_id) AS participant_count
         FROM attendance_records a
-        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+        WHERE EXTRACT(YEAR FROM a.start_check_in_time) = :year
         GROUP BY month
         ORDER BY month
     """, nativeQuery = true)
@@ -38,11 +44,11 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     @Query(value = """
         SELECT 
-            DATE_TRUNC('month', a.checkin_time) AS month,
-            COUNT(DISTINCT a.student_id) AS participant_count
+            DATE_TRUNC('month', a.start_check_in_time) AS month,
+            COUNT(DISTINCT a.user_id) AS participant_count
         FROM attendance_records a
         JOIN events e ON e.event_id = a.event_id
-        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+        WHERE EXTRACT(YEAR FROM a.start_check_in_time) = :year
           AND e.host_club_id = :clubId
         GROUP BY month
         ORDER BY month
@@ -54,10 +60,10 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     @Query(value = """
         SELECT 
-            DATE_TRUNC('month', a.checkin_time) AS month,
-            COUNT(DISTINCT a.student_id) AS participant_count
+            DATE_TRUNC('month', a.start_check_in_time) AS month,
+            COUNT(DISTINCT a.user_id) AS participant_count
         FROM attendance_records a
-        WHERE EXTRACT(YEAR FROM a.checkin_time) = :year
+        WHERE EXTRACT(YEAR FROM a.start_check_in_time) = :year
           AND a.event_id = :eventId
         GROUP BY month
         ORDER BY month
@@ -66,5 +72,4 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("year") int year,
             @Param("eventId") Long eventId
     );
-
 }

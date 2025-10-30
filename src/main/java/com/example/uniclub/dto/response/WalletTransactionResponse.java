@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 public class WalletTransactionResponse {
     private Long id;
     private String type;          // Loại giao dịch (IN / OUT / TOPUP / REWARD ...)
-    private Integer amount;       // Số điểm thay đổi (+ / -)
+    private Long amount;      // Số điểm thay đổi (+ / -)
     private String description;   // Mô tả giao dịch
     private LocalDateTime createdAt; // Thời điểm tạo
     private String receiverName;

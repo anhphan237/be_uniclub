@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public class EventWalletServiceImpl implements EventWalletService {
     private final WalletService walletService;
     private final EventRepository eventRepo;
     private final WalletTransactionRepository transactionRepo;
+
     // =========================================================
     // 🟢 1. Tạo ví sự kiện
     // =========================================================
@@ -48,7 +50,10 @@ public class EventWalletServiceImpl implements EventWalletService {
     // =========================================================
     @Override
     @Transactional
-    public void grantBudgetToEvent(Event event, int points) {
+    public void grantBudgetToEvent(Event event, long points) { // ✅ long thay vì int
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
+
         Wallet wallet = walletRepo.findByEvent_EventId(event.getEventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event wallet not found"));
 
@@ -64,7 +69,7 @@ public class EventWalletServiceImpl implements EventWalletService {
         Wallet eventWallet = walletRepo.findByEvent_EventId(event.getEventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event wallet not found"));
 
-        int leftover = eventWallet.getBalancePoints().intValue();
+        long leftover = eventWallet.getBalancePoints() == null ? 0L : eventWallet.getBalancePoints();
         if (leftover <= 0) return;
 
         List<Club> clubsToReward = new ArrayList<>();
@@ -72,7 +77,7 @@ public class EventWalletServiceImpl implements EventWalletService {
         if (event.getCoHostedClubs() != null)
             clubsToReward.addAll(event.getCoHostedClubs());
 
-        int share = leftover / clubsToReward.size();
+        long share = leftover / clubsToReward.size();
         for (Club c : clubsToReward) {
             Wallet clubWallet = walletService.getOrCreateClubWallet(c);
             walletService.decrease(eventWallet, share);
@@ -84,6 +89,9 @@ public class EventWalletServiceImpl implements EventWalletService {
         walletRepo.save(eventWallet);
     }
 
+    // =========================================================
+    // 🟢 4. Chi tiết ví sự kiện + danh sách giao dịch
+    // =========================================================
     @Override
     @Transactional(readOnly = true)
     public EventWalletResponse getEventWalletDetail(Long eventId) {
@@ -96,25 +104,26 @@ public class EventWalletServiceImpl implements EventWalletService {
         List<WalletTransaction> transactions = transactionRepo
                 .findByWallet_WalletIdOrderByCreatedAtDesc(wallet.getWalletId());
 
+        // ✅ Map transaction entity sang DTO con
+        List<EventWalletResponse.Transaction> transactionList = transactions.stream()
+                .map(tx -> EventWalletResponse.Transaction.builder()
+                        .id(tx.getId())
+                        .type(tx.getType() != null ? tx.getType().name() : "UNKNOWN")
+                        .amount(tx.getAmount() != null ? tx.getAmount() : 0L) // ✅ Long đồng bộ
+                        .description(tx.getDescription())
+                        .createdAt(tx.getCreatedAt())
+                        .build())
+                .toList();
+
         return EventWalletResponse.builder()
                 .eventId(event.getEventId())
                 .eventName(event.getName())
                 .hostClubName(event.getHostClub() != null ? event.getHostClub().getName() : null)
-                .budgetPoints(event.getBudgetPoints())
-                .balancePoints(wallet.getBalancePoints())
-                .ownerType(wallet.getOwnerType().name())
+                .budgetPoints(event.getBudgetPoints() != null ? event.getBudgetPoints().longValue() : 0L)
+                .balancePoints(wallet.getBalancePoints() != null ? wallet.getBalancePoints() : 0L)
+                .ownerType(wallet.getOwnerType() != null ? wallet.getOwnerType().name() : "UNKNOWN")
                 .createdAt(wallet.getCreatedAt())
-                .transactions(
-                        transactions.stream()
-                                .map(tx -> EventWalletResponse.Transaction.builder()
-                                        .id(tx.getId())
-                                        .type(tx.getType().name())
-                                        .amount(tx.getAmount())
-                                        .description(tx.getDescription())
-                                        .createdAt(tx.getCreatedAt())
-                                        .build())
-                                .toList()
-                )
+                .transactions(transactionList)
                 .build();
     }
 }

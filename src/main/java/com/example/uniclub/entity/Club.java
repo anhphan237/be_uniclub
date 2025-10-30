@@ -51,4 +51,18 @@ public class Club {
 
     @Column(nullable = false)
     private Double clubMultiplier = 1.0;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Club)) return false;
+        Club other = (Club) o;
+        return clubId != null && clubId.equals(other.getClubId());
+    }
+
+    @Override
+    public int hashCode() {
+        return 31;
+    }
+
 }

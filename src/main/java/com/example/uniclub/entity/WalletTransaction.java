@@ -27,7 +27,7 @@ public class WalletTransaction {
     private WalletTransactionTypeEnum type;
 
     @Column(nullable = false)
-    private Integer amount;
+    private Long amount;
 
     @Column(length = 255)
     private String description;
