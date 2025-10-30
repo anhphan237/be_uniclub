@@ -5,7 +5,6 @@ import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.ClubApplicationResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubApplicationService;
-import com.example.uniclub.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +21,6 @@ import java.util.Map;
 public class ClubApplicationController {
 
     private final ClubApplicationService clubApplicationService;
-
 
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn online
@@ -54,13 +52,13 @@ public class ClubApplicationController {
     // ============================================================
     // 🟢 3. UniStaff tạo 2 tài khoản CLB (Leader & ViceLeader)
     // ============================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping("/create-club-accounts")
     public ResponseEntity<ApiResponse<String>> createClubAccounts(
             @Valid @RequestBody CreateClubAccountsRequest request) {
         clubApplicationService.createClubAccounts(request);
         return ResponseEntity.ok(ApiResponse.ok("Club accounts created successfully."));
     }
-
 
     // ============================================================
     // 🟣 4. Sinh viên xem danh sách đơn của mình
@@ -75,7 +73,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 5. Xem chi tiết 1 đơn
+    // 🔵 5. Xem chi tiết 1 đơn theo ID
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','STUDENT')")
     @GetMapping("/{id}")
@@ -88,7 +86,18 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟤 6. Danh sách đơn chờ duyệt
+    // ⚪ 6. Lấy toàn bộ đơn ứng tuyển CLB
+    // ============================================================
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getAllApplications() {
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubApplicationService.getAllApplications()
+        ));
+    }
+
+    // ============================================================
+    // 🟤 7. Danh sách đơn chờ duyệt
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/pending")
@@ -97,7 +106,7 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🟣 7. Thống kê số lượng đơn theo trạng thái
+    // 🟣 8. Thống kê số lượng đơn theo trạng thái
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/statistics")
@@ -106,21 +115,14 @@ public class ClubApplicationController {
     }
 
     // ============================================================
-    // 🔵 8. Tìm kiếm đơn theo tên CLB / người nộp
+    // 🔵 9. Tìm kiếm đơn theo từ khóa (tên CLB / người nộp)
     // ============================================================
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> search(
             @RequestParam String keyword) {
-        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.search(keyword)));
-    }
-
-    // ============================================================
-    // ⚪ 9. Lấy toàn bộ đơn (Admin / Staff)
-    // ============================================================
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @GetMapping("/all")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getAllApplications() {
-        return ResponseEntity.ok(ApiResponse.ok(clubApplicationService.getAllApplications()));
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubApplicationService.search(keyword)
+        ));
     }
 }
