@@ -56,13 +56,52 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
-    private WalletResponse toWalletResp(Wallet w) {
-        if (w == null) return null;
-        return WalletResponse.builder()
-                .walletId(w.getWalletId())
-                .balancePoints(w.getBalancePoints())
-                .ownerType(w.getOwnerType())
-                .build();
+    // ✅ Helper: map ví từ membership sang WalletResponse an toàn
+    private List<WalletResponse> mapWallets(User user, List<Membership> memberships) {
+        return memberships.stream()
+                .map(Membership::getWallet)
+                .filter(Objects::nonNull)
+                .map(wallet -> {
+                    Long clubId = null;
+                    String clubName = null;
+
+                    // Phân biệt loại ví
+                    switch (wallet.getOwnerType()) {
+                        case CLUB -> {
+                            if (wallet.getClub() != null) {
+                                clubId = wallet.getClub().getClubId();
+                                clubName = wallet.getClub().getName();
+                            }
+                        }
+                        case MEMBERSHIP -> {
+                            if (wallet.getMembership() != null && wallet.getMembership().getClub() != null) {
+                                clubId = wallet.getMembership().getClub().getClubId();
+                                clubName = wallet.getMembership().getClub().getName();
+                            }
+                        }
+                        case EVENT -> {
+                            if (wallet.getEvent() != null && wallet.getEvent().getHostClub() != null) {
+                                clubId = wallet.getEvent().getHostClub().getClubId();
+                                clubName = wallet.getEvent().getHostClub().getName();
+                            }
+                        }
+                        default -> {
+                            clubId = null;
+                            clubName = null;
+                        }
+                    }
+
+                    return WalletResponse.builder()
+                            .walletId(wallet.getWalletId())
+                            .balancePoints(wallet.getBalancePoints())
+                            .ownerType(wallet.getOwnerType())
+                            .clubId(clubId)
+                            .clubName(clubName)
+                            .userId(user.getUserId())
+                            .userFullName(user.getFullName())
+                            .build();
+                })
+                .toList();
     }
 
     // ===================== CRUD =====================
@@ -216,30 +255,50 @@ public class UserServiceImpl implements UserService {
     // ===================== Profile Response =====================
     @Override
     public UserResponse getProfileResponse(String email) {
-        User user = getByEmail(email);
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
 
-        // 🔹 Lấy ví đầu tiên của user (nếu có)
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
+        List<UserResponse.ClubInfo> clubInfos = memberships.stream()
+                .map(m -> new UserResponse.ClubInfo(
+                        m.getClub().getClubId(),
+                        m.getClub().getName()
+                ))
+                .toList();
 
-        UserResponse resp = toResp(user);
-        resp.setWallet(toWalletResp(wallet));
-        return resp;
+        List<WalletResponse> wallets = mapWallets(user, memberships);
+
+        return UserResponse.builder()
+                .id(user.getUserId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phone(user.getPhone())
+                .roleName(user.getRole() != null ? user.getRole().getRoleName() : null)
+                .status(user.getStatus())
+                .studentCode(user.getStudentCode())
+                .majorName(user.getMajorName())
+                .bio(user.getBio())
+                .avatarUrl(user.getAvatarUrl())
+                .wallets(wallets)
+                .clubs(clubInfos)
+                .build();
     }
 
     @Override
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {
         User user = getByEmail(email);
+
         if (req.getPhone() != null && !req.getPhone().isBlank()) user.setPhone(req.getPhone());
         if (req.getBio() != null && !req.getBio().isBlank()) user.setBio(req.getBio());
         if (req.getMajorName() != null && !req.getMajorName().isBlank()) user.setMajorName(req.getMajorName());
+
         userRepo.save(user);
 
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
+        List<WalletResponse> wallets = mapWallets(user, memberships);
 
         UserResponse resp = toResp(user);
-        resp.setWallet(toWalletResp(wallet));
+        resp.setWallets(wallets);
         return resp;
     }
 
@@ -253,10 +312,10 @@ public class UserServiceImpl implements UserService {
         userRepo.save(user);
 
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        Wallet wallet = memberships.isEmpty() ? null : memberships.get(0).getWallet();
+        List<WalletResponse> wallets = mapWallets(user, memberships);
 
         UserResponse resp = toResp(user);
-        resp.setWallet(toWalletResp(wallet));
+        resp.setWallets(wallets);
         return resp;
     }
 
