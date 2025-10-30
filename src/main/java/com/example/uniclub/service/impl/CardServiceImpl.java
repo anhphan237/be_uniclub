@@ -1,6 +1,8 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.CardRequest;
+import com.example.uniclub.dto.response.CardResponse;
 import com.example.uniclub.entity.Card;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.exception.ApiException;
@@ -20,20 +22,17 @@ public class CardServiceImpl implements CardService {
     private final CardRepository cardRepo;
     private final ClubRepository clubRepo;
 
-    // 🟢 Tạo hoặc cập nhật Card
+    // 🟢 Tạo hoặc cập nhật Card cho CLB
     @Override
-    public ApiResponse<Card> saveOrUpdate(Long clubId, Card req) {
+    public ApiResponse<CardResponse> saveOrUpdate(Long clubId, CardRequest req) {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // 🔎 Nếu CLB đã có Card thì cập nhật
-        Card card = cardRepo.findFirstByClub_ClubId(clubId).orElse(null);
+        // 🔎 Nếu CLB đã có Card thì cập nhật (overwrite)
+        Card card = cardRepo.findFirstByClub_ClubId(clubId).orElse(new Card());
+        card.setClub(club);
 
-        if (card == null) {
-            card = new Card();
-            card.setClub(club);
-        }
-
+        // 🧱 Ghi đè các field
         card.setBorderRadius(req.getBorderRadius());
         card.setCardColorClass(req.getCardColorClass());
         card.setCardOpacity(req.getCardOpacity());
@@ -50,20 +49,29 @@ public class CardServiceImpl implements CardService {
 
         cardRepo.save(card);
 
-        return ApiResponse.ok(card);
+        return ApiResponse.ok(toResponse(card));
     }
 
     // 🔵 Lấy Card theo clubId
     @Override
-    public List<Card> getByClub(Long clubId) {
-        return cardRepo.findByClub_ClubId(clubId);
+    public CardResponse getByClubId(Long clubId) {
+        Card card = cardRepo.findFirstByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Card not found for this club"));
+        return toResponse(card);
     }
 
-    // 🟣 Lấy Card theo id
+    // 🟣 Lấy Card theo cardId
     @Override
-    public Card getById(Long id) {
-        return cardRepo.findById(id)
+    public CardResponse getById(Long id) {
+        Card card = cardRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Card not found"));
+        return toResponse(card);
+    }
+
+    // ⚪ Lấy tất cả Card (cho ADMIN & STAFF)
+    @Override
+    public List<CardResponse> getAll() {
+        return cardRepo.findAll().stream().map(this::toResponse).toList();
     }
 
     // 🔴 Xóa Card
@@ -71,8 +79,30 @@ public class CardServiceImpl implements CardService {
     public ApiResponse<String> delete(Long id) {
         if (!cardRepo.existsById(id))
             throw new ApiException(HttpStatus.NOT_FOUND, "Card not found");
-
         cardRepo.deleteById(id);
         return ApiResponse.ok("Card deleted successfully");
+    }
+
+    // 🧩 Hàm mapper: Entity → DTO
+    private CardResponse toResponse(Card card) {
+        return CardResponse.builder()
+                .cardId(card.getCardId())
+                .clubId(card.getClub().getClubId())
+                .clubName(card.getClub().getName())
+                .borderRadius(card.getBorderRadius())
+                .cardColorClass(card.getCardColorClass())
+                .cardOpacity(card.getCardOpacity())
+                .colorType(card.getColorType())
+                .gradient(card.getGradient())
+                .logoSize(card.getLogoSize())
+                .pattern(card.getPattern())
+                .patternOpacity(card.getPatternOpacity())
+                .qrPosition(card.getQrPosition())
+                .qrSize(card.getQrSize())
+                .qrStyle(card.getQrStyle())
+                .showLogo(card.getShowLogo())
+                .logoUrl(card.getLogoUrl())
+                .createdAt(card.getCreatedAt())
+                .build();
     }
 }

@@ -1,20 +1,19 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.ApiResponse;
-import com.example.uniclub.entity.Card;
+import com.example.uniclub.dto.request.CardRequest;
+import com.example.uniclub.dto.response.CardResponse;
 import java.util.List;
 
 public interface CardService {
 
-    // 🟢 Tạo hoặc cập nhật Card cho 1 CLB
-    ApiResponse<Card> saveOrUpdate(Long clubId, Card request);
+    ApiResponse<CardResponse> saveOrUpdate(Long clubId, CardRequest req);
 
-    // 🔵 Lấy danh sách Card của 1 CLB (thường chỉ 1)
-    List<Card> getByClub(Long clubId);
+    CardResponse getByClubId(Long clubId);
 
-    // 🟣 Lấy chi tiết 1 Card theo ID
-    Card getById(Long id);
+    CardResponse getById(Long id);
 
-    // 🔴 Xóa Card
+    List<CardResponse> getAll();
+
     ApiResponse<String> delete(Long id);
 }

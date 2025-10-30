@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface CardRepository extends JpaRepository<Card, Long> {
     List<Card> findByClub_ClubId(Long clubId);
     Optional<Card> findFirstByClub_ClubId(Long clubId);
+
 }
