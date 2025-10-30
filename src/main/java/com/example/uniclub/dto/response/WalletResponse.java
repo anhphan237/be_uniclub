@@ -26,4 +26,6 @@ public class WalletResponse {
     // Thông tin cho ví User (nếu có)
     private Long userId;
     private String userFullName;
+    private String receiverName;
+
 }

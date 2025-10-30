@@ -6,6 +6,9 @@ import com.example.uniclub.dto.response.PointRequestResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.PointRequestService;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +23,7 @@ public class PointRequestController {
 
     private final PointRequestService pointRequestService;
 
+    /** 🟢 Club tạo request xin điểm từ UniStaff */
     @PostMapping
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<PointRequestResponse>> createRequest(
@@ -28,12 +32,14 @@ public class PointRequestController {
         return ResponseEntity.ok(ApiResponse.ok(pointRequestService.createRequest(principal, req)));
     }
 
+    /** 🟢 UniStaff xem danh sách các yêu cầu đang chờ duyệt */
     @GetMapping("/pending")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<List<PointRequestResponse>>> getPendingRequests() {
         return ResponseEntity.ok(ApiResponse.ok(pointRequestService.getPendingRequests()));
     }
 
+    /** 🟢 UniStaff duyệt hoặc từ chối yêu cầu điểm */
     @PutMapping("/{id}/review")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> reviewRequest(
@@ -41,5 +47,19 @@ public class PointRequestController {
             @RequestParam boolean approve,
             @RequestParam(required = false) String note) {
         return ResponseEntity.ok(ApiResponse.msg(pointRequestService.reviewRequest(id, approve, note)));
+    }
+
+    /** 🟢 Lấy tất cả yêu cầu điểm (phân trang) */
+    @GetMapping
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<Page<PointRequestResponse>> getAll(@ParameterObject Pageable pageable) {
+        return ResponseEntity.ok(pointRequestService.list(pageable));
+    }
+
+    /** 🟢 Lấy chi tiết 1 yêu cầu theo ID */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<PointRequestResponse>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(pointRequestService.get(id)));
     }
 }

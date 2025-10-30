@@ -39,4 +39,16 @@ public class WalletTransaction {
     public void onCreate() {
         createdAt = LocalDateTime.now();
     }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_club_id")
+    private Club receiverClub;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_membership_id")
+    private Membership receiverMembership;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_user_id")
+    private User receiverUser;
+
 }

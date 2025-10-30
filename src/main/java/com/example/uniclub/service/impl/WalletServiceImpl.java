@@ -202,13 +202,7 @@ public class WalletServiceImpl implements WalletService {
     public List<WalletTransactionResponse> getAllClubTopups() {
         return txRepo.findTopupFromUniStaff()
                 .stream()
-                .map(tx -> WalletTransactionResponse.builder()
-                        .id(tx.getId())
-                        .type(tx.getType().name())
-                        .amount(tx.getAmount())
-                        .description(tx.getDescription())
-                        .createdAt(tx.getCreatedAt())
-                        .build())
+                .map(this::mapToResponse) // ✅ dùng hàm map chung
                 .toList();
     }
 
@@ -216,21 +210,15 @@ public class WalletServiceImpl implements WalletService {
     public List<WalletTransactionResponse> getAllMemberRewards() {
         return txRepo.findRewardToMembers()
                 .stream()
-                .map(tx -> WalletTransactionResponse.builder()
-                        .id(tx.getId())
-                        .type(tx.getType().name())
-                        .amount(tx.getAmount())
-                        .description(tx.getDescription())
-                        .createdAt(tx.getCreatedAt())
-                        .build())
+                .map(this::mapToResponse) // ✅ dùng hàm map chung
                 .toList();
     }
 
-    @Override
-    public Wallet getUniversityWallet() {
-        return walletRepo.findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum.CLUB, "University")
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "University wallet not found"));
-    }
+//    @Override
+//    public Wallet getUniversityWallet() {
+//        return walletRepo.findByOwnerTypeAndClub_Name(WalletOwnerTypeEnum.CLUB, "University")
+//                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "University wallet not found"));
+//    }
 
     @Override
     @Transactional(readOnly = true)
@@ -256,4 +244,54 @@ public class WalletServiceImpl implements WalletService {
                         .build())
                 .toList();
     }
+
+    // ================================================================
+    // 🧩 HÀM HỖ TRỢ CHUNG (MỚI THÊM)
+    // ================================================================
+    private WalletTransactionResponse mapToResponse(WalletTransaction tx) {
+        return WalletTransactionResponse.builder()
+                .id(tx.getId())
+                .type(tx.getType().name())
+                .amount(tx.getAmount())
+                .description(tx.getDescription())
+                .createdAt(tx.getCreatedAt())
+                .receiverName(getReceiverName(tx))
+                .build();
+    }
+
+    private String getReceiverName(WalletTransaction tx) {
+        // Nếu đã có quan hệ receiver trong entity thì ưu tiên dùng
+        if (tx.getWallet() != null) {
+            Wallet w = tx.getWallet();
+            if (w.getMembership() != null && w.getMembership().getUser() != null)
+                return w.getMembership().getUser().getFullName();
+            if (w.getClub() != null)
+                return w.getClub().getName();
+        }
+        return null;
+    }
+    // ================================================================
+// 🏫 NẠP ĐIỂM TỪ UNIVERSITY (PHÁT HÀNH MỚI)
+// ================================================================
+    @Override
+    @Transactional
+    public void topupPointsFromUniversity(Wallet targetWallet, long points, String description) {
+        if (targetWallet == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Target wallet cannot be null");
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be positive");
+
+        // Cộng điểm cho ví CLB
+        targetWallet.setBalancePoints(targetWallet.getBalancePoints() + points);
+        walletRepo.save(targetWallet);
+
+        // Ghi lại lịch sử giao dịch (kiểu UNI_TO_CLUB)
+        txRepo.save(WalletTransaction.builder()
+                .wallet(targetWallet)
+                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+                .amount(points)
+                .description(description)
+                .build());
+    }
+
 }

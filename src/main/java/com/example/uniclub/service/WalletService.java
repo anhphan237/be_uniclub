@@ -30,11 +30,14 @@ public interface WalletService {
     // 🎓 Nghiệp vụ cấp / thưởng điểm
     void logUniToClubTopup(Wallet clubWallet, long points, String reason);
     void logClubToMemberReward(Wallet memberWallet, long points, String reason);
-    Wallet getUniversityWallet();
+//    Wallet getUniversityWallet();
 
     // 📜 Lịch sử giao dịch
     List<WalletTransaction> getTransactionsByWallet(Long walletId);
     List<WalletTransactionResponse> getWalletTransactions(Long walletId);
     List<WalletTransactionResponse> getAllClubTopups();
     List<WalletTransactionResponse> getAllMemberRewards();
+
+    void topupPointsFromUniversity(Wallet targetWallet, long points, String description);
+
 }

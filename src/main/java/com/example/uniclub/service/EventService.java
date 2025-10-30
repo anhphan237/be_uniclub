@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
+import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.entity.Event;
@@ -14,15 +15,22 @@ import java.util.List;
 
 public interface EventService {
 
+    // =========================================================
+    // 🔹 CRUD
+    // =========================================================
     EventResponse create(EventCreateRequest req);
 
     EventResponse get(Long id);
 
     Page<EventResponse> list(Pageable pageable);
+
     Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable);
 
     void delete(Long id);
 
+    // =========================================================
+    // 🔹 TRA CỨU
+    // =========================================================
     EventResponse findByCheckInCode(String code);
 
     List<EventResponse> getByClubId(Long clubId);
@@ -35,20 +43,35 @@ public interface EventService {
 
     List<EventResponse> getCoHostedEvents(Long clubId);
 
-    Event getEntity(Long id);
-    List<EventResponse> getAllEvents();
+    List<EventResponse> getAllEvents(); // ✅ Lấy toàn bộ event (không phân trang)
 
-    // Co-host handling
+    Event getEntity(Long id);
+
+    // =========================================================
+    // 🔹 CO-HOST HANDLING
+    // =========================================================
     String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
+
     String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
 
-    // UniStaff approval
+    // =========================================================
+    // 🔹 UNISTAFF APPROVAL
+    // =========================================================
     String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
 
-    // Event lifecycle
+    // =========================================================
+    // 🔹 EVENT LIFECYCLE
+    // =========================================================
     String finishEvent(Long eventId, CustomUserDetails principal);
 
-    // Staff management
+    // =========================================================
+    // 🔹 STAFF MANAGEMENT
+    // =========================================================
     EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty);
+
     List<EventStaffResponse> getEventStaffList(Long eventId);
+
+    List<EventRegistrationResponse> getRegisteredEventsByUser(Long userId);
+
+
 }

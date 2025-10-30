@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
+import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.entity.*;
@@ -36,6 +37,7 @@ public class EventServiceImpl implements EventService {
     private final RewardService rewardService;
     private final WalletRepository walletRepo;
     private final EventStaffRepository eventStaffRepo;
+    private final EventRegistrationRepository eventRegistrationRepo;
 
     // =================================================================
     // 🔹 MAPPER
@@ -501,5 +503,21 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
+    @Override
+    public List<EventRegistrationResponse> getRegisteredEventsByUser(Long userId) {
+        return eventRegistrationRepo.findByUser_UserIdOrderByRegisteredAtDesc(userId)
+                .stream()
+                .map(r -> new EventRegistrationResponse(
+                        r.getEvent().getEventId(),
+                        r.getEvent().getName(),
+                        r.getEvent().getDate(),
+                        r.getStatus().name(),
+                        (r.getEvent().getHostClub() != null)
+                                ? r.getEvent().getHostClub().getName()
+                                : "Unknown Club"
+                ))
+                .toList();
+    }
+
 
 }

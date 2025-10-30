@@ -189,8 +189,12 @@ public class WalletRewardServiceImpl implements WalletRewardService {
                             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found: " + clubId))
             );
 
-            Wallet uniWallet = walletService.getUniversityWallet();
-            walletService.transferPoints(uniWallet, clubWallet, req.getPoints(), req.getReason());
+            // 🧩 UPDATED: Thay vì lấy ví University, dùng mint trực tiếp
+            walletService.topupPointsFromUniversity(
+                    clubWallet,
+                    req.getPoints(),
+                    req.getReason()
+            );
 
             responses.add(WalletTransactionResponse.builder()
                     .type("UNI_TO_CLUB")

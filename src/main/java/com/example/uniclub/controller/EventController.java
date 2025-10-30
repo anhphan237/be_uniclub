@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
+import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.dto.response.EventWalletResponse;
@@ -96,13 +97,15 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.cancelRegistration(principal, eventId)));
     }
 
-    @PutMapping("/end")
+    @PostMapping("/{eventId}/complete")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> endEvent(
+    public ResponseEntity<ApiResponse<String>> completeEvent(
             @AuthenticationPrincipal CustomUserDetails principal,
-            @Valid @RequestBody EventEndRequest req) {
-        return ResponseEntity.ok(ApiResponse.msg(eventPointsService.endEvent(principal, req)));
+            @PathVariable Long eventId) {
+        String msg = eventService.finishEvent(eventId, principal);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
     }
+
 
     // =========================================================
     // 🔹 3. LOOKUP
@@ -216,6 +219,12 @@ public class EventController {
         eventWalletService.returnSurplusToClubs(event);
         return ResponseEntity.ok(ApiResponse.msg("Event settled successfully"));
     }
+    @GetMapping("/{eventId}/wallet/detail")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','ADMIN')")
+    public ResponseEntity<ApiResponse<EventWalletResponse>> getEventWalletDetail(
+            @PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventWalletService.getEventWalletDetail(eventId)));
+    }
 
     // =========================================================
     // 🔹 7. ATTENDANCE
@@ -237,4 +246,30 @@ public class EventController {
         String msg = attendanceService.verifyAttendance(eventId, userId);
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> updateEventStatus(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long id,
+            @Valid @RequestBody EventStatusUpdateRequest req) {
+
+        boolean approve = req.getStatus() == EventStatusEnum.APPROVED;
+        String msg = eventService.reviewByUniStaff(id, approve, principal, req.getBudgetPoints());
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+    @GetMapping("/{eventId}/summary")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<?>> getEventSummary(@PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventSummary(eventId)));
+    }
+    @GetMapping("/my-registrations")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<List<EventRegistrationResponse>>> getMyRegisteredEvents(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+        Long userId = principal.getUser().getUserId();
+        List<EventRegistrationResponse> events = eventService.getRegisteredEventsByUser(userId);
+        return ResponseEntity.ok(ApiResponse.ok(events));
+    }
+
+
 }
