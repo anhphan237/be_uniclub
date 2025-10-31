@@ -182,18 +182,32 @@ public class WalletController {
             @RequestParam(required = false) String reason,
             HttpServletRequest request) {
 
+        // 🔹 Validate
         if (points <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
 
+        // 🔹 Xác thực token
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
 
+        // 🔹 Lấy thông tin operator (University Staff)
         String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
         User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
+        // 🔹 Thực hiện top-up với thông tin người thực hiện
         Wallet wallet = walletRewardService.topUpClubWallet(operator, clubId, points, reason);
+
+        // 🔹 Ghi transaction với tên operator
+        walletService.topupPointsFromUniversityWithOperator(
+                wallet.getWalletId(),
+                points,
+                reason != null ? reason : "University top-up",
+                operator.getFullName()   // ✅ Truyền tên thật của UniStaff
+        );
+
+        // 🔹 Tạo response
         WalletResponse response = WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
@@ -204,6 +218,7 @@ public class WalletController {
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
 
     // ================================================================
     // ⚙️ 6️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG

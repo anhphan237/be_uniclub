@@ -214,12 +214,11 @@ public class WalletServiceImpl implements WalletService {
     // ================================================================
     @Transactional
     public void saveTransaction(WalletTransaction tx) {
-        // 🔸 Luôn reload wallet để có đầy đủ quan hệ (club, membership, event)
         Wallet w = walletRepo.findById(tx.getWallet().getWalletId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found when saving transaction"));
         tx.setWallet(w);
 
-        // ✅ ReceiverName = chủ ví
+        // ✅ Receiver = chủ ví
         if (tx.getReceiverName() == null) {
             if (w.getMembership() != null && w.getMembership().getUser() != null)
                 tx.setReceiverName(w.getMembership().getUser().getFullName());
@@ -231,18 +230,24 @@ public class WalletServiceImpl implements WalletService {
                 tx.setReceiverName("System");
         }
 
-        // ✅ SenderName theo loại transaction
+        // ✅ Sender theo loại giao dịch
         if (tx.getSenderName() == null) {
             switch (tx.getType()) {
-                case CLUB_TO_MEMBER -> tx.setSenderName(
-                        (w.getMembership() != null && w.getMembership().getClub() != null)
-                                ? w.getMembership().getClub().getName()
-                                : "Club");
+                case CLUB_TO_MEMBER -> {
+                    if (w.getMembership() != null && w.getMembership().getClub() != null)
+                        tx.setSenderName(w.getMembership().getClub().getName());
+                    else if (w.getClub() != null)
+                        tx.setSenderName(w.getClub().getName());
+                    else
+                        tx.setSenderName("Club");
+                }
                 case UNI_TO_CLUB -> tx.setSenderName("University Staff");
-                case REDEEM_PRODUCT -> tx.setSenderName(
-                        (w.getMembership() != null && w.getMembership().getUser() != null)
-                                ? w.getMembership().getUser().getFullName()
-                                : "Member");
+                case REDEEM_PRODUCT -> {
+                    if (w.getMembership() != null && w.getMembership().getUser() != null)
+                        tx.setSenderName(w.getMembership().getUser().getFullName());
+                    else
+                        tx.setSenderName("Member");
+                }
                 case REFUND_PRODUCT -> tx.setSenderName("System Refund");
                 case TRANSFER -> tx.setSenderName("[System Transfer]");
                 case ADD -> tx.setSenderName("System Add");
@@ -256,8 +261,6 @@ public class WalletServiceImpl implements WalletService {
 
         txRepo.save(tx);
     }
-
-
 
     // ================================================================
     // 🧾 MAP TRANSACTION → RESPONSE
@@ -291,4 +294,24 @@ public class WalletServiceImpl implements WalletService {
                 .createdAt(LocalDateTime.now())
                 .build());
     }
+    @Override
+    @Transactional
+    public void topupPointsFromUniversityWithOperator(Long walletId, long points, String description, String operatorName) {
+        Wallet targetWallet = walletRepo.findById(walletId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found: " + walletId));
+
+        targetWallet.setBalancePoints(targetWallet.getBalancePoints() + points);
+        walletRepo.save(targetWallet);
+
+        saveTransaction(WalletTransaction.builder()
+                .wallet(targetWallet)
+                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+                .amount(points)
+                .description(description)
+                .senderName(operatorName != null ? operatorName : "University Staff") // ✅ Ghi tên người thật
+                .createdAt(LocalDateTime.now())
+                .build());
+    }
+
+
 }

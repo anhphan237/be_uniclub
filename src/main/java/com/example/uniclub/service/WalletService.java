@@ -39,5 +39,7 @@ public interface WalletService {
     List<WalletTransactionResponse> getAllMemberRewards();
 
     void topupPointsFromUniversity(Wallet targetWallet, long points, String description);
+    // 🏫 Nạp điểm cho CLB có tên người thực hiện (University Staff)
+    void topupPointsFromUniversityWithOperator(Long walletId, long points, String description, String operatorName);
 
 }
