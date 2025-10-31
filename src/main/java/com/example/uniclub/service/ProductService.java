@@ -6,7 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface ProductService {
-    ProductResponse create(ProductCreateRequest req);
+    ProductResponse create(ProductCreateRequest req, Long clubId);  // ✅ thêm clubId
     ProductResponse get(Long id);
     Page<ProductResponse> list(Pageable pageable);
     ProductResponse updateStock(Long id, Integer stock);

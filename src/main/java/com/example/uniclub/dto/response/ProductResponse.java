@@ -1,13 +1,18 @@
 package com.example.uniclub.dto.response;
 
-import lombok.*;
+import java.util.List;
 
-@Getter @Setter @AllArgsConstructor @NoArgsConstructor @Builder
-public class ProductResponse {
-    private Long id;
-    private Long clubId;
-    private String name;
-    private String description;
-    private Integer pricePoints;
-    private Integer stockQuantity;
+public record ProductResponse(
+        Long productId,
+        String name,
+        String description,
+        Integer pointCost,
+        Integer stockQuantity,
+        String type,
+        Long clubId,
+        Long eventId,
+        Boolean isActive,
+        List<MediaItem> media
+) {
+    public record MediaItem(Long mediaId, String url, String type, boolean isThumbnail, int displayOrder) {}
 }

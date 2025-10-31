@@ -13,5 +13,9 @@ public enum WalletTransactionTypeEnum {
     COMMIT_LOCK,         // Member join → trừ điểm cam kết từ ví membership vào ví event
     REFUND_COMMIT,       // Hoàn cọc (attendance ≥ 50%) từ ví event về ví membership
     BONUS_REWARD,        // Thưởng thêm (attendance = 100%) từ ví event về ví membership
-    RETURN_SURPLUS       // Chia/hoàn điểm dư từ ví event về ví các CLB tổ chức
+    RETURN_SURPLUS,
+    REDEEM_PRODUCT,
+    REFUND_PRODUCT,
+    EVENT_REDEEM_PRODUCT,
+    EVENT_REFUND_PRODUCT,   // Chia/hoàn điểm dư từ ví event về ví các CLB tổ chức
 }

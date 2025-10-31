@@ -32,6 +32,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     long countByClub_ClubIdAndClubRole(Long clubId, ClubRoleEnum clubRole);
 
     boolean existsByClub_ClubIdAndClubRole(Long clubId, ClubRoleEnum clubRole);
+
     Optional<Membership> findFirstByUser_FullNameAndClubRole(String fullName, ClubRoleEnum clubRole);
 
     long countByClub_ClubIdAndState(Long clubId, MembershipStateEnum state);
@@ -45,12 +46,17 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
     // ✅ Lấy tất cả membership của 1 club
     List<Membership> findByClub_ClubId(Long clubId);
-    boolean existsByUser_UserIdAndClub_ClubIdAndClubRoleIn(Long userId, Long clubId, List<com.example.uniclub.enums.ClubRoleEnum> roles);
-    Optional<Membership> findByUser_UserIdAndClubRoleAndState(Long userId,
-                                                              ClubRoleEnum clubRole,
-                                                              MembershipStateEnum state);
 
+    boolean existsByUser_UserIdAndClub_ClubIdAndClubRoleIn(
+            Long userId, Long clubId, List<com.example.uniclub.enums.ClubRoleEnum> roles);
 
+    Optional<Membership> findByUser_UserIdAndClubRoleAndState(
+            Long userId, ClubRoleEnum clubRole, MembershipStateEnum state);
 
-
+    // ✅ Dùng trong RedeemServiceImpl để kiểm tra user có phải thành viên ACTIVE của CLB
+    Optional<Membership> findByUser_UserIdAndClub_ClubIdAndState(
+            Long userId,
+            Long clubId,
+            MembershipStateEnum state
+    );
 }

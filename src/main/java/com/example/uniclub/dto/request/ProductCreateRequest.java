@@ -1,11 +1,13 @@
 package com.example.uniclub.dto.request;
 
+import com.example.uniclub.enums.ProductTypeEnum;
 import jakarta.validation.constraints.*;
 
 public record ProductCreateRequest(
-        @NotNull Long clubId,
         @NotBlank String name,
         String description,
-        @NotNull @Positive Integer pricePoints,
-        @NotNull @PositiveOrZero Integer stockQuantity
+        @NotNull @Min(0) Integer pointCost,
+        @NotNull @Min(0) Integer stockQuantity,
+        @NotNull ProductTypeEnum type,
+        Long eventId // nullable: chỉ set khi EVENT_ITEM
 ) {}
