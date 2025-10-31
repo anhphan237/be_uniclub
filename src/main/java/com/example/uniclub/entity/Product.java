@@ -44,21 +44,26 @@ public class Product {
     @Column(nullable = false)
     private Boolean isActive = true;
 
-    // 🆕 Ngày tạo sản phẩm (tự động set)
+    // 🕓 Ngày tạo sản phẩm
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // 🆕 Tổng lượt redeem (cập nhật khi có redeem order)
+    // 🔁 Tổng lượt redeem
     @Column(nullable = false)
     private Integer redeemCount = 0;
 
+    // 🖼️ Danh sách media
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC, mediaId ASC")
+    @Builder.Default
     private List<ProductMedia> mediaList = new ArrayList<>();
 
+    // 🏷️ Danh sách tag
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ProductTag> productTags = new ArrayList<>();
 
+    // 🧩 Thêm media vào product
     public void addMedia(ProductMedia media) {
         mediaList.add(media);
         media.setProduct(this);

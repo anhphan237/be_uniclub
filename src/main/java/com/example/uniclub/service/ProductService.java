@@ -14,6 +14,4 @@ public interface ProductService {
     ProductResponse updateStock(Long id, Integer stock);
     void delete(Long id);
     List<ProductResponse> searchByTags(List<String> tagNames);
-
-
 }

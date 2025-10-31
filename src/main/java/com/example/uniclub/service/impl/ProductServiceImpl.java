@@ -78,6 +78,7 @@ public class ProductServiceImpl implements ProductService {
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
         }
 
+        // 🔹 Tạo sản phẩm mới
         Product p = Product.builder()
                 .club(club)
                 .event(event)
@@ -97,24 +98,34 @@ public class ProductServiceImpl implements ProductService {
         }
 
         List<Tag> tags = tagRepository.findAllById(req.tagIds());
+        if (tags.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid tag IDs");
+        }
 
         // ✅ Kiểm tra bắt buộc có tag “event” hoặc “club”
         boolean hasEventOrClub = tags.stream()
-                .anyMatch(tag -> tag.getName().equalsIgnoreCase("event") ||
-                        tag.getName().equalsIgnoreCase("club"));
+                .anyMatch(tag -> tag.getName().equalsIgnoreCase("event")
+                        || tag.getName().equalsIgnoreCase("club"));
         if (!hasEventOrClub) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product must include tag 'event' or 'club'");
         }
 
-        // 🔗 Lưu quan hệ product-tag
+        // 🔗 Lưu quan hệ product-tag + cập nhật ngược vào entity để phản ánh ngay
         for (Tag tag : tags) {
-            productTagRepository.save(ProductTag.builder()
+            ProductTag pt = ProductTag.builder()
                     .product(p)
                     .tag(tag)
-                    .build());
+                    .build();
+            productTagRepository.save(pt);
+            p.getProductTags().add(pt); // ✅ cập nhật list trong entity để khi map ra có dữ liệu
         }
 
-        return toResp(p);
+        // ✅ Đồng bộ và reload lại entity
+        productRepo.flush();
+        Product reloaded = productRepo.findById(p.getProductId())
+                .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Cannot reload product"));
+
+        return toResp(reloaded);
     }
 
     @Override
@@ -134,20 +145,34 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse updateStock(Long id, Integer stock) {
         var p = productRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
-        if (stock == null || stock < 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Stock không hợp lệ");
-        p.setStockQuantity(stock);
+
+        if (stock == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Số lượng cập nhật không hợp lệ");
+
+        int newStock = p.getStockQuantity() + stock;
+        if (newStock < 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Stock không thể âm");
+
+        p.setStockQuantity(newStock);
         productRepo.save(p);
+
         return toResp(p);
     }
+
+
 
     @Override
     @Transactional
     public void delete(Long id) {
-        if (!productRepo.existsById(id))
-            throw new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại");
-        productRepo.deleteById(id);
+        Product p = productRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+
+        // 🟡 Soft delete → chỉ chuyển trạng thái sang inactive
+        p.setIsActive(false);
+        productRepo.save(p);
     }
+
+
     @Override
     public List<ProductResponse> searchByTags(List<String> tagNames) {
         // Nếu không truyền tag → trả về toàn bộ sản phẩm
@@ -169,6 +194,4 @@ public class ProductServiceImpl implements ProductService {
 
         return filtered.stream().map(this::toResp).toList();
     }
-
-
 }
