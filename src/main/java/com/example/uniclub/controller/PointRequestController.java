@@ -44,10 +44,10 @@ public class PointRequestController {
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> reviewRequest(
             @PathVariable Long id,
-            @RequestParam boolean approve,
-            @RequestParam(required = false) String note) {
-        return ResponseEntity.ok(ApiResponse.msg(pointRequestService.reviewRequest(id, approve, note)));
+            @RequestParam boolean approve) {
+        return ResponseEntity.ok(ApiResponse.msg(pointRequestService.reviewRequest(id, approve, null)));
     }
+
 
     /** 🟢 Lấy tất cả yêu cầu điểm (phân trang) */
     @GetMapping
