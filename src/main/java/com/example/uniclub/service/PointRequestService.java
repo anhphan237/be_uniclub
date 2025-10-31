@@ -19,4 +19,7 @@ public interface PointRequestService {
     Page<PointRequestResponse> list(Pageable pageable);
 
     PointRequestResponse get(Long id);
+
+    List<PointRequestResponse> getAllRequests();
+
 }

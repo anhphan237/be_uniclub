@@ -3,8 +3,10 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ProductCreateRequest;
 import com.example.uniclub.dto.response.ProductResponse;
+import com.example.uniclub.entity.Tag;
 import com.example.uniclub.service.ProductService;
 import com.example.uniclub.service.ProductMediaService;
+import com.example.uniclub.service.TagService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -21,8 +23,9 @@ public class ProductController {
 
     private final ProductService productService;
     private final ProductMediaService productMediaService;
+    private final TagService tagService;
 
-    // 🟢 Tạo sản phẩm mới trong kho CLB
+    // 🟢 [1] Tạo sản phẩm mới trong kho CLB
     @PostMapping
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<ProductResponse>> create(
@@ -32,19 +35,19 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(productService.create(req, clubId)));
     }
 
-    // 🟢 Lấy chi tiết sản phẩm theo ID
+    // 🟢 [2] Lấy chi tiết sản phẩm theo ID
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ProductResponse>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(productService.get(id)));
     }
 
-    // 🟢 Lấy danh sách sản phẩm của CLB (phân trang)
+    // 🟢 [3] Lấy danh sách sản phẩm CLB (phân trang)
     @GetMapping
-    public ResponseEntity<?> list(@PathVariable Long clubId, Pageable pageable) {
-        return ResponseEntity.ok(productService.list(pageable));
+    public ResponseEntity<ApiResponse<?>> list(@PathVariable Long clubId, Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(productService.list(pageable)));
     }
 
-    // 🟡 Cập nhật tồn kho sản phẩm
+    // 🟡 [4] Cập nhật tồn kho sản phẩm
     @PatchMapping("/{id}/stock")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<ProductResponse>> updateStock(
@@ -54,7 +57,7 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(productService.updateStock(id, stock)));
     }
 
-    // 🔴 Xóa sản phẩm
+    // 🔴 [5] Xoá sản phẩm
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
@@ -64,7 +67,7 @@ public class ProductController {
 
     // === 🟦 MEDIA SUB-RESOURCE ===
 
-    // ➕ Thêm media (URL Cloudinary)
+    // ➕ [6] Thêm media (URL Cloudinary)
     @PostMapping("/{productId}/media")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<List<ProductResponse.MediaItem>>> addMedia(
@@ -78,7 +81,7 @@ public class ProductController {
         ));
     }
 
-    // 📋 Danh sách media theo product
+    // 📋 [7] Danh sách media theo product
     @GetMapping("/{productId}/media")
     public ResponseEntity<ApiResponse<List<ProductResponse.MediaItem>>> listMedia(
             @PathVariable Long productId
@@ -86,7 +89,7 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(productMediaService.listMedia(productId)));
     }
 
-    // ❌ Xóa media cụ thể
+    // ❌ [8] Xoá media cụ thể
     @DeleteMapping("/{productId}/media/{mediaId}")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<String>> removeMedia(
@@ -96,4 +99,23 @@ public class ProductController {
         productMediaService.removeMedia(mediaId);
         return ResponseEntity.ok(ApiResponse.msg("Removed"));
     }
+
+    // === 🟨 TAG SUB-RESOURCE ===
+
+    // 🏷️ [9] Lấy tất cả tag có sẵn (để CLB chọn khi tạo product)
+    @GetMapping("/tags")
+    public ResponseEntity<ApiResponse<List<Tag>>> getAllTags() {
+        return ResponseEntity.ok(ApiResponse.ok(tagService.getAllTags()));
+    }
+
+    // 🏷️ [10] Tìm sản phẩm theo 1 hoặc nhiều tag
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> searchByTags(
+            @RequestParam(required = false) List<String> tags // ví dụ ?tags=event,eco
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(productService.searchByTags(tags)));
+    }
+
+
+
 }

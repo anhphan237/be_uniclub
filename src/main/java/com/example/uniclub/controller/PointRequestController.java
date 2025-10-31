@@ -62,4 +62,11 @@ public class PointRequestController {
     public ResponseEntity<ApiResponse<PointRequestResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(pointRequestService.get(id)));
     }
+    /** 🟢 Lấy toàn bộ yêu cầu điểm (không phân trang) */
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<PointRequestResponse>>> getAllRequests() {
+        return ResponseEntity.ok(ApiResponse.ok(pointRequestService.getAllRequests()));
+    }
+
 }

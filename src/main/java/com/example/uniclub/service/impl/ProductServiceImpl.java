@@ -2,20 +2,17 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.ProductCreateRequest;
 import com.example.uniclub.dto.response.ProductResponse;
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Event;
-import com.example.uniclub.entity.Product;
+import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.ProductTypeEnum;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.repository.ClubRepository;
-import com.example.uniclub.repository.EventRepository;
-import com.example.uniclub.repository.ProductRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -26,6 +23,10 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+
+    // 🏷️ Tag
+    private final TagRepository tagRepository;
+    private final ProductTagRepository productTagRepository;
 
     // 🧩 Mapper: Product → ProductResponse
     private ProductResponse toResp(Product p) {
@@ -40,6 +41,12 @@ public class ProductServiceImpl implements ProductService {
                 .toList()
                 : List.of();
 
+        List<String> tagNames = (p.getProductTags() != null)
+                ? p.getProductTags().stream()
+                .map(pt -> pt.getTag().getName())
+                .toList()
+                : List.of();
+
         return new ProductResponse(
                 p.getProductId(),
                 p.getName(),
@@ -50,12 +57,13 @@ public class ProductServiceImpl implements ProductService {
                 p.getClub() != null ? p.getClub().getClubId() : null,
                 p.getEvent() != null ? p.getEvent().getEventId() : null,
                 p.getIsActive(),
-                mediaItems
+                mediaItems,
+                tagNames
         );
     }
 
-
     @Override
+    @Transactional
     public ProductResponse create(ProductCreateRequest req, Long clubId) {
         // 🔸 Kiểm tra Club tồn tại
         Club club = clubRepo.findById(clubId)
@@ -82,6 +90,30 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         productRepo.save(p);
+
+        // 🏷️ Xử lý tag
+        if (req.tagIds() == null || req.tagIds().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Product must have at least one tag");
+        }
+
+        List<Tag> tags = tagRepository.findAllById(req.tagIds());
+
+        // ✅ Kiểm tra bắt buộc có tag “event” hoặc “club”
+        boolean hasEventOrClub = tags.stream()
+                .anyMatch(tag -> tag.getName().equalsIgnoreCase("event") ||
+                        tag.getName().equalsIgnoreCase("club"));
+        if (!hasEventOrClub) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Product must include tag 'event' or 'club'");
+        }
+
+        // 🔗 Lưu quan hệ product-tag
+        for (Tag tag : tags) {
+            productTagRepository.save(ProductTag.builder()
+                    .product(p)
+                    .tag(tag)
+                    .build());
+        }
+
         return toResp(p);
     }
 
@@ -98,6 +130,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public ProductResponse updateStock(Long id, Integer stock) {
         var p = productRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
@@ -109,9 +142,33 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         if (!productRepo.existsById(id))
             throw new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại");
         productRepo.deleteById(id);
     }
+    @Override
+    public List<ProductResponse> searchByTags(List<String> tagNames) {
+        // Nếu không truyền tag → trả về toàn bộ sản phẩm
+        if (tagNames == null || tagNames.isEmpty()) {
+            return productRepo.findAll().stream()
+                    .map(this::toResp)
+                    .toList();
+        }
+
+        // Lấy tất cả product
+        List<Product> allProducts = productRepo.findAll();
+
+        // 🧩 Lọc theo tag (OR logic): sản phẩm có ít nhất 1 tag trùng
+        List<Product> filtered = allProducts.stream()
+                .filter(p -> p.getProductTags() != null && p.getProductTags().stream()
+                        .anyMatch(pt -> tagNames.stream()
+                                .anyMatch(tn -> pt.getTag().getName().equalsIgnoreCase(tn))))
+                .toList();
+
+        return filtered.stream().map(this::toResp).toList();
+    }
+
+
 }

@@ -12,7 +12,8 @@ public record ProductResponse(
         Long clubId,
         Long eventId,
         Boolean isActive,
-        List<MediaItem> media
+        List<MediaItem> media,
+        List<String> tags // 🏷️ danh sách tag hiển thị
 ) {
     public record MediaItem(Long mediaId, String url, String type, boolean isThumbnail, int displayOrder) {}
 }

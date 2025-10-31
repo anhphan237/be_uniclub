@@ -31,7 +31,7 @@ public class PointRequestServiceImpl implements PointRequestService {
     private final PointRequestRepository pointRequestRepo;
     private final WalletService walletService;
     private final WalletRepository walletRepo;
-
+    private final PointRequestRepository pointRequestRepository;
     @Override
     @Transactional
     public PointRequestResponse createRequest(CustomUserDetails principal, PointRequestCreateRequest req) {
@@ -114,4 +114,12 @@ public class PointRequestServiceImpl implements PointRequestService {
                 .reviewedAt(pr.getReviewedAt())
                 .build();
     }
+    @Override
+    public List<PointRequestResponse> getAllRequests() {
+        return pointRequestRepository.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
 }
