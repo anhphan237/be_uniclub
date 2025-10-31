@@ -50,5 +50,12 @@ public class WalletTransaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "receiver_user_id")
     private User receiverUser;
+    @Column(name = "sender_name")
+    private String senderName;
+
+    @Column(name = "receiver_name")
+    private String receiverName;
+
+
 
 }
