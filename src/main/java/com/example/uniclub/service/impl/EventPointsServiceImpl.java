@@ -46,7 +46,7 @@ public class EventPointsServiceImpl implements EventPointsService {
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED)
+        if (event.getStatus() != EventStatusEnum.APPROVED || event.getStatus() != EventStatusEnum.ONGOING)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration");
 
         if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId()))
