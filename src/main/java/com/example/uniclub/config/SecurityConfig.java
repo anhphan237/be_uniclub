@@ -9,6 +9,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -41,6 +42,7 @@ public class SecurityConfig {
                 // ✅ CORS + CSRF + Stateless Session
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // ✅ Exception handling (Unauthorized / Forbidden)
@@ -55,6 +57,9 @@ public class SecurityConfig {
 
                 // ✅ Endpoint authorization rules
                 .authorizeHttpRequests(auth -> auth
+                        // ✅ allow CORS preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // 🌐 Public endpoints (Swagger + Auth)
                         .requestMatchers(
                                 "/auth/**",
@@ -140,6 +145,7 @@ public class SecurityConfig {
         // ✅ Cho phép FE local và deployed domain thật
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
+                "http://localhost:4200",
                 "https://uniclub-fpt.vercel.app"
         ));
 
