@@ -18,7 +18,7 @@ import java.util.List;
  * API Base Path: /api/admin/major-policies
  */
 @RestController
-@RequestMapping("/api/admin/major-policies")
+@RequestMapping("/api/university/major-policies")
 @RequiredArgsConstructor
 public class MajorPolicyController {
 
