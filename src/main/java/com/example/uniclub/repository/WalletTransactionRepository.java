@@ -23,12 +23,13 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     // 🔹 Lịch sử thưởng điểm từ Club → Member (FETCH JOIN để lấy luôn User name)
     @Query("""
-        SELECT tx FROM WalletTransaction tx
-        LEFT JOIN FETCH tx.wallet w
-        LEFT JOIN FETCH w.membership m
-        LEFT JOIN FETCH m.user u
-        WHERE tx.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
-        ORDER BY tx.createdAt DESC
-    """)
+    SELECT tx FROM WalletTransaction tx
+    LEFT JOIN FETCH tx.wallet w
+    LEFT JOIN FETCH w.club c
+    LEFT JOIN FETCH tx.receiverUser u
+    WHERE tx.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
+    ORDER BY tx.createdAt DESC
+""")
     List<WalletTransaction> findRewardToMembers();
+
 }

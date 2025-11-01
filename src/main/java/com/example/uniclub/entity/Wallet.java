@@ -27,15 +27,15 @@ public class Wallet {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private WalletOwnerTypeEnum ownerType; // CLUB / EVENT / MEMBERSHIP
+    private WalletOwnerTypeEnum ownerType; // CLUB / EVENT / USER
 
     // ======================= RELATIONS =======================
 
-    // Ví thuộc về 1 membership (per-user-per-club)
+
     @OneToOne
-    @JoinColumn(name = "membership_id", unique = true)
+    @JoinColumn(name = "user_id", unique = true)
     @JsonBackReference
-    private Membership membership;
+    private User user;
 
     // Ví thuộc về 1 club
     @OneToOne
@@ -62,12 +62,12 @@ public class Wallet {
     @PreUpdate
     private void validateOwnerConsistency() {
         int count = 0;
-        if (membership != null) count++;
+        if (user != null) count++;
         if (club != null) count++;
         if (event != null) count++;
         if (count != 1) {
             throw new IllegalStateException(
-                    "Wallet must belong to exactly one owner (club, event, or membership)"
+                    "Wallet must belong to exactly one owner (club, event, or user)"
             );
         }
     }

@@ -1,23 +1,21 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.WalletTransactionResponse;
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Membership;
-import com.example.uniclub.entity.Wallet;
-import com.example.uniclub.entity.WalletTransaction;
+import com.example.uniclub.entity.*;
+
 import java.util.List;
 
 public interface WalletService {
 
     // 🔍 Lấy ví theo loại
     Wallet getWalletByClubId(Long clubId);
-    Wallet getWalletByMembershipId(Long membershipId);
+
     Wallet getWalletById(Long walletId);
 
     // 🏗️ Tạo ví nếu chưa có
     Wallet getOrCreateClubWallet(Club club);
-    Wallet getOrCreateMembershipWallet(Membership membership);
-
+//    Wallet getOrCreateMembershipWallet(Membership membership);
+    Wallet getOrCreateUserWallet(User user);
     // 💰 Thao tác tăng / giảm điểm
     void increase(Wallet wallet, long points);
     void decrease(Wallet wallet, long points);

@@ -7,6 +7,7 @@ import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.repository.WalletRepository;
 import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final WalletService walletService;
     private final MembershipRepository membershipRepo;
     private final RewardService rewardService;
-    private final WalletRepository walletRepo;
+    private final UserRepository userRepo;
     private final ClubRepository clubRepo;
 
     // ================================================================
@@ -42,7 +43,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     // ================================================================
     @Transactional
     @Override
-    public Wallet rewardPointsByMembershipId(User operator, Long membershipId, long points, String reason) {
+    public Wallet rewardPointsByUser(User operator, Long userId, long points, String reason) {
         String role = operator.getRole().getRoleName();
         boolean isAdmin = role.equalsIgnoreCase("ADMIN");
         boolean isStaff = role.equalsIgnoreCase("UNIVERSITY_STAFF");
@@ -52,53 +53,59 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         if (!(isAdmin || isStaff || isLeader || isVice))
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to reward points.");
 
-        Membership membership = membershipRepo.findById(membershipId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found."));
+        // 🎯 Tìm user được thưởng
+        User targetUser = userRepo.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        if (membership.getState() != MembershipStateEnum.APPROVED &&
-                membership.getState() != MembershipStateEnum.ACTIVE)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Membership is not active or approved.");
-
-        Long targetClubId = membership.getClub().getClubId();
-
+        // 🏫 Nếu người thưởng là CLB leader hoặc vice → trừ điểm từ ví CLB
         if (isLeader || isVice) {
-            boolean isClubLeaderOrVice = membershipRepo.findByUser_UserId(operator.getUserId()).stream()
-                    .anyMatch(m -> m.getClub().getClubId().equals(targetClubId) &&
-                            (m.getClubRole().name().equalsIgnoreCase("LEADER") ||
-                                    m.getClubRole().name().equalsIgnoreCase("VICE_LEADER")));
-            if (!isClubLeaderOrVice)
-                throw new ApiException(HttpStatus.FORBIDDEN,
-                        "You are not the leader or vice leader of this club.");
+            // Xác định CLB mà operator đang quản lý
+            List<Membership> operatorMemberships = membershipRepo.findByUser_UserId(operator.getUserId());
+            if (operatorMemberships.isEmpty()) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "You are not part of any club.");
+            }
 
-            Wallet clubWallet = walletService.getWalletByClubId(targetClubId);
+            // ✅ Nếu hệ thống có truyền clubId thì nên check theo clubId
+            // Ở đây ta giả định leader chỉ được thưởng khi cùng CLB
+            Long clubId = operatorMemberships.get(0).getClub().getClubId();
+
+            Wallet clubWallet = walletService.getWalletByClubId(clubId);
             if (clubWallet.getBalancePoints() < points)
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient club wallet balance.");
             walletService.decrease(clubWallet, points);
         }
 
-        Wallet membershipWallet = walletService.getOrCreateMembershipWallet(membership);
-        walletService.increase(membershipWallet, points);
+        // 💰 Tạo hoặc lấy ví user được thưởng
+        Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
+        walletService.increase(userWallet, points);
 
-        walletService.logClubToMemberReward(membershipWallet, points,
-                reason == null ? "Manual reward" : reason);
+        // 📜 Ghi log
+        walletService.logClubToMemberReward(
+                userWallet,
+                points,
+                reason == null ? "Manual reward" : reason
+        );
 
-        long totalPoints = membershipWallet.getBalancePoints();
+        // ✉️ Gửi thông báo email thưởng
+        long totalPoints = userWallet.getBalancePoints();
         rewardService.sendManualBonusEmail(
-                membership.getUser().getUserId(),
+                targetUser.getUserId(),
                 points,
                 reason,
                 totalPoints
         );
 
+        // 🎖️ Kiểm tra mốc thưởng
         if (totalPoints >= 500 && totalPoints - points < 500)
-            rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 500);
+            rewardService.sendMilestoneEmail(targetUser.getUserId(), 500);
         if (totalPoints >= 1000 && totalPoints - points < 1000)
-            rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 1000);
+            rewardService.sendMilestoneEmail(targetUser.getUserId(), 1000);
         if (totalPoints >= 2000 && totalPoints - points < 2000)
-            rewardService.sendMilestoneEmail(membership.getUser().getUserId(), 2000);
+            rewardService.sendMilestoneEmail(targetUser.getUserId(), 2000);
 
-        return membershipWallet;
+        return userWallet;
     }
+
 
     // ================================================================
     // 🎯 THƯỞNG ĐIỂM CHO TOÀN BỘ THÀNH VIÊN TRONG CLB
@@ -109,32 +116,59 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         String role = operator.getRole().getRoleName();
         boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
 
+        //  Chỉ Admin / University Staff mới có quyền thưởng toàn CLB
         if (!isAdminOrStaff)
             throw new ApiException(HttpStatus.FORBIDDEN,
-                    "Only University Staff or admin can reward an entire club.");
+                    "Only University Staff or Admin can reward an entire club.");
 
-        List<Membership> members = membershipRepo.findByClub_ClubId(clubId).stream()
+        List<Membership> activeMembers = membershipRepo.findByClub_ClubId(clubId).stream()
                 .filter(m -> m.getState() == MembershipStateEnum.APPROVED ||
                         m.getState() == MembershipStateEnum.ACTIVE)
                 .toList();
 
-        int count = 0;
-        for (Membership m : members) {
-            Wallet wallet = walletService.getOrCreateMembershipWallet(m);
-            walletService.increase(wallet, points);
-            walletService.logClubToMemberReward(wallet, points,
-                    reason == null ? "Mass reward" : reason);
+        if (activeMembers.isEmpty())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "No active or approved members found in this club.");
 
+        Wallet clubWallet = walletService.getWalletByClubId(clubId);
+        long totalPointsNeeded = points * activeMembers.size();
+
+        if (clubWallet.getBalancePoints() < totalPointsNeeded)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient club wallet balance for mass reward.");
+
+
+        walletService.decrease(clubWallet, totalPointsNeeded);
+
+        int count = 0;
+        for (Membership m : activeMembers) {
+            User targetUser = m.getUser();
+
+            // Lấy ví user
+            Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
+
+            // Cộng điểm cho ví user
+            walletService.increase(userWallet, points);
+
+            // Ghi transaction log
+            walletService.logClubToMemberReward(
+                    userWallet,
+                    points,
+                    reason == null ? "Mass reward" : reason
+            );
+
+            // Gửi email thông báo
             rewardService.sendManualBonusEmail(
-                    m.getUser().getUserId(),
+                    targetUser.getUserId(),
                     points,
                     reason,
-                    wallet.getBalancePoints()
+                    userWallet.getBalancePoints()
             );
+
             count++;
         }
+
         return count;
     }
+
 
     // ================================================================
     // 💰 UNI-STAFF NẠP ĐIỂM CHO CLB (CÓ NGƯỜI THỰC HIỆN)
@@ -208,22 +242,38 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         for (Long membershipId : req.getTargetIds()) {
             Membership membership = membershipRepo.findById(membershipId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found: " + membershipId));
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                            "Membership not found: " + membershipId));
 
-            Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
-            Wallet clubWallet = walletService.getOrCreateClubWallet(membership.getClub());
+            // 🎯 Lấy user & club từ membership
+            User targetUser = membership.getUser();
+            Club targetClub = membership.getClub();
 
-            walletService.transferPoints(clubWallet, memberWallet, req.getPoints(), req.getReason());
+            // ✅ Lấy ví CLB và ví User
+            Wallet clubWallet = walletService.getOrCreateClubWallet(targetClub);
+            Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
 
+            // ✅ Kiểm tra ví CLB có đủ điểm không
+            if (clubWallet.getBalancePoints() < req.getPoints()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Insufficient club wallet balance for member: " + targetUser.getFullName());
+            }
+
+            // ✅ Chuyển điểm từ CLB → User
+            walletService.transferPoints(clubWallet, userWallet, req.getPoints(), req.getReason());
+
+            // ✅ Log giao dịch và build response
             responses.add(WalletTransactionResponse.builder()
                     .type("CLUB_TO_MEMBER")
                     .amount(req.getPoints())
                     .description(req.getReason())
-                    .receiverName(membership.getUser().getFullName())
+                    .senderName(targetClub.getName())
+                    .receiverName(targetUser.getFullName())
                     .createdAt(LocalDateTime.now())
                     .build());
         }
 
         return responses;
     }
+
 }

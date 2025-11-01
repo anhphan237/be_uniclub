@@ -52,13 +52,13 @@ public class EventSettlementServiceImpl implements EventSettlementService {
                         .findFirst()
                         .orElse(null);
 
-                if (membership != null && membership.getWallet() != null) {
+                if (membership != null && walletService.getOrCreateUserWallet(membership.getUser()) != null) {
                     String note = (payout == commit)
                             ? WalletTransactionTypeEnum.REFUND_COMMIT.name()
                             : WalletTransactionTypeEnum.BONUS_REWARD.name();
 
                     // ✅ Ép kiểu về int để khớp hàm trong WalletService
-                    walletService.transferPoints(eventWallet, membership.getWallet(), (int) payout, note);
+                    walletService.transferPoints(eventWallet, walletService.getOrCreateUserWallet(membership.getUser()), (int) payout, note);
                 }
             }
         }

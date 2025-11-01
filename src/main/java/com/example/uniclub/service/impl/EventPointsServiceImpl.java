@@ -59,7 +59,7 @@ public class EventPointsServiceImpl implements EventPointsService {
         Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), hostClub.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You must be a member of the host club to join this event"));
 
-        Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
+        Wallet memberWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
         long commitPoints = event.getCommitPointCost() == null ? 0L : event.getCommitPointCost().longValue();
@@ -132,7 +132,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .findByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        Wallet memberWallet = walletService.getOrCreateMembershipWallet(membership);
+        Wallet memberWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
         long refund = reg.getCommittedPoints() == null ? 0L : reg.getCommittedPoints().longValue();
@@ -174,7 +174,8 @@ public class EventPointsServiceImpl implements EventPointsService {
             Membership membership = membershipRepo
                     .findByUser_UserIdAndClub_ClubId(reg.getUser().getUserId(), event.getHostClub().getClubId())
                     .orElse(null);
-            if (membership == null || membership.getWallet() == null) continue;
+            if (membership == null || walletService.getOrCreateUserWallet(membership.getUser())
+                    == null) continue;
 
             double clubMultiplier   = event.getHostClub().getClubMultiplier() == null ? 1.0 : event.getHostClub().getClubMultiplier();
             double memberMultiplier = membership.getMemberMultiplier() == null ? 1.0 : membership.getMemberMultiplier();
@@ -182,7 +183,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
             long finalReward = Math.round(baseReward * clubMultiplier * memberMultiplier * eventMultiplier);
 
-            walletService.transferPoints(eventWallet, membership.getWallet(), (int) finalReward,
+            walletService.transferPoints(eventWallet, walletService.getOrCreateUserWallet(membership.getUser()), (int) finalReward,
                     WalletTransactionTypeEnum.BONUS_REWARD.name() + " (multiplied)");
 
             totalReward += finalReward;

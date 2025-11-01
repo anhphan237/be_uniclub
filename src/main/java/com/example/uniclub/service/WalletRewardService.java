@@ -8,7 +8,8 @@ import java.util.List;
 
 public interface WalletRewardService {
     Wallet getWalletByUserId(Long userId);
-    Wallet rewardPointsByMembershipId(User operator, Long membershipId, long points, String reason);
+    Wallet rewardPointsByUser(User operator, Long userId, long points, String reason);
+
     int rewardPointsByClubId(User operator, Long clubId, long points, String reason);
     Wallet topUpClubWallet(User operator, Long clubId, long points, String reason);
     List<WalletTransactionResponse> rewardMultipleClubs(WalletRewardBatchRequest req);

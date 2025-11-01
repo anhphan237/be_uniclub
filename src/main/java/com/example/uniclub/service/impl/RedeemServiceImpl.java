@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +30,7 @@ public class RedeemServiceImpl implements RedeemService {
     private final MembershipRepository membershipRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+    private final UserRepository  userRepo;
     private final QrService qrService;
     private final EmailService emailService;
 
@@ -75,9 +77,10 @@ public class RedeemServiceImpl implements RedeemService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
         int totalPoints = product.getPointCost() * req.quantity();
+        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
 
         Wallet wallet = walletRepo
-                .findByMembership_MembershipId(membership.getMembershipId())
+                .findByUser_UserIdAndClub_ClubId(userId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for membership"));
 
         if (wallet.getBalancePoints() < totalPoints)
@@ -158,8 +161,8 @@ public class RedeemServiceImpl implements RedeemService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
         int totalPoints = product.getPointCost() * req.quantity();
-
-        Wallet wallet = walletRepo.findByMembership_MembershipId(membership.getMembershipId())
+        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
         if (wallet.getBalancePoints() < totalPoints)
@@ -221,7 +224,8 @@ public class RedeemServiceImpl implements RedeemService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order already refunded");
 
         Product product = order.getProduct();
-        Wallet wallet = walletRepo.findByMembership_MembershipId(order.getMembership().getMembershipId())
+        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
         wallet.setBalancePoints(wallet.getBalancePoints() + order.getTotalPoints());
@@ -259,7 +263,8 @@ public class RedeemServiceImpl implements RedeemService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid refund quantity");
 
         Product product = order.getProduct();
-        Wallet wallet = walletRepo.findByMembership_MembershipId(order.getMembership().getMembershipId())
+        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
         int refundPoints = product.getPointCost() * quantityToRefund;
