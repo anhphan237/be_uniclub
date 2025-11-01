@@ -1,6 +1,6 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.response.ProductResponse;
+import com.example.uniclub.dto.response.ProductMediaResponse;
 import com.example.uniclub.entity.Product;
 import com.example.uniclub.entity.ProductMedia;
 import com.example.uniclub.exception.ApiException;
@@ -23,12 +23,11 @@ public class ProductMediaServiceImpl implements ProductMediaService {
 
     @Override
     @Transactional
-    public List<ProductResponse.MediaItem> addMedia(Long productId, List<String> urls, String type, boolean thumbnail) {
+    public List<ProductMediaResponse> addMedia(Long productId, List<String> urls, String type, boolean thumbnail) {
         Product p = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
         int baseOrder = p.getMediaList().size();
-
         for (int i = 0; i < urls.size(); i++) {
             ProductMedia m = ProductMedia.builder()
                     .product(p)
@@ -41,9 +40,25 @@ public class ProductMediaServiceImpl implements ProductMediaService {
         }
         productRepo.save(p);
 
-        return mediaRepo.findByProductOrderByDisplayOrderAscMediaIdAsc(p).stream()
-                .map(m -> new ProductResponse.MediaItem(m.getMediaId(), m.getUrl(), m.getType(), m.isThumbnail(), m.getDisplayOrder()))
-                .toList();
+        return listMedia(productId);
+    }
+
+    @Override
+    @Transactional
+    public ProductMediaResponse updateMedia(Long productId, Long mediaId, String url, Boolean thumbnail, Integer displayOrder) {
+        ProductMedia m = mediaRepo.findById(mediaId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Media not found"));
+
+        if (!m.getProduct().getProductId().equals(productId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Media không thuộc sản phẩm này");
+        }
+
+        if (url != null && !url.isBlank()) m.setUrl(url);
+        if (thumbnail != null) m.setThumbnail(thumbnail);
+        if (displayOrder != null) m.setDisplayOrder(displayOrder);
+
+        mediaRepo.save(m);
+        return new ProductMediaResponse(m.getMediaId(), m.getUrl(), m.getType(), m.isThumbnail(), m.getDisplayOrder());
     }
 
     @Override
@@ -55,11 +70,14 @@ public class ProductMediaServiceImpl implements ProductMediaService {
     }
 
     @Override
-    public List<ProductResponse.MediaItem> listMedia(Long productId) {
+    @Transactional(readOnly = true)
+    public List<ProductMediaResponse> listMedia(Long productId) {
         Product p = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
-        return mediaRepo.findByProductOrderByDisplayOrderAscMediaIdAsc(p).stream()
-                .map(m -> new ProductResponse.MediaItem(m.getMediaId(), m.getUrl(), m.getType(), m.isThumbnail(), m.getDisplayOrder()))
+
+        return mediaRepo.findByProductOrderByDisplayOrderAscMediaIdAsc(p)
+                .stream()
+                .map(m -> new ProductMediaResponse(m.getMediaId(), m.getUrl(), m.getType(), m.isThumbnail(), m.getDisplayOrder()))
                 .toList();
     }
 }

@@ -1,19 +1,22 @@
 package com.example.uniclub.dto.response;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ProductResponse(
-        Long productId,
+        Long id,
+        String productCode,
         String name,
         String description,
         Integer pointCost,
         Integer stockQuantity,
         String type,
+        String status,
         Long clubId,
+        String clubName,
         Long eventId,
-        Boolean isActive,
-        List<MediaItem> media,
-        List<String> tags // 🏷️ danh sách tag hiển thị
-) {
-    public record MediaItem(Long mediaId, String url, String type, boolean isThumbnail, int displayOrder) {}
-}
+        LocalDateTime createdAt,
+        Integer redeemCount,
+        List<ProductMediaResponse> media,
+        List<String> tags
+) {}

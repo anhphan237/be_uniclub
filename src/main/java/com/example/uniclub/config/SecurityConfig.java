@@ -38,7 +38,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ CORS + CSRF + session management
+                // ✅ CORS + CSRF + Stateless Session
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -71,23 +71,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
 
-                        // 👤 Profile & Attendance (requires login)
+                        // 👤 Profile & Attendance
                         .requestMatchers("/api/users/profile/**").authenticated()
                         .requestMatchers("/api/attendance/checkin").authenticated()
 
-                        // 🧩 Wallet APIs
-                        // Reward: ClubLeader / UniversityStaff / Admin only
+                        // 💰 Wallet APIs
                         .requestMatchers(HttpMethod.POST, "/api/wallets/reward/**")
                         .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
-                        // Get my wallet: any authenticated user
                         .requestMatchers(HttpMethod.GET, "/api/wallets/me").authenticated()
-
-                        // Get club wallet: ClubLeader / Staff / Admin
                         .requestMatchers(HttpMethod.GET, "/api/wallets/club/**")
                         .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
-                        // 🔒 User management – Admin & Staff only
+                        // 👥 User management
                         .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
 
                         // 🧩 Specialized API access
@@ -97,23 +93,24 @@ public class SecurityConfig {
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/attendance/generate/**").hasAnyRole("CLUB_LEADER", "ADMIN")
 
-                        // 🔐 All other endpoints require authentication
+                        // 🔒 All other endpoints
                         .anyRequest().authenticated()
                 )
 
                 // ✅ OAuth2 login configuration
-                .oauth2Login(o -> o
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(a -> a.baseUri("/oauth2/authorization"))
                         .successHandler(oauth2SuccessHandler)
                         .failureHandler(oauth2FailureHandler)
                 )
 
-                // ✅ Add JWT filter before UsernamePasswordAuthenticationFilter
+                // ✅ JWT filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // 🔐 Authentication Provider (used for traditional login)
+    // 🔐 Authentication Provider (for username-password login)
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -122,11 +119,13 @@ public class SecurityConfig {
         return provider;
     }
 
+    // 🔑 BCrypt encoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // ⚙️ AuthenticationManager (used by AuthController)
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
         return cfg.getAuthenticationManager();
@@ -137,7 +136,13 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("*");
+
+        // ✅ Cho phép cả FE local và deployed domain
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000",
+                "https://uniclub-fe.vercel.app"
+        ));
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization", "Location"));
