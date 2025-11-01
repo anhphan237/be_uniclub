@@ -11,7 +11,7 @@ import org.mapstruct.Named;
  * Mapper: chuyển đổi ClubApplication → ClubApplicationResponse
  * Dùng MapStruct để tự động map các field cùng tên
  */
-@Mapper(componentModel = "spring")
+@Mapper
 public interface ClubApplicationMapper {
 
     ClubApplicationMapper INSTANCE = org.mapstruct.factory.Mappers.getMapper(ClubApplicationMapper.class);

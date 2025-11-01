@@ -142,17 +142,43 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void syncTags(Product product, List<Long> tagIds) {
-        if (product.getProductTags() != null && !product.getProductTags().isEmpty()) {
-            productTagRepository.deleteAll(product.getProductTags());
-            product.getProductTags().clear();
-        }
-        if (tagIds == null || tagIds.isEmpty()) return;
+        // Nếu null thì coi như empty list
+        List<Long> inputTagIds = (tagIds == null) ? List.of() : tagIds;
 
-        List<Tag> tags = tagRepository.findAllById(tagIds);
-        for (Tag tag : tags) {
-            ProductTag pt = ProductTag.builder().product(product).tag(tag).build();
-            productTagRepository.save(pt);
-            product.getProductTags().add(pt);
+        // Lấy danh sách liên kết hiện tại
+        Set<Long> currentTagIds = product.getProductTags()
+                .stream()
+                .map(pt -> pt.getTag().getTagId())
+                .collect(Collectors.toSet());
+
+        // Tag cần xóa = tag hiện tại mà không nằm trong request
+        Set<Long> tagsToRemove = currentTagIds.stream()
+                .filter(id -> !inputTagIds.contains(id))
+                .collect(Collectors.toSet());
+
+        // Tag cần thêm = tag trong request nhưng chưa có
+        Set<Long> tagsToAdd = inputTagIds.stream()
+                .filter(id -> !currentTagIds.contains(id))
+                .collect(Collectors.toSet());
+
+        // 1️⃣ Xóa
+        if (!tagsToRemove.isEmpty()) {
+            product.getProductTags().removeIf(pt -> tagsToRemove.contains(pt.getTag().getTagId()));
+            productTagRepository.deleteByProductIdAndTagIds(product.getProductId(), tagsToRemove);
+        }
+
+        // 2️⃣ Thêm
+        if (!tagsToAdd.isEmpty()) {
+            List<Tag> newTags = tagRepository.findAllById(tagsToAdd);
+            List<ProductTag> newProductTags = newTags.stream()
+                    .map(tag -> ProductTag.builder()
+                            .product(product)
+                            .tag(tag)
+                            .build())
+                    .toList();
+
+            product.getProductTags().addAll(newProductTags);
+            productTagRepository.saveAll(newProductTags);
         }
     }
 
