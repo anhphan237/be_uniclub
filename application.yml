@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:postgresql://ep-icy-resonance-a1pfqxdl-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
     username: neondb_owner
-    password: npg_Ov8aHyTuSP0E   # ⚠️ mật khẩu từ Neon Dashboard
+    password: npg_Ov8aHyTuSP0E
     driver-class-name: org.postgresql.Driver
 
   data:
@@ -19,8 +19,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update          # ✅ Hibernate tự thêm cột/bảng khi cần
-    show-sql: true              # Hiện SQL để debug
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
         format_sql: true
@@ -36,7 +36,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: uniclub.contacts@gmail.com
-    password: msmegghtulwgfznb
+    password: dzhhqdotkvlvxmoi
     properties:
       mail:
         smtp:
@@ -49,17 +49,33 @@ spring:
       client:
         registration:
           google:
-            client-id: 69239768097-t0akr44a3jmif9srfoc1p23h6g47kdel.apps.googleusercontent.com   # ⚠️ Thay bằng client ID thật từ Google Cloud Console
-            client-secret: dummy                                   # Không bắt buộc thật, chỉ để tránh lỗi
+            client-id: 69239768097-t0akr44a3jmif9srfoc1p23h6g47kdel.apps.googleusercontent.com
+            client-secret: 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
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - email
+              - profile
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
 
 jwt:
   secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
   expiration: 7776000000
 
 app:
+  oauth2:
+    redirect-success: http://localhost:3000/auth/callback
+    redirect-fail: http://localhost:3000/login?error
+    school-domains: "@fpt.edu.vn,@fe.edu.vn"
+
   crypto:
     aes-gcm:
       key-b64: ${APP_CRYPTO_AES_GCM_KEY_B64}
+
   jwt:
     event-secret: "CHANGE_ME_TO_A_32B_SECRET_0123456789ABCDEF"
 

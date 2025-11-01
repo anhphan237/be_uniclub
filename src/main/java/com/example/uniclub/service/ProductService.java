@@ -1,17 +1,35 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.ProductCreateRequest;
+import com.example.uniclub.dto.request.ProductUpdateRequest;
 import com.example.uniclub.dto.response.ProductResponse;
+import com.example.uniclub.entity.ProductStockHistory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
 public interface ProductService {
-    ProductResponse create(ProductCreateRequest req, Long clubId);  // ✅ thêm clubId
+    ProductResponse create(ProductCreateRequest req, Long clubId);
     ProductResponse get(Long id);
+
+    // ✅ List cho admin / unistaff (phân trang)
     Page<ProductResponse> list(Pageable pageable);
-    ProductResponse updateStock(Long id, Integer stock);
-    void delete(Long id);
+
+    // ✅ List cho CLB (phân trang)
+    Page<ProductResponse> listByClub(Long clubId, Pageable pageable, Boolean includeInactive, Boolean includeArchived);
+    Page<ProductResponse> adminFilterList(Pageable pageable, String status, String type, String tag, String keyword);
+
+    // ✅ List cho CLB (không phân trang)
+    List<ProductResponse> listByClub(Long clubId, boolean includeInactive, boolean includeArchived);
+
+    ProductResponse update(Long id, ProductUpdateRequest req);
+    ProductResponse updateStock(Long id, Integer delta, String note); // delta: + nhập / - trừ
+    void delete(Long id); // soft-delete => INACTIVE
+    ProductResponse updateProduct(Long clubId, Long productId, ProductUpdateRequest req);
+
     List<ProductResponse> searchByTags(List<String> tagNames);
+
+    // Lịch sử nhập hàng
+    List<ProductStockHistory> getStockHistory(Long productId);
 }

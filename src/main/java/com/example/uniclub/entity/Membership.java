@@ -4,11 +4,13 @@ import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.MemberLevelEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Builder(toBuilder = true)
 @Entity
 @Table(name = "memberships",

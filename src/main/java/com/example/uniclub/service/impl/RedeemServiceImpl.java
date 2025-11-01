@@ -35,12 +35,17 @@ public class RedeemServiceImpl implements RedeemService {
     private OrderResponse toResponse(ProductOrder o) {
         return new OrderResponse(
                 o.getOrderId(),
+                o.getOrderCode(),
                 o.getProduct().getName(),
                 o.getQuantity(),
                 o.getTotalPoints(),
                 o.getStatus().name(),
-                o.getCreatedAt()
+                o.getCreatedAt(),
+                o.getCompletedAt(),
+                o.getClub().getName(),
+                o.getMembership().getUser().getFullName()
         );
+
     }
 
     // 🟢 Thành viên đổi hàng trong CLB
@@ -283,12 +288,19 @@ public class RedeemServiceImpl implements RedeemService {
 
         return new OrderResponse(
                 order.getOrderId(),
+                order.getOrderCode(),
                 product.getName(),
                 quantityToRefund,
                 refundPoints,
                 order.getStatus().name(),
-                order.getCreatedAt()
+                order.getCreatedAt(),
+                order.getCompletedAt(),
+                order.getClub() != null ? order.getClub().getName() : "Unknown Club",
+                order.getMembership() != null && order.getMembership().getUser() != null
+                        ? order.getMembership().getUser().getFullName()
+                        : "Unknown Member"
         );
+
     }
 
     // 🟢 Xác nhận hoàn tất đơn hàng
