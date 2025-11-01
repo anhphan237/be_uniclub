@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+
 import java.io.IOException;
 import java.util.Optional;
 
@@ -30,9 +31,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     @Value("${app.oauth2.redirect-fail}")
     private String redirectFailUrl;
 
-    @Value("${app.oauth2.school-domains}")
-    private String schoolDomains;
-
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
@@ -40,63 +38,66 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         try {
             OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
             String email = oauthUser.getAttribute("email");
-            String name  = oauthUser.getAttribute("name");
-            String picture = oauthUser.getAttribute("picture"); // 🧩 lấy avatar từ Google
+            String name = oauthUser.getAttribute("name");
+            String picture = oauthUser.getAttribute("picture");
 
             if (email == null) {
-                log.error("OAuth2 login: thiếu email trong profile Google");
-                response.sendRedirect(redirectFailUrl);
+                log.error("❌ OAuth2 login failed: missing email from Google profile");
+                response.sendRedirect(redirectFailUrl + "?error=missing_email");
                 return;
             }
 
+            // ✅ Tất cả user Google đều là STUDENT (roleId = 5)
+            long studentRoleId = 5L;
+
             Optional<User> userOpt = userRepo.findByEmail(email);
+            User user;
 
-            User user = userOpt.orElseGet(() -> {
-                boolean isSchool = isSchoolEmail(email);
-                Long roleIdForNewUser = 5L; // mặc định role Student
-                return userRepo.save(User.builder()
+            if (userOpt.isEmpty()) {
+                // 🧩 Tạo user mới
+                user = User.builder()
                         .email(email)
-                        .passwordHash("{noop}-")
+                        .passwordHash("{noop}-") // Không cần password
                         .fullName(name)
-                        .avatarUrl(picture) // 🧩 lưu avatar
+                        .avatarUrl(picture)
                         .status(UserStatusEnum.ACTIVE.name())
-                        .role(Role.builder().roleId(roleIdForNewUser).build())
+                        .role(Role.builder().roleId(studentRoleId).build())
                         .studentCode(generateStudentCode(email))
-                        .build());
-            });
-
-            // 🧩 Nếu user đã tồn tại nhưng chưa có avatar thì cập nhật thêm
-            if (user.getAvatarUrl() == null && picture != null) {
-                user.setAvatarUrl(picture);
+                        .isFirstLogin(true)
+                        .build();
                 userRepo.save(user);
+            } else {
+                user = userOpt.get();
+                boolean updated = false;
+
+                if (name != null && !name.equals(user.getFullName())) {
+                    user.setFullName(name);
+                    updated = true;
+                }
+                if (picture != null && (user.getAvatarUrl() == null || !user.getAvatarUrl().equals(picture))) {
+                    user.setAvatarUrl(picture);
+                    updated = true;
+                }
+                if (updated) userRepo.save(user);
             }
 
+            // 🔐 Sinh JWT token để FE nhận
             String token = jwtUtil.generateToken(user.getEmail());
-            String redirect = redirectSuccessUrl + "?token=" + token;
-
+            String redirect = redirectSuccessUrl + "?token=" + token + "&role=" + user.getRole().getRoleName();
             response.sendRedirect(redirect);
 
         } catch (Exception e) {
-            log.error("OAuth2 success handler lỗi: ", e);
-            response.sendRedirect(redirectFailUrl);
+            log.error("OAuth2 success handler error:", e);
+            response.sendRedirect(redirectFailUrl + "?error=server_error");
         }
     }
 
-    private boolean isSchoolEmail(String email) {
-        if (schoolDomains == null || schoolDomains.isBlank()) return false;
-        String lower = email.toLowerCase();
-        for (String d : schoolDomains.split(",")) {
-            if (lower.endsWith(d.trim().toLowerCase())) return true;
-        }
-        return false;
-    }
-
+    // 🧮 Sinh student code ngẫu nhiên hoặc từ email
     private String generateStudentCode(String email) {
-        // 🧩 Nếu là FPT email: lấy phần đầu làm MSSV (ví dụ: he180123@fpt.edu.vn)
-        if (email.endsWith("@fpt.edu.vn")) {
-            return email.split("@")[0].toUpperCase();
+        String prefix = email.split("@")[0];
+        if (email.endsWith("@fpt.edu.vn") || email.endsWith("@fe.edu.vn")) {
+            return prefix.toUpperCase();
         }
-        // Gmail cá nhân thì sinh MSSV giả định
         return "STU-" + Math.abs(email.hashCode() % 1000000);
     }
 }

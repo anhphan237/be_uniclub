@@ -52,42 +52,66 @@ public class AuthController {
     // ===== Google OAuth =====
     @PostMapping("/google")
     public ResponseEntity<?> loginWithGoogle(@RequestBody Map<String, String> body) {
-        String token = body.get("token");
-        if (token == null) return ResponseEntity.badRequest().body(ApiResponse.error("Missing Google token"));
+        String googleToken = body.get("token");
+        if (googleToken == null || googleToken.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Missing Google token"));
+        }
 
-        var payload = googleVerifier.verify(token);
-        if (payload == null)
+        // ✅ Bước 1: Verify token thật với Google
+        var payload = googleVerifier.verify(googleToken);
+        if (payload == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Invalid Google token"));
+        }
 
+        // ✅ Bước 2: Lấy thông tin người dùng từ Google
         String email = payload.getEmail();
         String name = (String) payload.get("name");
         String picture = (String) payload.get("picture");
 
+        // ✅ Bước 3: Chỉ cho phép domain FPT University
+        if (!email.endsWith("@fpt.edu.vn") && !email.endsWith("@fe.edu.vn")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error("Only FPT University accounts are allowed to login."));
+        }
+
+        // ✅ Bước 4: Tìm user theo email, nếu chưa có thì tạo mới với role STUDENT
         var user = userRepo.findByEmail(email).orElseGet(() -> {
-            var studentRole = roleRepo.findByRoleName("STUDENT").orElse(Role.builder().roleId(5L).build());
-            var u = User.builder()
+            var studentRole = roleRepo.findByRoleName("STUDENT")
+                    .orElseThrow(() -> new RuntimeException("Role STUDENT not found in database"));
+
+            var newUser = User.builder()
                     .email(email)
-                    .passwordHash("{noop}-")
+                    .passwordHash("{noop}-") // không cần mật khẩu thật
                     .fullName(name)
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(studentRole)
                     .avatarUrl(picture)
                     .build();
-            return userRepo.save(u);
+
+            return userRepo.save(newUser);
         });
 
-        if (user.getFullName() == null) user.setFullName(name);
-        if (user.getAvatarUrl() == null) user.setAvatarUrl(picture);
-        userRepo.save(user);
+        // ✅ Bước 5: Cập nhật thông tin nếu thiếu
+        boolean updated = false;
+        if (user.getFullName() == null) { user.setFullName(name); updated = true; }
+        if (user.getAvatarUrl() == null) { user.setAvatarUrl(picture); updated = true; }
+        if (updated) userRepo.save(user);
 
+        // ✅ Bước 6: Sinh JWT nội bộ
         String jwt = jwtUtil.generateToken(user.getEmail());
+
+        // ✅ Bước 7: Trả về cho FE
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "token", jwt,
-                "email", user.getEmail(),
-                "fullName", user.getFullName(),
-                "avatar", user.getAvatarUrl()
+                "jwt", jwt,
+                "user", Map.of(
+                        "email", user.getEmail(),
+                        "fullName", user.getFullName(),
+                        "avatar", user.getAvatarUrl(),
+                        "role", user.getRole().getRoleName()
+                )
         )));
     }
+
 
     // ===== Forgot & Reset Password (KHÔNG yêu cầu bearer) =====
     @PostMapping("/forgot-password")

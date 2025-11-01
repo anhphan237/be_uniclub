@@ -137,10 +137,10 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
 
-        // ✅ Cho phép cả FE local và deployed domain
+        // ✅ Cho phép FE local và deployed domain thật
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
-                "https://uniclub-fe.vercel.app"
+                "https://uniclub-fpt.vercel.app"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -151,4 +151,5 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+
 }

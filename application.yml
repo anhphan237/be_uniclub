@@ -49,12 +49,13 @@ spring:
       client:
         registration:
           google:
-            client-id: 69239768097-t0akr44a3jmif9srfoc1p23h6g47kdel.apps.googleusercontent.com
-            client-secret: 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
+            client-id: 510788979653-63atu8gg3ku7hmidufpr6kf2aknnhhini.apps.googleusercontent.com
+            client-secret: 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
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope:
-              - email
+              - openid
               - profile
+              - email
         provider:
           google:
             authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
@@ -64,12 +65,12 @@ spring:
 
 jwt:
   secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
-  expiration: 7776000000
+  expiration: 7776000000  # 90 ngày
 
 app:
   oauth2:
-    redirect-success: http://localhost:3000/auth/callback
-    redirect-fail: http://localhost:3000/login?error
+    redirect-success: https://uniclub-fpt.vercel.app/auth/callback
+    redirect-fail: https://uniclub-fpt.vercel.app/login?error
     school-domains: "@fpt.edu.vn,@fe.edu.vn"
 
   crypto:
