@@ -5,6 +5,7 @@ import com.example.uniclub.dto.response.MajorPolicyResponse;
 import com.example.uniclub.service.MajorPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,7 +13,7 @@ import java.util.List;
 /**
  * 🎓 MajorPolicyController
  * Quản lý chính sách thưởng điểm theo ngành học (Major Policy)
- * Chỉ dành cho ADMIN hoặc UNIVERSITY_STAFF.
+ * Chỉ dành cho UNIVERSITY_STAFF.
  *
  * API Base Path: /api/admin/major-policies
  */
@@ -26,8 +27,9 @@ public class MajorPolicyController {
     // ==========================================================
     // 🧩 1️⃣ Lấy danh sách tất cả Major Policies
     // GET /api/admin/major-policies
-    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // Quyền: UNIVERSITY_STAFF
     // ==========================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @GetMapping
     public ResponseEntity<List<MajorPolicyResponse>> getAll() {
         return ResponseEntity.ok(majorPolicyService.getAll());
@@ -36,8 +38,9 @@ public class MajorPolicyController {
     // ==========================================================
     // 🧩 2️⃣ Lấy chi tiết 1 Policy theo ID
     // GET /api/admin/major-policies/{id}
-    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // Quyền: UNIVERSITY_STAFF
     // ==========================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @GetMapping("/{id}")
     public ResponseEntity<MajorPolicyResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(majorPolicyService.getById(id));
@@ -46,8 +49,9 @@ public class MajorPolicyController {
     // ==========================================================
     // 🧩 3️⃣ Tạo mới Policy
     // POST /api/admin/major-policies
-    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // Quyền: UNIVERSITY_STAFF
     // ==========================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping
     public ResponseEntity<MajorPolicyResponse> create(@RequestBody MajorPolicyRequest request) {
         return ResponseEntity.ok(majorPolicyService.create(request));
@@ -56,8 +60,9 @@ public class MajorPolicyController {
     // ==========================================================
     // 🧩 4️⃣ Cập nhật Policy
     // PUT /api/admin/major-policies/{id}
-    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // Quyền: UNIVERSITY_STAFF
     // ==========================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<MajorPolicyResponse> update(@PathVariable Long id, @RequestBody MajorPolicyRequest request) {
         return ResponseEntity.ok(majorPolicyService.update(id, request));
@@ -66,8 +71,9 @@ public class MajorPolicyController {
     // ==========================================================
     // 🧩 5️⃣ Xóa Policy
     // DELETE /api/admin/major-policies/{id}
-    // Quyền: ADMIN / UNIVERSITY_STAFF
+    // Quyền: UNIVERSITY_STAFF
     // ==========================================================
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         majorPolicyService.delete(id);
