@@ -36,10 +36,9 @@ public class Membership {
     @JoinColumn(name = "club_id")
     private Club club;
 
-    // 🪙 Ví riêng của user trong CLB này
-    @OneToOne(mappedBy = "membership", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
-    private Wallet wallet;
+
+
+
 
     // 🎭 Vai trò trong CLB
     @Enumerated(EnumType.STRING)

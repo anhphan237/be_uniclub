@@ -9,6 +9,7 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.UserService;
+import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.example.uniclub.enums.WalletOwnerTypeEnum.EVENT;
+import static com.example.uniclub.enums.WalletOwnerTypeEnum.USER;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +33,7 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
     private final MembershipRepository membershipRepo;
     private final ClubRepository clubRepo;
-
+    private final WalletService walletService;
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
         List<Membership> memberships = membershipRepo.findByUser_UserId(u.getUserId());
@@ -57,52 +61,21 @@ public class UserServiceImpl implements UserService {
     }
 
     // ✅ Helper: map ví từ membership sang WalletResponse an toàn
-    private List<WalletResponse> mapWallets(User user, List<Membership> memberships) {
-        return memberships.stream()
-                .map(Membership::getWallet)
-                .filter(Objects::nonNull)
-                .map(wallet -> {
-                    Long clubId = null;
-                    String clubName = null;
-
-                    // Phân biệt loại ví
-                    switch (wallet.getOwnerType()) {
-                        case CLUB -> {
-                            if (wallet.getClub() != null) {
-                                clubId = wallet.getClub().getClubId();
-                                clubName = wallet.getClub().getName();
-                            }
-                        }
-                        case MEMBERSHIP -> {
-                            if (wallet.getMembership() != null && wallet.getMembership().getClub() != null) {
-                                clubId = wallet.getMembership().getClub().getClubId();
-                                clubName = wallet.getMembership().getClub().getName();
-                            }
-                        }
-                        case EVENT -> {
-                            if (wallet.getEvent() != null && wallet.getEvent().getHostClub() != null) {
-                                clubId = wallet.getEvent().getHostClub().getClubId();
-                                clubName = wallet.getEvent().getHostClub().getName();
-                            }
-                        }
-                        default -> {
-                            clubId = null;
-                            clubName = null;
-                        }
-                    }
-
-                    return WalletResponse.builder()
-                            .walletId(wallet.getWalletId())
-                            .balancePoints(wallet.getBalancePoints())
-                            .ownerType(wallet.getOwnerType())
-                            .clubId(clubId)
-                            .clubName(clubName)
-                            .userId(user.getUserId())
-                            .userFullName(user.getFullName())
-                            .build();
-                })
-                .toList();
+    private WalletResponse mapWallet(User user) {
+        // Lấy hoặc tạo ví user
+        Wallet wallet = walletService.getOrCreateUserWallet(user);
+        return WalletResponse.builder()
+                .walletId(wallet.getWalletId())
+                .balancePoints(wallet.getBalancePoints())
+                .ownerType(wallet.getOwnerType()) // USER / CLUB / EVENT
+                .userId(user.getUserId())
+                .userFullName(user.getFullName())
+                .clubId(null) // vì đây là ví tổng của user, không gắn với CLB cụ thể
+                .clubName(null)
+                .build();
     }
+
+
 
     // ===================== CRUD =====================
     @Override
@@ -266,7 +239,7 @@ public class UserServiceImpl implements UserService {
                 ))
                 .toList();
 
-        List<WalletResponse> wallets = mapWallets(user, memberships);
+        WalletResponse wallet = mapWallet(user);
 
         return UserResponse.builder()
                 .id(user.getUserId())
@@ -279,7 +252,7 @@ public class UserServiceImpl implements UserService {
                 .majorName(user.getMajorName())
                 .bio(user.getBio())
                 .avatarUrl(user.getAvatarUrl())
-                .wallets(wallets)
+                .wallet(wallet)
                 .clubs(clubInfos)
                 .build();
     }
@@ -295,10 +268,10 @@ public class UserServiceImpl implements UserService {
         userRepo.save(user);
 
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        List<WalletResponse> wallets = mapWallets(user, memberships);
+        WalletResponse wallet = mapWallet(user);
 
         UserResponse resp = toResp(user);
-        resp.setWallets(wallets);
+        resp.setWallet(wallet);
         return resp;
     }
 
@@ -312,10 +285,10 @@ public class UserServiceImpl implements UserService {
         userRepo.save(user);
 
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        List<WalletResponse> wallets = mapWallets(user, memberships);
+        WalletResponse wallet = mapWallet(user);
 
         UserResponse resp = toResp(user);
-        resp.setWallets(wallets);
+        resp.setWallet(wallet);
         return resp;
     }
 

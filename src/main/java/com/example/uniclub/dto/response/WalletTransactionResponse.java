@@ -40,8 +40,8 @@ public class WalletTransactionResponse {
     private static String getWalletOwnerName(WalletTransaction tx) {
         if (tx.getWallet().getClub() != null)
             return tx.getWallet().getClub().getName();
-        if (tx.getWallet().getMembership() != null)
-            return tx.getWallet().getMembership().getUser().getFullName();
+        if (tx.getWallet().getUser() != null)
+            return tx.getWallet().getUser().getFullName();
         if (tx.getWallet().getEvent() != null)
             return tx.getWallet().getEvent().getName();
         return "Unknown Wallet Owner";

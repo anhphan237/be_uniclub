@@ -40,76 +40,81 @@ public class WalletController {
     // ------------------------------------------------
     // ✅ GET /api/wallets/me/memberships
     // ================================================================
-    @GetMapping("/me/memberships")
-    public ResponseEntity<?> getMyMembershipWallets(HttpServletRequest request) {
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<WalletResponse>> getMyWallet(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer "))
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing token");
+        if (token == null || !token.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Missing or invalid token"));
+        }
 
+        // ✅ Lấy thông tin user
         String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
-        if (memberships.isEmpty())
-            return ResponseEntity.ok(List.of());
+        // ✅ Lấy hoặc tạo ví cho user
+        Wallet wallet = walletService.getOrCreateUserWallet(user);
 
-        List<WalletResponse> responses = memberships.stream()
-                .map(m -> {
-                    Wallet wallet = walletService.getOrCreateMembershipWallet(m);
-                    return WalletResponse.builder()
-                            .walletId(wallet.getWalletId())
-                            .balancePoints(wallet.getBalancePoints())
-                            .ownerType(wallet.getOwnerType())
-                            .clubId(m.getClub().getClubId())
-                            .clubName(m.getClub().getName())
-                            .userId(user.getUserId())
-                            .userFullName(user.getFullName())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        // ✅ Build response
+        WalletResponse response = WalletResponse.builder()
+                .walletId(wallet.getWalletId())
+                .balancePoints(wallet.getBalancePoints())
+                .ownerType(wallet.getOwnerType())
+                .userId(user.getUserId())
+                .userFullName(user.getFullName())
+                .clubId(null)          // vì user wallet không thuộc CLB cụ thể
+                .clubName(null)
+                .build();
 
-        return ResponseEntity.ok(ApiResponse.ok(responses));
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
 
     // ================================================================
     // 🎁 2️⃣ THƯỞNG ĐIỂM CHO 1 THÀNH VIÊN
     // ------------------------------------------------
     // ✅ POST /api/wallets/reward/{membershipId}
     // ================================================================
-    @PostMapping("/reward/{membershipId:\\d+}")
+    @PostMapping("/reward/{userId:\\d+}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<WalletResponse>> rewardMember(
-            @PathVariable Long membershipId,
+    public ResponseEntity<ApiResponse<WalletResponse>> rewardUser(
+            @PathVariable Long userId,
             @RequestParam int points,
             @RequestParam(required = false) String reason,
             HttpServletRequest request) {
 
+        // 🧩 Kiểm tra input
         if (points <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
 
+        // 🔒 Kiểm tra token
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
 
+        // 👤 Lấy thông tin người thực hiện (operator)
         String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
         User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
-        Wallet updatedWallet = walletRewardService.rewardPointsByMembershipId(operator, membershipId, points, reason);
+        // 💰 Gọi service mới (dựa theo userId, không còn membershipId)
+        Wallet updatedWallet = walletRewardService.rewardPointsByUser(operator, userId, points, reason);
 
+        // 🧾 Trả về thông tin ví sau khi thưởng
         WalletResponse response = WalletResponse.builder()
                 .walletId(updatedWallet.getWalletId())
                 .balancePoints(updatedWallet.getBalancePoints())
                 .ownerType(updatedWallet.getOwnerType())
-                .clubId(updatedWallet.getMembership().getClub().getClubId())
-                .clubName(updatedWallet.getMembership().getClub().getName())
-                .userId(updatedWallet.getMembership().getUser().getUserId())
-                .userFullName(updatedWallet.getMembership().getUser().getFullName())
+                .userId(updatedWallet.getUser().getUserId())
+                .userFullName(updatedWallet.getUser().getFullName())
+                .clubId(null)
+                .clubName(null)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
 
     // ================================================================
     // 🏫 3️⃣ THƯỞNG ĐIỂM CHO TOÀN CLB

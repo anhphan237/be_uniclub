@@ -33,12 +33,7 @@ public class WalletServiceImpl implements WalletService {
                         "Wallet not found for clubId: " + clubId));
     }
 
-    @Override
-    public Wallet getWalletByMembershipId(Long membershipId) {
-        return walletRepo.findByMembership_MembershipId(membershipId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "Wallet not found for membershipId: " + membershipId));
-    }
+
 
     @Override
     public Wallet getWalletById(Long walletId) {
@@ -63,14 +58,15 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
-    public Wallet getOrCreateMembershipWallet(Membership membership) {
-        return walletRepo.findByMembership(membership)
+    public Wallet getOrCreateUserWallet(User user) {
+        return walletRepo.findByUser(user)
                 .orElseGet(() -> walletRepo.save(Wallet.builder()
-                        .membership(membership)
-                        .ownerType(WalletOwnerTypeEnum.MEMBERSHIP)
+                        .user(user)
+                        .ownerType(WalletOwnerTypeEnum.USER)
                         .balancePoints(0L)
                         .build()));
     }
+
 
     // ================================================================
     // 💰 TĂNG / GIẢM ĐIỂM
@@ -218,35 +214,34 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found when saving transaction"));
         tx.setWallet(w);
 
-        // ✅ Receiver = chủ ví
+        //  Xác định tên người nhận (receiver)
         if (tx.getReceiverName() == null) {
-            if (w.getMembership() != null && w.getMembership().getUser() != null)
-                tx.setReceiverName(w.getMembership().getUser().getFullName());
-            else if (w.getClub() != null)
+            if (w.getUser() != null) {
+                tx.setReceiverName(w.getUser().getFullName());
+            } else if (w.getClub() != null) {
                 tx.setReceiverName(w.getClub().getName());
-            else if (w.getEvent() != null)
+            } else if (w.getEvent() != null) {
                 tx.setReceiverName(w.getEvent().getName());
-            else
+            } else {
                 tx.setReceiverName("System");
+            }
         }
 
-        // ✅ Sender theo loại giao dịch
+        // Xác định người gửi (sender)
         if (tx.getSenderName() == null) {
             switch (tx.getType()) {
                 case CLUB_TO_MEMBER -> {
-                    if (w.getMembership() != null && w.getMembership().getClub() != null)
-                        tx.setSenderName(w.getMembership().getClub().getName());
-                    else if (w.getClub() != null)
-                        tx.setSenderName(w.getClub().getName());
-                    else
-                        tx.setSenderName("Club");
+                    // ví của user nhận thưởng từ CLB
+                    tx.setSenderName(
+                            w.getClub() != null ? w.getClub().getName() : "Club"
+                    );
                 }
                 case UNI_TO_CLUB -> tx.setSenderName("University Staff");
                 case REDEEM_PRODUCT -> {
-                    if (w.getMembership() != null && w.getMembership().getUser() != null)
-                        tx.setSenderName(w.getMembership().getUser().getFullName());
-                    else
-                        tx.setSenderName("Member");
+                    // user dùng ví cá nhân để đổi sản phẩm
+                    tx.setSenderName(
+                            w.getUser() != null ? w.getUser().getFullName() : "User"
+                    );
                 }
                 case REFUND_PRODUCT -> tx.setSenderName("System Refund");
                 case TRANSFER -> tx.setSenderName("[System Transfer]");
@@ -256,11 +251,13 @@ public class WalletServiceImpl implements WalletService {
             }
         }
 
+        // ✅ Nếu chưa có thời gian tạo
         if (tx.getCreatedAt() == null)
             tx.setCreatedAt(LocalDateTime.now());
 
         txRepo.save(tx);
     }
+
 
     // ================================================================
     // 🧾 MAP TRANSACTION → RESPONSE

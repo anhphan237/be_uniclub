@@ -9,7 +9,7 @@ public enum WalletOwnerTypeEnum {
     CLUB("CLUB", "Wallet owned by a club"),
 
     // 👥 Ví của Membership (User–Club)
-    MEMBERSHIP("MEMBERSHIP", "Wallet owned by a user within a club"),
+    USER("USER", "Wallet owned by a user within a club"),
 
     // 🎉 Ví của sự kiện
     EVENT("EVENT", "Wallet owned by an event");

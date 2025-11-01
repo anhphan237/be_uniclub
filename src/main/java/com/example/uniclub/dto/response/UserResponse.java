@@ -22,7 +22,7 @@ public class UserResponse {
     private String avatarUrl;
 //    private WalletResponse wallet;
     private List<ClubInfo> clubs;
-    private List<WalletResponse> wallets; // ✅ thay vì WalletResponse wallet;
+    private WalletResponse wallet; // ✅ thay vì WalletResponse wallet;
 
     @Getter
     @Setter
