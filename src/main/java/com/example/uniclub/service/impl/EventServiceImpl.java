@@ -364,9 +364,13 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public List<EventResponse> getByClubId(Long clubId) {
-        return eventRepo.findByClubParticipation(clubId)
-                .stream().map(this::mapToResponse).toList();
+        List<Event> events = eventRepo.findByClubParticipation(clubId);
+        return events.stream()
+                .map(this::mapToResponse)
+                .toList();
     }
+
+
 
     @Override
     public List<EventResponse> getUpcomingEvents() {
