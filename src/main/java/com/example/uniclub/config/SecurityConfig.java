@@ -89,6 +89,7 @@ public class SecurityConfig {
                         .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
                         // 👥 User management
+                        .requestMatchers("/api/users/me/clubs").authenticated()
                         .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
 
                         // 🧩 Specialized API access
