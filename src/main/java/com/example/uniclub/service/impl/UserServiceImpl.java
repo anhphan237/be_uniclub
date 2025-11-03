@@ -291,6 +291,22 @@ public class UserServiceImpl implements UserService {
         resp.setWallet(wallet);
         return resp;
     }
+    @Override
+    public UserResponse updateBackgroundResponse(String email, String backgroundUrl) {
+        if (backgroundUrl == null || backgroundUrl.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "backgroundUrl is required");
+
+        User user = getByEmail(email);
+        user.setBackgroundUrl(backgroundUrl);
+        userRepo.save(user);
+
+        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        WalletResponse wallet = mapWallet(user);
+
+        UserResponse resp = toResp(user);
+        resp.setWallet(wallet);
+        return resp;
+    }
 
     // ===================== Internal use =====================
     @Override

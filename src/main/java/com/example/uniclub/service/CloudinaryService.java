@@ -24,4 +24,15 @@ public class CloudinaryService {
                 ));
         return uploadResult.get("secure_url").toString();
     }
+    public String uploadBackground(MultipartFile file) throws IOException {
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                file.getBytes(),
+                ObjectUtils.asMap(
+                        "folder", "uniclub/backgrounds",
+                        "resource_type", "image",
+                        "overwrite", true
+                )
+        );
+        return uploadResult.get("secure_url").toString();
+    }
 }

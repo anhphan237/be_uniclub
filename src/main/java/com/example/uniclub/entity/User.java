@@ -39,6 +39,9 @@ public class User {
     @JoinColumn(name = "role_id")
     private Role role;
 
+    @Column(name = "background_url")
+    private String backgroundUrl;
+
     @Column(name = "student_code", nullable = false, unique = true)
     private String studentCode; // MSSV
 

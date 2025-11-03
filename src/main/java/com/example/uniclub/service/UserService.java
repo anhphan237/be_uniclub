@@ -33,6 +33,7 @@ public interface UserService {
 
     // ===================== Internal Use =====================
     User getByEmail(String email);
+    UserResponse updateBackgroundResponse(String email, String backgroundUrl);
 
     void changePassword(String email, String oldPassword, String newPassword);
 

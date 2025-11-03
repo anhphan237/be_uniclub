@@ -7,11 +7,12 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProfileUpdateRequest {
-    private String majorName;    // ✅ Có thể cập nhật
-    private String phone;        // ✅ Có thể cập nhật
+    private String majorName;
+    private String phone;
     @Size(max = 500)
     private String bio;
     private String avatarUrl;
+    private String backgroundUrl;
 
-    // ✅ Có thể cập nhật
+
 }

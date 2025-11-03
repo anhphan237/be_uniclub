@@ -78,4 +78,34 @@ public class ProfileController {
         UserResponse updated = userService.updateAvatarResponse(email, avatarUrl);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
+    // =============================================
+// 🔹 Upload background qua Cloudinary
+// =============================================
+    @PostMapping(value = "/background", consumes = "multipart/form-data")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> uploadBackground(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        String email = principal.getUsername();
+        String backgroundUrl = cloudinaryService.uploadBackground(file); // 🆕 CloudinaryService method mới
+        UserResponse updated = userService.updateBackgroundResponse(email, backgroundUrl);
+        return ResponseEntity.ok(ApiResponse.ok(updated));
+    }
+
+    // =============================================
+// 🔹 Cập nhật background URL thủ công
+// =============================================
+    @PatchMapping("/background")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserResponse>> updateBackgroundManual(
+            @AuthenticationPrincipal UserDetails principal,
+            @RequestParam String backgroundUrl) {
+
+        String email = principal.getUsername();
+        UserResponse updated = userService.updateBackgroundResponse(email, backgroundUrl);
+        return ResponseEntity.ok(ApiResponse.ok(updated));
+    }
+
+
 }
