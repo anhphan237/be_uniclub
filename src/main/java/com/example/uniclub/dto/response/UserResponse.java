@@ -20,9 +20,10 @@ public class UserResponse {
     private String majorName;
     private String bio;
     private String avatarUrl;
-//    private WalletResponse wallet;
+    private String backgroundUrl;
+
     private List<ClubInfo> clubs;
-    private WalletResponse wallet; // ✅ thay vì WalletResponse wallet;
+    private WalletResponse wallet;
 
     @Getter
     @Setter
