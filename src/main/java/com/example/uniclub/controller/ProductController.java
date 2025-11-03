@@ -14,7 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -118,40 +120,45 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(productService.searchByTags(tags)));
     }
 
-    // === MEDIA ===
-    @PostMapping("/{productId}/media")
+
+    // === MEDIA (UPLOAD / LIST / DELETE) ===
+
+    @PostMapping(
+            value = "/{productId}/media",
+            consumes = "multipart/form-data"
+    )
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<List<ProductMediaResponse>>> addMedia(
+    public ResponseEntity<ApiResponse<ProductMediaResponse>> uploadProductMedia(
+            @PathVariable Long clubId,
             @PathVariable Long productId,
-            @RequestParam List<String> urls,
-            @RequestParam(defaultValue = "IMAGE") String type,
-            @RequestParam(defaultValue = "false") boolean thumbnail
-    ) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                productMediaService.addMedia(productId, urls, type, thumbnail)
-        ));
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
+        ProductMediaResponse res = productMediaService.uploadMedia(productId, file);
+        return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
-    @PatchMapping("/{productId}/media/{mediaId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<ProductMediaResponse>> updateMedia(
-            @PathVariable Long productId,
-            @PathVariable Long mediaId,
-            @RequestParam(required = false) String url,
-            @RequestParam(required = false) Boolean thumbnail,
-            @RequestParam(required = false) Integer displayOrder
+
+    @GetMapping("/{productId}/media")
+    public ResponseEntity<ApiResponse<List<ProductMediaResponse>>> getProductMedia(
+            @PathVariable Long clubId,
+            @PathVariable Long productId
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                productMediaService.updateMedia(productId, mediaId, url, thumbnail, displayOrder)
-        ));
+        // ✅ Lấy danh sách ảnh/video của product
+        return ResponseEntity.ok(ApiResponse.ok(productMediaService.listMedia(productId)));
     }
 
     @DeleteMapping("/{productId}/media/{mediaId}")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<String>> removeMedia(@PathVariable Long mediaId) {
+    public ResponseEntity<ApiResponse<String>> removeProductMedia(
+            @PathVariable Long clubId,
+            @PathVariable Long productId,
+            @PathVariable Long mediaId
+    ) {
+        // ✅ Xóa 1 media khỏi sản phẩm
         productMediaService.removeMedia(mediaId);
-        return ResponseEntity.ok(ApiResponse.msg("Removed"));
+        return ResponseEntity.ok(ApiResponse.msg("Removed successfully"));
     }
+
     @PatchMapping("/{productId}")
     @PreAuthorize("hasRole('CLUB_LEADER')")
     public ResponseEntity<ApiResponse<?>> updateProduct(
