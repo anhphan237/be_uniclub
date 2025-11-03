@@ -55,6 +55,7 @@ public class UserServiceImpl implements UserService {
                 .studentCode(u.getStudentCode())
                 .majorName(u.getMajorName())
                 .bio(u.getBio())
+                .backgroundUrl(u.getBackgroundUrl())
                 .avatarUrl(u.getAvatarUrl())
                 .clubs(clubInfos)
                 .build();

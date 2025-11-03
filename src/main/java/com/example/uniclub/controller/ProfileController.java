@@ -36,7 +36,7 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
-    // ============================================= d
+    // =============================================
     // 🔹 2. Cập nhật thông tin hồ sơ (full name, phone, bio, major...)
     // =============================================
     @PutMapping
@@ -66,21 +66,8 @@ public class ProfileController {
     }
 
     // =============================================
-    // 🔹 4. Cập nhật avatar URL thủ công
+    // 🔹 4. Upload background qua Cloudinary
     // =============================================
-    @PatchMapping("/avatar")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<UserResponse>> updateAvatarManual(
-            @AuthenticationPrincipal UserDetails principal,
-            @RequestParam String avatarUrl) {
-
-        String email = principal.getUsername();
-        UserResponse updated = userService.updateAvatarResponse(email, avatarUrl);
-        return ResponseEntity.ok(ApiResponse.ok(updated));
-    }
-    // =============================================
-// 🔹 Upload background qua Cloudinary
-// =============================================
     @PostMapping(value = "/background", consumes = "multipart/form-data")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<UserResponse>> uploadBackground(
@@ -88,24 +75,8 @@ public class ProfileController {
             @RequestParam("file") MultipartFile file) throws IOException {
 
         String email = principal.getUsername();
-        String backgroundUrl = cloudinaryService.uploadBackground(file); // 🆕 CloudinaryService method mới
+        String backgroundUrl = cloudinaryService.uploadBackground(file);
         UserResponse updated = userService.updateBackgroundResponse(email, backgroundUrl);
         return ResponseEntity.ok(ApiResponse.ok(updated));
     }
-
-    // =============================================
-// 🔹 Cập nhật background URL thủ công
-// =============================================
-    @PatchMapping("/background")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<UserResponse>> updateBackgroundManual(
-            @AuthenticationPrincipal UserDetails principal,
-            @RequestParam String backgroundUrl) {
-
-        String email = principal.getUsername();
-        UserResponse updated = userService.updateBackgroundResponse(email, backgroundUrl);
-        return ResponseEntity.ok(ApiResponse.ok(updated));
-    }
-
-
 }
