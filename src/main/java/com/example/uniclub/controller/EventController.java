@@ -2,10 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
-import com.example.uniclub.dto.response.EventRegistrationResponse;
-import com.example.uniclub.dto.response.EventResponse;
-import com.example.uniclub.dto.response.EventStaffResponse;
-import com.example.uniclub.dto.response.EventWalletResponse;
+import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
@@ -36,6 +33,7 @@ public class EventController {
     private final EventWalletService eventWalletService;
     private final EventSettlementService eventSettlementService;
     private final AttendanceService attendanceService;
+    private final EventFeedbackService eventFeedbackService;
 
     // =========================================================
     // 🔹 1. CRUD
@@ -276,5 +274,50 @@ public class EventController {
     public ResponseEntity<ApiResponse<List<EventResponse>>> getSettledEvents() {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getSettledEvents()));
     }
+    // =========================================================
+// 🔹 8. EVENT FEEDBACK
+// =========================================================
+    @PostMapping("/{eventId}/feedback")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<EventFeedbackResponse>> createFeedback(
+            @Valid @RequestBody EventFeedbackRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.createFeedback(req)));
+    }
+
+    @GetMapping("/{eventId}/feedback")
+    public ResponseEntity<ApiResponse<List<EventFeedbackResponse>>> getFeedbacksByEvent(
+            @PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.getFeedbacksByEvent(eventId)));
+    }
+
+    // ✅ NEW
+    @GetMapping("/memberships/{membershipId}/feedbacks")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<List<EventFeedbackResponse>>> getFeedbacksByMember(
+            @PathVariable Long membershipId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.getFeedbacksByMembership(membershipId)));
+    }
+
+    @PutMapping("/feedback/{feedbackId}")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<EventFeedbackResponse>> updateFeedback(
+            @PathVariable Long feedbackId,
+            @Valid @RequestBody EventFeedbackRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.updateFeedback(feedbackId, req)));
+    }
+
+    @DeleteMapping("/feedback/{feedbackId}")
+    @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
+    public ResponseEntity<ApiResponse<String>> deleteFeedback(@PathVariable Long feedbackId) {
+        eventFeedbackService.deleteFeedback(feedbackId);
+        return ResponseEntity.ok(ApiResponse.msg("Feedback deleted successfully"));
+    }
+
+    @GetMapping("/{eventId}/feedback/summary")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getFeedbackSummary(@PathVariable Long eventId) {
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.getFeedbackSummaryByEvent(eventId)));
+    }
+
 
 }

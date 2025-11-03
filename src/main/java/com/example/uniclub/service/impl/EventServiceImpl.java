@@ -53,6 +53,7 @@ public class EventServiceImpl implements EventService {
                 .endTime(event.getEndTime())
                 .status(event.getStatus())
                 .checkInCode(event.getCheckInCode())
+                .commitPointCost(event.getCommitPointCost())
                 .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
                 .maxCheckInCount(event.getMaxCheckInCount())
                 .currentCheckInCount(event.getCurrentCheckInCount())
@@ -518,10 +519,12 @@ public class EventServiceImpl implements EventService {
                         r.getStatus().name(),
                         (r.getEvent().getHostClub() != null)
                                 ? r.getEvent().getHostClub().getName()
-                                : "Unknown Club"
+                                : "Unknown Club",
+                        r.getCreatedAt()
                 ))
                 .toList();
     }
+
 
     @Override
     public List<EventResponse> getSettledEvents() {

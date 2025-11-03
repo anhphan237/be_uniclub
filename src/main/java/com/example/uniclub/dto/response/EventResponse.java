@@ -39,6 +39,7 @@ public class EventResponse {
     private String locationName;
     private Integer maxCheckInCount;
     private Integer currentCheckInCount;
+    private Integer commitPointCost;
 
     private SimpleClub hostClub;
     private List<SimpleClub> coHostedClubs;

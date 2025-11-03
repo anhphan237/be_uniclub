@@ -4,6 +4,7 @@ import com.example.uniclub.enums.AttendanceLevelEnum;
 import com.example.uniclub.enums.RegistrationStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -38,7 +39,9 @@ public class EventRegistration {
     private LocalDateTime canceledAt;
     @Column
     private LocalDateTime updatedAt;
-
+    @CreationTimestamp
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
     @Enumerated(EnumType.STRING)
     private AttendanceLevelEnum attendanceLevel;
     // ==== Attendance timestamps (3-phase) ====
