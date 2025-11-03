@@ -6,6 +6,6 @@ import lombok.Builder;
 public record UserUpdateRequest(
         String fullName,
         String phone,
-        String majorName,
+        Long majorId,
         String bio
 ) {}

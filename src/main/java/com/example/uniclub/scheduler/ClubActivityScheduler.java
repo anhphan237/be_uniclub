@@ -48,21 +48,25 @@ public class ClubActivityScheduler {
                             !e.getDate().isAfter(end))
                     .count();
 
-            // 🔹 Tìm chính sách phù hợp
+            // 🔹 Tìm chính sách phù hợp nhất
             MultiplierPolicy matchedPolicy = clubPolicies.stream()
-                    .filter(p -> eventCount >= p.getMinEvents())
+                    .filter(p -> eventCount >= p.getMinEvents() && p.isActive())
                     .findFirst()
                     .orElse(null);
 
             if (matchedPolicy != null) {
                 try {
+                    // ⚙️ Chuyển từ String levelOrStatus sang Enum tương ứng
                     club.setActivityStatus(
-                            ClubActivityStatusEnum.valueOf(matchedPolicy.getLevelOrStatus()));
+                            ClubActivityStatusEnum.valueOf(matchedPolicy.getLevelOrStatus())
+                    );
                 } catch (IllegalArgumentException ex) {
+                    // Nếu policy DB có giá trị không trùng enum
                     club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 }
                 club.setClubMultiplier(matchedPolicy.getMultiplier());
             } else {
+                // ❌ Nếu không có policy nào phù hợp → coi như CLB inactivate
                 club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 club.setClubMultiplier(1.0);
             }

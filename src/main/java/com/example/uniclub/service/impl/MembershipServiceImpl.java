@@ -1,20 +1,16 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.MembershipResponse;
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Membership;
-import com.example.uniclub.entity.User;
-import com.example.uniclub.enums.ClubRoleEnum;
-import com.example.uniclub.enums.MembershipStateEnum;
+import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.repository.ClubRepository;
-import com.example.uniclub.repository.MembershipRepository;
-import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubService;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MembershipService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MembershipServiceImpl implements MembershipService {
@@ -33,7 +30,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final ClubRepository clubRepo;
     private final ClubService clubService;
     private final EmailService emailService;
-
+    private final MajorPolicyRepository majorPolicyRepository;
     // ========================== 🔹 Helper Mapping ==========================
     private MembershipResponse toResp(Membership m) {
         User u = m.getUser();
@@ -53,8 +50,37 @@ public class MembershipServiceImpl implements MembershipService {
                 .clubName(c.getName())
                 .email(u.getEmail())
                 .avatarUrl(u.getAvatarUrl())
-                .major(u.getMajorName())
+                .major(u.getMajor() != null ? u.getMajor().getName() : null)
                 .build();
+    }
+
+    // ========================== 🔹 Helper: Kiểm tra chính sách ngành ==========================
+    private void validateMajorPolicy(User user) {
+        Major major = user.getMajor();
+        if (major == null) {
+            log.warn("⚠️ User {} chưa có major, bỏ qua kiểm tra policy", user.getEmail());
+            return;
+        }
+
+        MajorPolicy policy = major.getMajorPolicy();
+        if (policy == null) {
+            log.info("ℹ️ Major {} chưa có policy, bỏ qua giới hạn", major.getName());
+            return;
+        }
+
+        if (!policy.isActive()) {
+            log.info("ℹ️ Policy {} đang inactive, bỏ qua giới hạn", policy.getPolicyName());
+            return;
+        }
+
+        // Đếm số CLB đang ACTIVE
+        int joinedCount = membershipRepo.countByUser_UserIdAndState(user.getUserId(), MembershipStateEnum.ACTIVE);
+
+        if (joinedCount >= policy.getMaxClubJoin()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Bạn đã đạt giới hạn số CLB có thể tham gia (" + policy.getMaxClubJoin() +
+                            ") cho chuyên ngành " + major.getName());
+        }
     }
 
     // ========================== 🔹 1. Membership cơ bản ==========================
@@ -79,48 +105,47 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
+        // ✅ Kiểm tra nếu đã tồn tại membership cũ
         Optional<Membership> existing = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
-
         if (existing.isPresent()) {
             Membership old = existing.get();
-
             if (old.getState() == MembershipStateEnum.KICKED ||
                     old.getState() == MembershipStateEnum.INACTIVE ||
                     old.getState() == MembershipStateEnum.REJECTED) {
-
                 old.setState(MembershipStateEnum.PENDING);
                 old.setJoinedDate(LocalDate.now());
                 membershipRepo.save(old);
-
-                // 📧 Gửi email thông báo cho Leader/Phó CLB
-                List<Membership> leaders = membershipRepo.findByClub_ClubId(clubId)
-                        .stream()
-                        .filter(m -> m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER)
-                        .toList();
-
-                String subject = "Member re-applied after being kicked - " + club.getName();
-                String body = """
-                    <p>Dear Leader/Vice Leader,</p>
-                    <p>The member <b>%s</b> (%s) who was previously <b>kicked</b> has re-applied to join your club <b>%s</b>.</p>
-                    <p>Please review their new application in the UniClub system.</p>
-                    <br>
-                    <p>UniClub Platform</p>
-                """.formatted(user.getFullName(), user.getEmail(), club.getName());
-
-                for (Membership leader : leaders) {
-                    try {
-                        emailService.sendEmail(leader.getUser().getEmail(), subject, body);
-                    } catch (Exception e) {
-                        System.out.println("⚠️ Failed to send re-apply email to " + leader.getUser().getEmail());
-                    }
-                }
-
                 return toResp(old);
             } else {
                 throw new ApiException(HttpStatus.CONFLICT, "Already applied or member of this club");
             }
         }
 
+        // =======================================================
+        // ⚖️ Kiểm tra giới hạn Major Policy
+        // =======================================================
+        if (user.getMajor() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "User has no major assigned");
+        }
+
+        // 🔍 Lấy chính sách active của ngành
+        MajorPolicy policy = majorPolicyRepository.findByMajor_IdAndActiveTrue(user.getMajor().getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "No active policy found for this major (" + user.getMajor().getName() + ")"));
+
+        // 📊 Đếm số CLB user đang tham gia (ACTIVE hoặc PENDING)
+        int joinedCount = membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.ACTIVE)
+                + membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.PENDING);
+
+        if (joinedCount >= policy.getMaxClubJoin()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    String.format("You have reached the club limit for your major (%s). Max allowed: %d",
+                            user.getMajor().getName(), policy.getMaxClubJoin()));
+        }
+
+        // =======================================================
+        // ✅ Cho phép apply mới
+        // =======================================================
         Membership m = Membership.builder()
                 .user(user)
                 .club(club)
@@ -133,12 +158,39 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(m);
     }
 
+
+    private void notifyLeadersReapply(User user, Long clubId, Club club) {
+        List<Membership> leaders = membershipRepo.findByClub_ClubId(clubId)
+                .stream()
+                .filter(m -> m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER)
+                .toList();
+
+        String subject = "Member re-applied after being kicked - " + club.getName();
+        String body = """
+                <p>Dear Leader/Vice Leader,</p>
+                <p>The member <b>%s</b> (%s) who was previously <b>kicked</b> has re-applied to join your club <b>%s</b>.</p>
+                <p>Please review their new application in the UniClub system.</p>
+                <br><p>UniClub Platform</p>
+                """.formatted(user.getFullName(), user.getEmail(), club.getName());
+
+        for (Membership leader : leaders) {
+            try {
+                emailService.sendEmail(leader.getUser().getEmail(), subject, body);
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to send re-apply email to {}", leader.getUser().getEmail());
+            }
+        }
+    }
+
     // ========================== 🔹 2. Quản lý đơn duyệt ==========================
     @Override
     @Transactional
     public MembershipResponse approveMember(Long membershipId, Long approverId) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        // ✅ Kiểm tra policy lần nữa khi approve (đề phòng leader cố approve quá giới hạn)
+        validateMajorPolicy(m.getUser());
 
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
@@ -151,7 +203,6 @@ public class MembershipServiceImpl implements MembershipService {
     public MembershipResponse rejectMember(Long membershipId, Long approverId, String reason) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
-
         m.setState(MembershipStateEnum.REJECTED);
         membershipRepo.save(m);
         clubService.updateMemberCount(m.getClub().getClubId());
@@ -163,7 +214,6 @@ public class MembershipServiceImpl implements MembershipService {
     public void removeMember(Long membershipId, Long approverId) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
-
         m.setState(MembershipStateEnum.INACTIVE);
         membershipRepo.save(m);
         clubService.updateMemberCount(m.getClub().getClubId());
@@ -179,20 +229,17 @@ public class MembershipServiceImpl implements MembershipService {
 
         switch (newRole) {
             case LEADER -> {
-                if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.LEADER)) {
+                if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.LEADER))
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có 1 Chủ nhiệm");
-                }
             }
             case VICE_LEADER -> {
-                if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.VICE_LEADER)) {
+                if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.VICE_LEADER))
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có 1 Phó chủ nhiệm");
-                }
             }
             case STAFF -> {
                 long count = membershipRepo.countByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.STAFF);
-                if (count >= 5) {
+                if (count >= 5)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có tối đa 5 staff");
-                }
             }
             default -> {}
         }
@@ -264,7 +311,6 @@ public class MembershipServiceImpl implements MembershipService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
         Club club = membership.getClub();
-
         Membership actorMembership = membershipRepo
                 .findByUser_UserIdAndClub_ClubId(principal.getUser().getUserId(), club.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
@@ -296,17 +342,13 @@ public class MembershipServiceImpl implements MembershipService {
         <p>Dear %s,</p>
         <p>You have been <b>removed</b> from the club <b>%s</b> by <b>%s</b>.</p>
         <p>If you believe this was a mistake, please reach out to your Club Leader or University Staff.</p>
-        <br>
-        <p>Best regards,<br>
-        %s<br>
-        %s Club<br>
-        UniClub Platform</p>
+        <br><p>Best regards,<br>%s<br>%s Club<br>UniClub Platform</p>
         """.formatted(receiverName, clubName, kickerName, kickerName, clubName);
 
         try {
             emailService.sendEmail(membership.getUser().getEmail(), subject, body);
         } catch (Exception e) {
-            System.out.println("⚠️ Failed to send email to " + membership.getUser().getEmail());
+            log.warn("⚠️ Failed to send email to {}", membership.getUser().getEmail());
         }
 
         return "👢 Member " + receiverName + " has been kicked from " + clubName + " by " + kickerName;

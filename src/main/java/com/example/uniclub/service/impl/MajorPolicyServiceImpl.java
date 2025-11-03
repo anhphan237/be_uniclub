@@ -19,15 +19,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MajorPolicyServiceImpl implements MajorPolicyService {
 
-    private final MajorPolicyRepository majorPolicyRepository;
-    private final MajorRepository majorRepository;
+    private final MajorPolicyRepository majorPolicyRepo;
+    private final MajorRepository majorRepo;
 
     // ================================================================
     // 🧾 LẤY TẤT CẢ
     // ================================================================
     @Override
     public List<MajorPolicyResponse> getAll() {
-        return majorPolicyRepository.findAll()
+        return majorPolicyRepo.findAll()
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -38,8 +38,8 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     // ================================================================
     @Override
     public MajorPolicyResponse getById(Long id) {
-        MajorPolicy policy = majorPolicyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("MajorPolicy not found"));
+        MajorPolicy policy = majorPolicyRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MajorPolicy not found"));
         return toResponse(policy);
     }
 
@@ -47,50 +47,43 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     // ➕ TẠO MỚI
     // ================================================================
     @Override
-    public MajorPolicyResponse create(MajorPolicyRequest request) {
-        MajorPolicy policy = new MajorPolicy();
-        policy.setPolicyName(request.getPolicyName());
-        policy.setDescription(request.getDescription());
-        policy.setMajorId(request.getMajorId());
-        policy.setActive(true);
+    public MajorPolicyResponse create(MajorPolicyRequest req) {
+        Major major = majorRepo.findById(req.getMajorId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
 
-        // ⚙️ Gán mặc định tránh lỗi null
-        policy.setMaxClubJoin(request.getMaxClubJoin() != null ? request.getMaxClubJoin() : 3);
+        if (majorPolicyRepo.existsByMajor_Id(major.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "This major already has a policy");
+        }
 
-        // ⚙️ Lấy tên ngành từ MajorRepository
-        String majorName = majorRepository.findById(request.getMajorId())
-                .map(Major::getName)
-                .orElse("Default Major");
-        policy.setMajorName(majorName);
+        MajorPolicy policy = MajorPolicy.builder()
+                .policyName(req.getPolicyName())
+                .description(req.getDescription())
+                .major(major)
+                .maxClubJoin(req.getMaxClubJoin())
+                .active(req.isActive())
+                .build();
 
-        MajorPolicy saved = majorPolicyRepository.save(policy);
-        return toResponse(saved);
+        return toResponse(majorPolicyRepo.save(policy));
     }
 
     // ================================================================
     // ✏️ CẬP NHẬT
     // ================================================================
     @Override
-    public MajorPolicyResponse update(Long id, MajorPolicyRequest request) {
-        MajorPolicy existing = majorPolicyRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("MajorPolicy not found"));
+    public MajorPolicyResponse update(Long id, MajorPolicyRequest req) {
+        MajorPolicy existing = majorPolicyRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MajorPolicy not found"));
 
-        existing.setPolicyName(request.getPolicyName());
-        existing.setDescription(request.getDescription());
-        existing.setMajorId(request.getMajorId());
-        existing.setActive(true);
-        existing.setMaxClubJoin(
-                request.getMaxClubJoin() != null ? request.getMaxClubJoin() : existing.getMaxClubJoin()
-        );
+        Major major = majorRepo.findById(req.getMajorId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
 
-        // cập nhật major name
-        String majorName = majorRepository.findById(request.getMajorId())
-                .map(Major::getName)
-                .orElse(existing.getMajorName());
-        existing.setMajorName(majorName);
+        existing.setPolicyName(req.getPolicyName());
+        existing.setDescription(req.getDescription());
+        existing.setMajor(major);
+        existing.setMaxClubJoin(req.getMaxClubJoin());
+        existing.setActive(req.isActive());
 
-        MajorPolicy updated = majorPolicyRepository.save(existing);
-        return toResponse(updated);
+        return toResponse(majorPolicyRepo.save(existing));
     }
 
     // ================================================================
@@ -98,25 +91,10 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     // ================================================================
     @Override
     public void delete(Long id) {
-        if (!majorPolicyRepository.existsById(id)) {
-            throw new RuntimeException("MajorPolicy not found");
+        if (!majorPolicyRepo.existsById(id)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "MajorPolicy not found");
         }
-        majorPolicyRepository.deleteById(id);
-    }
-
-    // ================================================================
-    // 🔄 CHUYỂN ENTITY → RESPONSE DTO
-    // ================================================================
-    private MajorPolicyResponse toResponse(MajorPolicy entity) {
-        return MajorPolicyResponse.builder()
-                .id(entity.getId())
-                .policyName(entity.getPolicyName())
-                .description(entity.getDescription())
-                .majorId(entity.getMajorId())
-                .majorName(entity.getMajorName())
-                .maxClubJoin(entity.getMaxClubJoin())
-                .active(entity.isActive())
-                .build();
+        majorPolicyRepo.deleteById(id);
     }
 
     // ================================================================
@@ -124,8 +102,22 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     // ================================================================
     @Override
     public MajorPolicy getActivePolicyByMajor(Long majorId) {
-        return majorPolicyRepository.findByMajorIdAndActiveTrue(majorId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "No active policy for this major"));
+        return majorPolicyRepo.findByMajor_IdAndActiveTrue(majorId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No active policy for this major"));
+    }
+
+    // ================================================================
+    // 🔄 ENTITY → RESPONSE DTO
+    // ================================================================
+    private MajorPolicyResponse toResponse(MajorPolicy entity) {
+        return MajorPolicyResponse.builder()
+                .id(entity.getId())
+                .policyName(entity.getPolicyName())
+                .description(entity.getDescription())
+                .majorId(entity.getMajor() != null ? entity.getMajor().getId() : null)
+                .majorName(entity.getMajor() != null ? entity.getMajor().getName() : null)
+                .maxClubJoin(entity.getMaxClubJoin())
+                .active(entity.isActive())
+                .build();
     }
 }

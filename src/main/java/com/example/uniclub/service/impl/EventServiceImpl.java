@@ -56,7 +56,7 @@ public class EventServiceImpl implements EventService {
                 .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
                 .maxCheckInCount(event.getMaxCheckInCount())
                 .currentCheckInCount(event.getCurrentCheckInCount())
-                .budgetPoints(event.getBudgetPoints())
+
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
                         event.getHostClub().getName(),
@@ -116,7 +116,7 @@ public class EventServiceImpl implements EventService {
                 .maxCheckInCount(req.maxCheckInCount())
                 .commitPointCost(req.commitPointCost())
                 .rewardMultiplierCap(2)
-                .budgetPoints(req.budgetPoints())
+
                 .build();
 
         if (!coHosts.isEmpty()) {
@@ -270,7 +270,7 @@ public class EventServiceImpl implements EventService {
 
         // ✅ Cập nhật trạng thái và ngân sách
         event.setStatus(EventStatusEnum.APPROVED);
-        event.setBudgetPoints(budgetPoints);
+
 
         // 🔹 Xử lý ví của sự kiện
         Wallet wallet = Optional.ofNullable(event.getWallet()).orElse(new Wallet());

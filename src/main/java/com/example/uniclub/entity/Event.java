@@ -79,6 +79,7 @@ public class Event {
     @Column(nullable = false)
     private Integer budgetPoints = 0;
 
+
     // 💼 Ví của sự kiện
     @OneToOne
     @JoinColumn(name = "wallet_id")

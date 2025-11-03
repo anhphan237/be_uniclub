@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProfileUpdateRequest {
-    private String majorName;
+    private Long majorId;
     private String phone;
     @Size(max = 500)
     private String bio;

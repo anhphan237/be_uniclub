@@ -11,5 +11,6 @@ public interface MajorRepository extends JpaRepository<Major, Long> {
     boolean existsByName(String name);
     boolean existsByMajorCode(String majorCode);
     Optional<Major> findByMajorCode(String majorCode);
+    Optional<Major> findByName(String name);
 
 }

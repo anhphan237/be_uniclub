@@ -59,4 +59,6 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
             Long clubId,
             MembershipStateEnum state
     );
+    int countByUser_UserIdAndState(Long userId, MembershipStateEnum state);
+
 }

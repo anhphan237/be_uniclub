@@ -13,8 +13,8 @@ public record UserCreateRequest(
         String phone,
         @NotNull Long roleId,
 
-        // ✅ Thêm 3 thuộc tính mới
-        String studentCode,   // Mã số sinh viên (duy nhất, không thể đổi)
-        String majorName,     // Chuyên ngành
-        String bio            // Giới thiệu bản thân (optional)
+        // ✅ Thay thế majorName → majorId
+        String studentCode,   // Mã số sinh viên
+        @NotNull Long majorId, // ID của chuyên ngành (tham chiếu bảng majors)
+        String bio             // Giới thiệu bản thân (optional)
 ) {}

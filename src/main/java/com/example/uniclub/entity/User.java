@@ -35,7 +35,8 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
-    @ManyToOne(optional = false)
+    // ✅ FIXED: fetch role eagerly to avoid LazyInitializationException during JWT authentication
+    @ManyToOne(optional = false, fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id")
     private Role role;
 
@@ -45,11 +46,10 @@ public class User {
     @Column(name = "student_code", nullable = false, unique = true)
     private String studentCode; // MSSV
 
-    @Column(name = "major_name")
-    private String majorName;
-
-    @Column(name = "major_id")
-    private Long majorId;
+    // 🔗 Mối quan hệ với chuyên ngành (vẫn giữ LAZY vì không cần khi login)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_id", nullable = false)
+    private Major major;
 
     @Column(name = "bio", length = 500)
     private String bio;

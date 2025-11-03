@@ -18,6 +18,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.uniclub.repository.MajorRepository;
+import com.example.uniclub.entity.Major;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +39,7 @@ public class AuthServiceImpl {
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetTokenRepository tokenRepository;
     private final EmailService emailService;
+    private final MajorRepository majorRepository;
 
     // ==============================================
     // 🔹 Đăng nhập
@@ -129,7 +132,11 @@ public class AuthServiceImpl {
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
                 .status(UserStatusEnum.ACTIVE.name())
                 .studentCode(req.studentCode())
-                .majorName(req.majorName())
+                .major(
+                        majorRepository.findByName(req.majorName())
+                                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                                        "Major not found: " + req.majorName()))
+                )
                 .build();
 
         user = userRepository.save(user);

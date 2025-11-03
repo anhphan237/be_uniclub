@@ -1,5 +1,7 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.request.MultiplierPolicyRequest;
+import com.example.uniclub.dto.response.MultiplierPolicyResponse;
 import com.example.uniclub.entity.MultiplierPolicy;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import com.example.uniclub.exception.ApiException;
@@ -11,36 +13,126 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
-    private final MultiplierPolicyRepository repo;
+    private final MultiplierPolicyRepository multiplierPolicyRepository;
+
+    // ================================================================
+    // 🧾 Lấy tất cả
+    // ================================================================
+    @Override
+    public List<MultiplierPolicyResponse> getAll() {
+        return multiplierPolicyRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ================================================================
+    // 🔍 Lấy theo ID
+    // ================================================================
+    @Override
+    public MultiplierPolicyResponse getById(Long id) {
+        MultiplierPolicy policy = multiplierPolicyRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
+        return toResponse(policy);
+    }
+
+    // ================================================================
+    // ➕ Tạo mới
+    // ================================================================
+    @Override
+    public MultiplierPolicyResponse create(MultiplierPolicyRequest req) {
+        MultiplierPolicy policy = MultiplierPolicy.builder()
+                .targetType(req.getTargetType())
+                .levelOrStatus(req.getLevelOrStatus()) // ✅ sửa
+                .minEvents(req.getMinEvents())
+                .multiplier(req.getMultiplier())
+                .updatedBy(req.getUpdatedBy())
+                .updatedAt(LocalDateTime.now())
+                .effectiveFrom(LocalDateTime.now())
+                .active(req.isActive())
+                .build();
+
+        MultiplierPolicy saved = multiplierPolicyRepository.save(policy);
+        return toResponse(saved);
+    }
+
+    // ================================================================
+    // ✏️ Cập nhật
+    // ================================================================
+    @Override
+    public MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest req) {
+        MultiplierPolicy existing = multiplierPolicyRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
+
+        existing.setTargetType(req.getTargetType());
+        existing.setLevelOrStatus(req.getLevelOrStatus()); // ✅ sửa
+        existing.setMinEvents(req.getMinEvents());
+        existing.setMultiplier(req.getMultiplier());
+        existing.setUpdatedBy(req.getUpdatedBy());
+        existing.setUpdatedAt(LocalDateTime.now());
+        existing.setActive(req.isActive());
+
+        MultiplierPolicy updated = multiplierPolicyRepository.save(existing);
+        return toResponse(updated);
+    }
+
+    // ================================================================
+    // ❌ Xóa
+    // ================================================================
+    @Override
+    public void delete(Long id) {
+        if (!multiplierPolicyRepository.existsById(id)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Policy not found");
+        }
+        multiplierPolicyRepository.deleteById(id);
+    }
+
+    // ================================================================
+    // 🟩 Lấy danh sách policy active theo loại
+    // ================================================================
+    @Override
+    public List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType) {
+        return multiplierPolicyRepository
+                .findByTargetTypeAndActiveTrueOrderByMinEventsDesc(targetType)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ================================================================
+    // 🧮 Tìm multiplier theo cấp độ
+    // ================================================================
+    @Override
+    public Double getMultiplierForLevel(PolicyTargetTypeEnum targetType, String levelOrStatus) {
+        return multiplierPolicyRepository
+                .findByTargetTypeAndLevelOrStatusAndActiveTrue(targetType, levelOrStatus)
+                .map(MultiplierPolicy::getMultiplier)
+                .orElse(1.0);
+    }
+
+    // ================================================================
+    // 🔁 Convert Entity → DTO
+    // ================================================================
+    private MultiplierPolicyResponse toResponse(MultiplierPolicy entity) {
+        return MultiplierPolicyResponse.builder()
+                .id(entity.getId())
+                .targetType(entity.getTargetType())
+                .levelOrStatus(entity.getLevelOrStatus())
+                .minEvents(entity.getMinEvents())
+                .multiplier(entity.getMultiplier())
+                .active(entity.isActive())
+                .updatedBy(entity.getUpdatedBy())
+                .build();
+    }
 
     @Override
     public List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type) {
-        return repo.findByTargetTypeOrderByMinEventsDesc(type);
-    }
-
-    @Override
-    public MultiplierPolicy updatePolicy(Long id, Double newMultiplier, String updatedBy) {
-        MultiplierPolicy p = repo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
-        p.setMultiplier(newMultiplier);
-        p.setUpdatedBy(updatedBy);
-        p.setUpdatedAt(LocalDateTime.now());
-        return repo.save(p);
-    }
-
-    @Override
-    public MultiplierPolicy createPolicy(MultiplierPolicy policy) {
-        policy.setUpdatedAt(LocalDateTime.now());
-        return repo.save(policy);
-    }
-
-    @Override
-    public void deletePolicy(Long id) {
-        repo.deleteById(id);
+        return multiplierPolicyRepository.findByTargetTypeOrderByMinEventsDesc(type);
     }
 }

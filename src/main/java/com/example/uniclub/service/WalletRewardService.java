@@ -14,4 +14,5 @@ public interface WalletRewardService {
     Wallet topUpClubWallet(User operator, Long clubId, long points, String reason);
     List<WalletTransactionResponse> rewardMultipleClubs(WalletRewardBatchRequest req);
     List<WalletTransactionResponse> rewardMultipleMembers(WalletRewardBatchRequest req);
+
 }

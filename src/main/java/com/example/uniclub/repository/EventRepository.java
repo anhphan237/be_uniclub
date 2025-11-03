@@ -76,5 +76,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     ORDER BY e.date DESC
 """)
     List<Event> findAllSettledEvents();
+    long countByHostClub_ClubIdAndStatus(Long clubId, EventStatusEnum status);
 
 }

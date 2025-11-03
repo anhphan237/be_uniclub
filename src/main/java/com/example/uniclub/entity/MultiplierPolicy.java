@@ -1,6 +1,6 @@
 package com.example.uniclub.entity;
 
-import com.example.uniclub.enums.PolicyTargetTypeEnum;
+import com.example.uniclub.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -18,29 +18,33 @@ public class MultiplierPolicy {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 🎯 Loại đối tượng áp dụng: CLUB hoặc MEMBER
+    // 🎯 Đối tượng áp dụng: MEMBER hoặc CLUB
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PolicyTargetTypeEnum targetType;
 
-    // 🔖 Mức độ (EXCELLENT, ACTIVE, CONTRIBUTOR, LEGEND, ...)
-    @Column(nullable = false)
-    private String levelOrStatus;
+
 
     // 📊 Số sự kiện tối thiểu để đạt mức này
     @Column(nullable = false)
-    private Integer minEvents;
+    private Integer minEvents = 0;
 
-    // 💰 Hệ số nhân điểm
+    // 💰 Hệ số nhân điểm thưởng (VD: 1.0 = bình thường, 1.2 = +20%)
     @Column(nullable = false)
-    private Double multiplier;
+    private Double multiplier = 1.0;
+    @Column(name = "level_or_status", nullable = false)
+    private String levelOrStatus;
 
-    // 👤 Người cập nhật chính sách
+    // ⚙️ Còn hiệu lực hay không
+    @Column(nullable = false)
+    private boolean active = true;
+
+    // 🕒 Thông tin cập nhật
     private String updatedBy;
-
-    // ⏰ Thời gian cập nhật
     private LocalDateTime updatedAt;
-
-    // 🗓️ Ngày hiệu lực (nếu UniStaff muốn set chính sách cho tháng sau)
     private LocalDateTime effectiveFrom;
+
+
+
+
 }

@@ -23,8 +23,13 @@ public class Major {
     private String description;
 
     @Column(nullable = false, unique = true, length = 20)
-    private String majorCode; // 🆕 Mã ngành, ví dụ: SE, MKT, BA
+    private String majorCode; // 🆕 Mã ngành: SE, MKT, BA
 
     @Column(nullable = false)
     private boolean active = true;
+
+
+    @OneToOne(mappedBy = "major", fetch = FetchType.LAZY)
+    private MajorPolicy majorPolicy;
+
 }

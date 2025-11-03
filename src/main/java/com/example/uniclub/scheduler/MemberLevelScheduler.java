@@ -41,17 +41,20 @@ public class MemberLevelScheduler {
             long attendedEvents = regRepo.countByUser_UserIdAndRegisteredAtAfter(
                     m.getUser().getUserId(), oneMonthAgo);
 
-            // 🔹 Tìm chính sách phù hợp
+            // 🔹 Tìm chính sách phù hợp nhất
             MultiplierPolicy matchedPolicy = memberPolicies.stream()
-                    .filter(p -> attendedEvents >= p.getMinEvents())
+                    .filter(p -> attendedEvents >= p.getMinEvents() && p.isActive())
                     .findFirst()
                     .orElse(null);
 
             if (matchedPolicy != null) {
                 try {
+                    // ⚙️ Dùng levelOrStatus thay cho level
                     m.setMemberLevel(
-                            MemberLevelEnum.valueOf(matchedPolicy.getLevelOrStatus()));
+                            MemberLevelEnum.valueOf(matchedPolicy.getLevelOrStatus())
+                    );
                 } catch (IllegalArgumentException ex) {
+                    // Nếu giá trị không hợp lệ, fallback về BASIC
                     m.setMemberLevel(MemberLevelEnum.BASIC);
                 }
                 m.setMemberMultiplier(matchedPolicy.getMultiplier());

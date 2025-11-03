@@ -20,20 +20,19 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.example.uniclub.enums.WalletOwnerTypeEnum.EVENT;
-import static com.example.uniclub.enums.WalletOwnerTypeEnum.USER;
-
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
     private final RoleRepository roleRepo;
+    private final MajorRepository majorRepo;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final MembershipRepository membershipRepo;
     private final ClubRepository clubRepo;
     private final WalletService walletService;
+
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
         List<Membership> memberships = membershipRepo.findByUser_UserId(u.getUserId());
@@ -53,7 +52,7 @@ public class UserServiceImpl implements UserService {
                 .roleName(u.getRole() != null ? u.getRole().getRoleName() : null)
                 .status(u.getStatus())
                 .studentCode(u.getStudentCode())
-                .majorName(u.getMajorName())
+                .majorName(u.getMajor() != null ? u.getMajor().getName() : null)
                 .bio(u.getBio())
                 .backgroundUrl(u.getBackgroundUrl())
                 .avatarUrl(u.getAvatarUrl())
@@ -63,20 +62,17 @@ public class UserServiceImpl implements UserService {
 
     // ✅ Helper: map ví từ membership sang WalletResponse an toàn
     private WalletResponse mapWallet(User user) {
-        // Lấy hoặc tạo ví user
         Wallet wallet = walletService.getOrCreateUserWallet(user);
         return WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
-                .ownerType(wallet.getOwnerType()) // USER / CLUB / EVENT
+                .ownerType(wallet.getOwnerType())
                 .userId(user.getUserId())
                 .userFullName(user.getFullName())
-                .clubId(null) // vì đây là ví tổng của user, không gắn với CLB cụ thể
+                .clubId(null)
                 .clubName(null)
                 .build();
     }
-
-
 
     // ===================== CRUD =====================
     @Override
@@ -87,13 +83,19 @@ public class UserServiceImpl implements UserService {
         if (req.studentCode() != null && userRepo.existsByStudentCode(req.studentCode()))
             throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
 
+        Major major = null;
+        if (req.majorId() != null) {
+            major = majorRepo.findById(req.majorId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+        }
+
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
                 .phone(req.phone())
                 .studentCode(req.studentCode())
-                .majorName(req.majorName())
+                .major(major)
                 .bio(req.bio())
                 .role(Role.builder().roleId(req.roleId()).build())
                 .status(UserStatusEnum.ACTIVE.name())
@@ -125,9 +127,10 @@ public class UserServiceImpl implements UserService {
         if (req.fullName() != null && !req.fullName().isBlank()) user.setFullName(req.fullName());
         if (req.phone() != null && !req.phone().isBlank()) user.setPhone(req.phone());
         if (req.bio() != null && !req.bio().isBlank()) user.setBio(req.bio());
-        if (req.majorName() != null && !req.majorName().isBlank()) {
-            validateMajor(req.majorName());
-            user.setMajorName(req.majorName());
+        if (req.majorId() != null) {
+            Major major = majorRepo.findById(req.majorId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+            user.setMajor(major);
         }
 
         return toResp(userRepo.save(user));
@@ -212,20 +215,6 @@ public class UserServiceImpl implements UserService {
         return stats;
     }
 
-    // ===================== Validate Major =====================
-    private void validateMajor(String majorName) {
-        Set<String> validMajors = Set.of(
-                "Software Engineering", "Artificial Intelligence", "Information Assurance",
-                "Data Science", "Business Administration", "Digital Marketing",
-                "Graphic Design", "Multimedia Communication", "Hospitality Management",
-                "International Business", "Finance and Banking",
-                "Japanese Language", "Korean Language",
-                "SE", "AI", "IA", "DS", "BA", "DM", "GD", "MC", "HM", "IB", "FB", "JP", "KR"
-        );
-        if (!validMajors.contains(majorName))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid major name");
-    }
-
     // ===================== Profile Response =====================
     @Override
     public UserResponse getProfileResponse(String email) {
@@ -250,9 +239,10 @@ public class UserServiceImpl implements UserService {
                 .roleName(user.getRole() != null ? user.getRole().getRoleName() : null)
                 .status(user.getStatus())
                 .studentCode(user.getStudentCode())
-                .majorName(user.getMajorName())
+                .majorName(user.getMajor() != null ? user.getMajor().getName() : null)
                 .bio(user.getBio())
                 .avatarUrl(user.getAvatarUrl())
+                .backgroundUrl(user.getBackgroundUrl())
                 .wallet(wallet)
                 .clubs(clubInfos)
                 .build();
@@ -264,13 +254,16 @@ public class UserServiceImpl implements UserService {
 
         if (req.getPhone() != null && !req.getPhone().isBlank()) user.setPhone(req.getPhone());
         if (req.getBio() != null && !req.getBio().isBlank()) user.setBio(req.getBio());
-        if (req.getMajorName() != null && !req.getMajorName().isBlank()) user.setMajorName(req.getMajorName());
+
+        if (req.getMajorId() != null) {
+            Major major = majorRepo.findById(req.getMajorId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+            user.setMajor(major);
+        }
 
         userRepo.save(user);
 
-        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
         WalletResponse wallet = mapWallet(user);
-
         UserResponse resp = toResp(user);
         resp.setWallet(wallet);
         return resp;
@@ -285,13 +278,12 @@ public class UserServiceImpl implements UserService {
         user.setAvatarUrl(avatarUrl);
         userRepo.save(user);
 
-        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
         WalletResponse wallet = mapWallet(user);
-
         UserResponse resp = toResp(user);
         resp.setWallet(wallet);
         return resp;
     }
+
     @Override
     public UserResponse updateBackgroundResponse(String email, String backgroundUrl) {
         if (backgroundUrl == null || backgroundUrl.isBlank())
@@ -301,9 +293,7 @@ public class UserServiceImpl implements UserService {
         user.setBackgroundUrl(backgroundUrl);
         userRepo.save(user);
 
-        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
         WalletResponse wallet = mapWallet(user);
-
         UserResponse resp = toResp(user);
         resp.setWallet(wallet);
         return resp;
