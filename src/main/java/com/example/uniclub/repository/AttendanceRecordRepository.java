@@ -72,4 +72,14 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("year") int year,
             @Param("eventId") Long eventId
     );
+
+    @Query("""
+    SELECT COUNT(DISTINCT DATE(ar.startCheckInTime))
+    FROM AttendanceRecord ar
+    WHERE ar.user.id = :userId
+      AND ar.attendanceLevel <> 'NONE'
+""")
+    long countAttendanceDaysByUserId(@Param("userId") Long userId);
+
+
 }

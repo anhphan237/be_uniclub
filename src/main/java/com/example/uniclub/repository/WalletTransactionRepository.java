@@ -3,6 +3,7 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.WalletTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -31,5 +32,15 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     ORDER BY tx.createdAt DESC
 """)
     List<WalletTransaction> findRewardToMembers();
+
+
+    @Query("""
+    SELECT COALESCE(SUM(wt.amount), 0)
+    FROM WalletTransaction wt
+    WHERE wt.wallet.user.id = :userId
+""")
+    long sumRewardPointsByUserId(@Param("userId") Long userId);
+
+
 
 }

@@ -3,7 +3,10 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ProfileUpdateRequest;
 import com.example.uniclub.dto.response.UserResponse;
+import com.example.uniclub.dto.response.UserStatsResponse;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.CloudinaryService;
+import com.example.uniclub.service.UserStatsService;
 import com.example.uniclub.service.impl.UserServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +25,7 @@ public class ProfileController {
 
     private final UserServiceImpl userService;
     private final CloudinaryService cloudinaryService;
-
+    private final UserStatsService userStatsService;
     // =============================================
     // 🔹 1. Xem thông tin hồ sơ cá nhân
     // =============================================
@@ -78,5 +81,17 @@ public class ProfileController {
         String backgroundUrl = cloudinaryService.uploadBackground(file);
         UserResponse updated = userService.updateBackgroundResponse(email, backgroundUrl);
         return ResponseEntity.ok(ApiResponse.ok(updated));
+    }
+    // =============================================
+    // 🔹 5. Thống kê hồ sơ người dùng
+    // =============================================
+    @GetMapping("/stats")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserStatsResponse>> getUserStats(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        Long userId = principal.getId();
+        UserStatsResponse stats = userStatsService.getUserStats(userId);
+        return ResponseEntity.ok(ApiResponse.ok(stats));
     }
 }

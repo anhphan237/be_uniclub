@@ -39,4 +39,8 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
             @Param("start") java.time.LocalDateTime start,
             @Param("end") java.time.LocalDateTime end);
 
+    @Query("SELECT COUNT(DISTINCT e.event.id) FROM EventRegistration e WHERE e.user.id = :userId")
+    long countDistinctEventsByUserId(@Param("userId") Long userId);
+
+
 }
