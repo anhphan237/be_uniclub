@@ -326,13 +326,17 @@ public class RedeemServiceImpl implements RedeemService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByClub(Long clubId) {
         return orderRepo.findByClub_ClubId(clubId)
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .filter(order -> order.getProduct().getType() == ProductTypeEnum.CLUB_ITEM)
+                .map(this::toResponse).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByEvent(Long eventId) {
         return orderRepo.findByProduct_Event_EventId(eventId)
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .filter(order -> order.getProduct().getType() == ProductTypeEnum.EVENT_ITEM)
+                .map(this::toResponse).toList();
     }
 }
