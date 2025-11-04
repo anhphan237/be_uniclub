@@ -14,7 +14,7 @@ public class EventFeedbackResponse {
     private Long eventId;
     private String eventName;
     private String clubName;
-
+    private String memberName;
     private Long membershipId;
     private Integer rating;
     private String comment;

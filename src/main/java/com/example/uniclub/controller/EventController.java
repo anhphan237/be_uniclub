@@ -35,7 +35,7 @@ public class EventController {
     private final EventSettlementService eventSettlementService;
     private final AttendanceService attendanceService;
     private final EventFeedbackService eventFeedbackService;
-
+    private final EventFeedbackService feedbackService;
     // =========================================================
     // 🔹 1. CRUD
     // =========================================================
@@ -278,14 +278,22 @@ public class EventController {
     // =========================================================
 // 🔹 8. EVENT FEEDBACK
 // =========================================================
-    @PostMapping("/{eventId}/feedback")
+    @PostMapping("/api/events/{eventId}/feedback")
     @PreAuthorize("hasRole('STUDENT')")
-    public ResponseEntity<ApiResponse<EventFeedbackResponse>> createFeedback(
+    public ResponseEntity<?> createFeedback(
             @PathVariable Long eventId,
-            @AuthenticationPrincipal User user,
-            @Valid @RequestBody EventFeedbackRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.createFeedback(eventId, req, user)));
+            @RequestBody EventFeedbackRequest req,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        EventFeedbackResponse response = feedbackService.createFeedback(eventId, req, userDetails);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Feedback created successfully",
+                "data", response
+        ));
     }
+
+
 
 
     @GetMapping("/{eventId}/feedback")
@@ -330,6 +338,17 @@ public class EventController {
             @RequestBody EventExtendRequest request) {
         return ResponseEntity.ok(eventService.extendEvent(eventId, request));
     }
+    @GetMapping("/api/clubs/{clubId}/feedbacks")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER', 'STAFF', 'UNIVERSITY_STAFF')")
+    public ResponseEntity<?> getFeedbacksByClub(@PathVariable Long clubId) {
+        List<EventFeedbackResponse> res = feedbackService.getFeedbacksByClub(clubId);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "success",
+                "data", res
+        ));
+    }
+
 
 
 }

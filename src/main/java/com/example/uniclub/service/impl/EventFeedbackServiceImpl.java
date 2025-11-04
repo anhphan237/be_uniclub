@@ -5,6 +5,7 @@ import com.example.uniclub.dto.response.EventFeedbackResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventFeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,25 +23,16 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
     private final MembershipRepository membershipRepo;
 
     @Override
-    public EventFeedbackResponse createFeedback(Long eventId, EventFeedbackRequest req, User user) {
+    public EventFeedbackResponse createFeedback(Long eventId, EventFeedbackRequest req, CustomUserDetails userDetails) {
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        // 🔹 Tìm membership theo user + club
-        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(
-                        user.getUserId(),
-                        event.getHostClub().getClubId()
-                )
+        User user = userDetails.getUser();
+        if (user == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+
+        Membership membership = membershipRepo.findByUserAndClub(user, event.getHostClub())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not a member of this club"));
 
-        // 🔹 Kiểm tra trùng feedback
-        boolean exists = feedbackRepo.existsByEvent_EventIdAndMembership_MembershipId(
-                eventId, membership.getMembershipId());
-        if (exists) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You already submitted feedback for this event");
-        }
-
-        // 🔹 Tạo mới feedback
         EventFeedback feedback = EventFeedback.builder()
                 .event(event)
                 .membership(membership)
@@ -49,8 +41,19 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .build();
 
         feedbackRepo.save(feedback);
-        return mapToResponse(feedback);
+
+        return EventFeedbackResponse.builder()
+                .feedbackId(feedback.getFeedbackId())
+                .eventId(event.getEventId())
+                .eventName(event.getName())
+                .clubName(event.getHostClub().getName())
+                .memberName(user.getFullName())
+                .rating(feedback.getRating())
+                .comment(feedback.getComment())
+                .createdAt(feedback.getCreatedAt())
+                .build();
     }
+
 
     @Override
     public List<EventFeedbackResponse> getFeedbacksByEvent(Long eventId) {
@@ -109,4 +112,25 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .updatedAt(f.getUpdatedAt())
                 .build();
     }
+
+    @Override
+    public List<EventFeedbackResponse> getFeedbacksByClub(Long clubId) {
+        List<EventFeedback> feedbacks = feedbackRepo.findAllByClubOrCoHost(clubId);
+        return feedbacks.stream()
+                .map(f -> EventFeedbackResponse.builder()
+                        .feedbackId(f.getFeedbackId())
+                        .eventId(f.getEvent().getEventId())
+                        .eventName(f.getEvent().getName())
+                        .clubName(f.getEvent().getHostClub().getName())
+                        .membershipId(f.getMembership().getMembershipId())
+                        .memberName(f.getMembership().getUser().getFullName()) // ✅ lấy tên người gửi
+                        .rating(f.getRating())
+                        .comment(f.getComment())
+                        .createdAt(f.getCreatedAt())
+                        .updatedAt(f.getUpdatedAt())
+                        .build())
+                .toList();
+    }
+
+
 }

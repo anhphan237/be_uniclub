@@ -1,6 +1,8 @@
 package com.example.uniclub.repository;
 
+import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Membership;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -65,6 +67,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     @Query("SELECT COUNT(DISTINCT m.club.id) FROM Membership m WHERE m.user.id = :userId")
     long countDistinctActiveClubsByUserId(@Param("userId") Long userId);
 
+    Optional<Membership> findByUserAndClub(User user, Club club);
 
 
 

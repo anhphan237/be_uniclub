@@ -1,13 +1,13 @@
 package com.example.uniclub.dto.request;
 
+import lombok.*;
 
-import lombok.Data;
-
-
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class EventFeedbackRequest {
     private Integer rating;
     private String comment;
 }
-
-
