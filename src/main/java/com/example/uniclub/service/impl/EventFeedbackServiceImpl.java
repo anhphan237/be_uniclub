@@ -9,6 +9,7 @@ import com.example.uniclub.service.EventFeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +29,11 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
         Membership membership = membershipRepo.findById(req.getMembershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
+        // ✅ Kiểm tra trùng feedback
+        if (feedbackRepo.existsByEvent_EventIdAndMembership_MembershipId(req.getEventId(), req.getMembershipId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You already submitted feedback for this event");
+        }
+
         EventFeedback feedback = feedbackRepo.save(EventFeedback.builder()
                 .event(event)
                 .membership(membership)
@@ -35,35 +41,17 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .comment(req.getComment())
                 .build());
 
-        return EventFeedbackResponse.builder()
-                .feedbackId(feedback.getFeedbackId())
-                .eventId(event.getEventId())
-                .eventName(event.getName())
-                .clubName(event.getHostClub() != null ? event.getHostClub().getName() : null)
-                .membershipId(membership.getMembershipId())
-                .rating(feedback.getRating())
-                .comment(feedback.getComment())
-                .createdAt(feedback.getCreatedAt())
-                .build();
-
+        return mapToResponse(feedback);
     }
 
     @Override
     public List<EventFeedbackResponse> getFeedbacksByEvent(Long eventId) {
         return feedbackRepo.findByEvent_EventId(eventId)
                 .stream()
-                .map(f -> EventFeedbackResponse.builder()
-                        .feedbackId(f.getFeedbackId())
-                        .eventId(f.getEvent().getEventId())
-                        .eventName(f.getEvent().getName())
-                        .clubName(f.getEvent().getHostClub() != null ? f.getEvent().getHostClub().getName() : null)
-                        .membershipId(f.getMembership().getMembershipId())
-                        .rating(f.getRating())
-                        .comment(f.getComment())
-                        .createdAt(f.getCreatedAt())
-                        .build())
+                .map(this::mapToResponse)
                 .toList();
     }
+
     @Override
     public EventFeedbackResponse updateFeedback(Long feedbackId, EventFeedbackRequest req) {
         EventFeedback feedback = feedbackRepo.findById(feedbackId)
@@ -71,18 +59,8 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
 
         if (req.getRating() != null) feedback.setRating(req.getRating());
         if (req.getComment() != null) feedback.setComment(req.getComment());
-        feedbackRepo.save(feedback);
 
-        return EventFeedbackResponse.builder()
-                .feedbackId(feedback.getFeedbackId())
-                .eventId(feedback.getEvent().getEventId())
-                .eventName(feedback.getEvent().getName())
-                .clubName(feedback.getEvent().getHostClub() != null ? feedback.getEvent().getHostClub().getName() : null)
-                .membershipId(feedback.getMembership().getMembershipId())
-                .rating(feedback.getRating())
-                .comment(feedback.getComment())
-                .createdAt(feedback.getCreatedAt())
-                .build();
+        return mapToResponse(feedbackRepo.save(feedback));
     }
 
     @Override
@@ -96,33 +74,29 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
     public List<EventFeedbackResponse> getFeedbacksByMembership(Long membershipId) {
         return feedbackRepo.findByMembership_MembershipId(membershipId)
                 .stream()
-                .map(f -> EventFeedbackResponse.builder()
-                        .feedbackId(f.getFeedbackId())
-                        .eventId(f.getEvent().getEventId())
-                        .eventName(f.getEvent().getName())
-                        .clubName(f.getEvent().getHostClub() != null ? f.getEvent().getHostClub().getName() : null)
-                        .membershipId(membershipId)
-                        .rating(f.getRating())
-                        .comment(f.getComment())
-                        .createdAt(f.getCreatedAt())
-                        .build())
+                .map(this::mapToResponse)
                 .toList();
     }
 
     @Override
     public Map<String, Object> getFeedbackSummaryByEvent(Long eventId) {
         List<EventFeedback> feedbacks = feedbackRepo.findByEvent_EventId(eventId);
-        double avgRating = feedbacks.stream()
-                .mapToInt(EventFeedback::getRating)
-                .average()
-                .orElse(0.0);
-        int total = feedbacks.size();
-
-        return Map.of(
-                "eventId", eventId,
-                "averageRating", avgRating,
-                "totalFeedbacks", total
-        );
+        double avgRating = feedbacks.stream().mapToInt(EventFeedback::getRating).average().orElse(0.0);
+        return Map.of("eventId", eventId, "averageRating", avgRating, "totalFeedbacks", feedbacks.size());
     }
 
+    // ✅ Mapper dùng chung, giúp code ngắn và sạch
+    private EventFeedbackResponse mapToResponse(EventFeedback f) {
+        return EventFeedbackResponse.builder()
+                .feedbackId(f.getFeedbackId())
+                .eventId(f.getEvent().getEventId())
+                .eventName(f.getEvent().getName())
+                .clubName(f.getEvent().getHostClub() != null ? f.getEvent().getHostClub().getName() : null)
+                .membershipId(f.getMembership().getMembershipId())
+                .rating(f.getRating())
+                .comment(f.getComment())
+                .createdAt(f.getCreatedAt())
+                .updatedAt(f.getUpdatedAt())
+                .build();
+    }
 }

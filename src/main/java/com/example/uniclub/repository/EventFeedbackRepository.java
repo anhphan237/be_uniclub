@@ -7,5 +7,6 @@ import java.util.List;
 public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Long> {
     List<EventFeedback> findByEvent_EventId(Long eventId);
     List<EventFeedback> findByMembership_MembershipId(Long membershipId);
+    boolean existsByEvent_EventIdAndMembership_MembershipId(Long eventId, Long membershipId);
 
 }
