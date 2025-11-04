@@ -22,25 +22,33 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
     private final MembershipRepository membershipRepo;
 
     @Override
-    public EventFeedbackResponse createFeedback(EventFeedbackRequest req) {
-        Event event = eventRepo.findById(req.getEventId())
+    public EventFeedbackResponse createFeedback(Long eventId, EventFeedbackRequest req, User user) {
+        Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        Membership membership = membershipRepo.findById(req.getMembershipId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+        // 🔹 Tìm membership theo user + club
+        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(
+                        user.getUserId(),
+                        event.getHostClub().getClubId()
+                )
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not a member of this club"));
 
-        // ✅ Kiểm tra trùng feedback
-        if (feedbackRepo.existsByEvent_EventIdAndMembership_MembershipId(req.getEventId(), req.getMembershipId())) {
+        // 🔹 Kiểm tra trùng feedback
+        boolean exists = feedbackRepo.existsByEvent_EventIdAndMembership_MembershipId(
+                eventId, membership.getMembershipId());
+        if (exists) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You already submitted feedback for this event");
         }
 
-        EventFeedback feedback = feedbackRepo.save(EventFeedback.builder()
+        // 🔹 Tạo mới feedback
+        EventFeedback feedback = EventFeedback.builder()
                 .event(event)
                 .membership(membership)
                 .rating(req.getRating())
                 .comment(req.getComment())
-                .build());
+                .build();
 
+        feedbackRepo.save(feedback);
         return mapToResponse(feedback);
     }
 
@@ -60,8 +68,10 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
         if (req.getRating() != null) feedback.setRating(req.getRating());
         if (req.getComment() != null) feedback.setComment(req.getComment());
 
-        return mapToResponse(feedbackRepo.save(feedback));
+        feedbackRepo.save(feedback);
+        return mapToResponse(feedback);
     }
+
 
     @Override
     public void deleteFeedback(Long feedbackId) {

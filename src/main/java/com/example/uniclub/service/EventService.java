@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
+import com.example.uniclub.dto.request.EventExtendRequest;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
@@ -74,5 +75,6 @@ public interface EventService {
     List<EventRegistrationResponse> getRegisteredEventsByUser(Long userId);
     List<EventResponse> getSettledEvents();
 
+    EventResponse extendEvent(Long eventId, EventExtendRequest request);
 
 }

@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
+import com.example.uniclub.dto.request.EventExtendRequest;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
@@ -18,9 +19,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.modelmapper.ModelMapper;
+import java.time.format.DateTimeFormatter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
@@ -39,6 +43,7 @@ public class EventServiceImpl implements EventService {
     private final EventStaffRepository eventStaffRepo;
     private final EventRegistrationRepository eventRegistrationRepo;
 
+    private final ModelMapper modelMapper = new ModelMapper();
     // =================================================================
     // 🔹 MAPPER
     // =================================================================
@@ -533,5 +538,67 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
+    @Override
+    public EventResponse extendEvent(Long eventId, EventExtendRequest req) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        if (event.isCompleted()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot modify a completed event");
+        }
+
+        // 🔹 Parse chuỗi "HH:mm" linh hoạt (chấp nhận "8:00" hoặc "08:00")
+        LocalTime newStart;
+        LocalTime newEnd;
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm");
+            newStart = LocalTime.parse(req.getNewStartTime().trim(), formatter);
+            newEnd = LocalTime.parse(req.getNewEndTime().trim(), formatter);
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid time format. Please use HH:mm (e.g. 09:00)");
+        }
+
+        if (newEnd.isBefore(newStart)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time");
+        }
+
+        if (req.getNewDate() != null) {
+            event.setDate(req.getNewDate());
+        }
+
+        event.setStartTime(newStart);
+        event.setEndTime(newEnd);
+        eventRepo.save(event);
+
+        // 🔹 Map thủ công thay vì dùng mapper (để tránh lỗi 'mapper not found')
+        return EventResponse.builder()
+                .id(event.getEventId())
+                .name(event.getName())
+                .description(event.getDescription())
+                .date(event.getDate())
+                .startTime(event.getStartTime())
+                .endTime(event.getEndTime())
+                .status(event.getStatus())
+                .checkInCode(event.getCheckInCode())
+                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
+                .commitPointCost(event.getCommitPointCost())
+                .maxCheckInCount(event.getMaxCheckInCount())
+                .currentCheckInCount(event.getCurrentCheckInCount())
+                .hostClub(new EventResponse.SimpleClub(
+                        event.getHostClub().getClubId(),
+                        event.getHostClub().getName(),
+                        EventCoHostStatusEnum.APPROVED
+                ))
+                .coHostedClubs(event.getCoHostRelations() == null ? List.of() :
+                        event.getCoHostRelations().stream()
+                                .map(rel -> new EventResponse.SimpleClub(
+                                        rel.getClub().getClubId(),
+                                        rel.getClub().getName(),
+                                        rel.getStatus()))
+                                .toList())
+                .build();
+    }
+
+
 
 }

@@ -21,36 +21,49 @@ public class EventStatusScheduler {
     private final EventRepository eventRepo;
 
     /**
-     * ⏰ Scheduler chạy mỗi 5 phút để cập nhật trạng thái sự kiện.
-     *  - APPROVED  → ONGOING (nếu đến giờ)
-     *  - ONGOING   → COMPLETED (nếu quá giờ kết thúc)
+     * 🕒 Tự động cập nhật trạng thái sự kiện mỗi 5 phút:
+     * - APPROVED → ONGOING nếu đã đến giờ bắt đầu
+     * - ONGOING → COMPLETED nếu quá giờ kết thúc
+     * - Bỏ qua event COMPLETED, CANCELED
      */
-    @Scheduled(cron = "0 */5 * * * *") // Mỗi 5 phút
+    @Scheduled(cron = "0 */5 * * * *") // mỗi 5 phút
     @Transactional
     public void autoUpdateEventStatuses() {
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now();
 
-        log.info("⏰ Scheduler tick: {} at {}", today, now);
+        log.info("⏰ [Scheduler] Checking events at {} {}", today, now);
 
         // 1️⃣ APPROVED → ONGOING
-        List<Event> approved = eventRepo.findAllByStatusAndDate(EventStatusEnum.APPROVED, today);
-        for (Event e : approved) {
-            if (now.isAfter(e.getStartTime())) { // ✅ Nới điều kiện: chỉ cần sau giờ bắt đầu
+        List<Event> approvedEvents = eventRepo.findAllByStatus(EventStatusEnum.APPROVED);
+        for (Event e : approvedEvents) {
+            boolean shouldStart =
+                    e.getDate().isBefore(today) ||
+                            (e.getDate().isEqual(today) && now.isAfter(e.getStartTime()));
+
+            if (shouldStart) {
                 e.setStatus(EventStatusEnum.ONGOING);
-                eventRepo.save(e);
                 log.info("🔵 Event {} - '{}' switched to ONGOING", e.getEventId(), e.getName());
             }
         }
 
         // 2️⃣ ONGOING → COMPLETED
-        List<Event> ongoing = eventRepo.findAllByStatusAndDate(EventStatusEnum.ONGOING, today);
-        for (Event e : ongoing) {
-            if (now.isAfter(e.getEndTime())) {
+        List<Event> ongoingEvents = eventRepo.findAllByStatus(EventStatusEnum.ONGOING);
+        for (Event e : ongoingEvents) {
+            boolean shouldEnd =
+                    e.getDate().isBefore(today) ||
+                            (e.getDate().isEqual(today) && now.isAfter(e.getEndTime()));
+
+            if (shouldEnd) {
                 e.setStatus(EventStatusEnum.COMPLETED);
-                eventRepo.save(e);
                 log.info("🟣 Event {} - '{}' switched to COMPLETED", e.getEventId(), e.getName());
             }
         }
+
+        eventRepo.saveAll(approvedEvents);
+        eventRepo.saveAll(ongoingEvents);
+
+        log.info("✅ Scheduler done: {} approved, {} ongoing processed",
+                approvedEvents.size(), ongoingEvents.size());
     }
 }

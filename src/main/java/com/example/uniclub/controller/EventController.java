@@ -4,6 +4,7 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.*;
@@ -280,9 +281,12 @@ public class EventController {
     @PostMapping("/{eventId}/feedback")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<EventFeedbackResponse>> createFeedback(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody EventFeedbackRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.createFeedback(req)));
+        return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.createFeedback(eventId, req, user)));
     }
+
 
     @GetMapping("/{eventId}/feedback")
     public ResponseEntity<ApiResponse<List<EventFeedbackResponse>>> getFeedbacksByEvent(
@@ -317,6 +321,14 @@ public class EventController {
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getFeedbackSummary(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.getFeedbackSummaryByEvent(eventId)));
+    }
+
+    @PutMapping("/{eventId}/extend")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<EventResponse> extendEvent(
+            @PathVariable Long eventId,
+            @RequestBody EventExtendRequest request) {
+        return ResponseEntity.ok(eventService.extendEvent(eventId, request));
     }
 
 

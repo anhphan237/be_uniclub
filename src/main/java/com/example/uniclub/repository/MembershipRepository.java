@@ -66,4 +66,6 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     long countDistinctActiveClubsByUserId(@Param("userId") Long userId);
 
 
+
+
 }

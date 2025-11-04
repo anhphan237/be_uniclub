@@ -78,4 +78,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findAllSettledEvents();
     long countByHostClub_ClubIdAndStatus(Long clubId, EventStatusEnum status);
 
+    // 🔹 Lấy tất cả sự kiện theo trạng thái (dùng cho scheduler)
+    List<Event> findAllByStatus(EventStatusEnum status);
+
+
 }
