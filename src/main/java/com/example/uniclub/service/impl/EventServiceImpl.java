@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.request.EventBudgetApproveRequest;
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.request.EventExtendRequest;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
@@ -19,7 +20,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.modelmapper.ModelMapper;
+import com.example.uniclub.repository.ProductRepository;
+
 import java.time.format.DateTimeFormatter;
 
 import java.time.LocalDate;
@@ -38,12 +40,12 @@ public class EventServiceImpl implements EventService {
     private final UserRepository userRepo;
     private final MembershipRepository membershipRepo;
     private final NotificationService notificationService;
-    private final RewardService rewardService;
     private final WalletRepository walletRepo;
     private final EventStaffRepository eventStaffRepo;
     private final EventRegistrationRepository eventRegistrationRepo;
+    private final WalletTransactionRepository walletTransactionRepo;
+    private final ProductRepository productRepo;
 
-    private final ModelMapper modelMapper = new ModelMapper();
     // =================================================================
     // 🔹 MAPPER
     // =================================================================
@@ -59,6 +61,7 @@ public class EventServiceImpl implements EventService {
                 .status(event.getStatus())
                 .checkInCode(event.getCheckInCode())
                 .commitPointCost(event.getCommitPointCost())
+                .budgetPoints(event.getBudgetPoints())
                 .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
                 .maxCheckInCount(event.getMaxCheckInCount())
                 .currentCheckInCount(event.getCurrentCheckInCount())
@@ -86,12 +89,19 @@ public class EventServiceImpl implements EventService {
     public EventResponse create(EventCreateRequest req) {
         LocalDate today = LocalDate.now();
 
+        // ✅ 1. Kiểm tra ngày không ở quá khứ
         if (req.date().isBefore(today))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Ngày sự kiện không được ở quá khứ.");
 
+        // ✅ 2. Kiểm tra giờ bắt đầu - kết thúc
         if (req.startTime() != null && req.endTime() != null && req.endTime().isBefore(req.startTime()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời gian bắt đầu.");
 
+        // ✅ 3. Kiểm tra nếu sự kiện trong hôm nay mà giờ bắt đầu < hiện tại
+        if (req.date().isEqual(today) && req.startTime() != null && req.startTime().isBefore(LocalTime.now()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Giờ bắt đầu phải sau thời điểm hiện tại.");
+
+        // ✅ 4. Validate location
         Location location = locationRepo.findById(req.locationId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Địa điểm không tồn tại."));
 
@@ -99,15 +109,24 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Địa điểm chỉ chứa tối đa " + location.getCapacity() + " người.");
 
+        // ✅ 5. Validate host club
         Club hostClub = clubRepo.findById(req.hostClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CLB tổ chức không tồn tại."));
 
+        // ✅ 6. Validate co-hosts
         List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
-                ? clubRepo.findAllById(req.coHostClubIds()) : List.of();
+                ? clubRepo.findAllById(req.coHostClubIds())
+                : List.of();
 
+        // ✅ 7. Validate ngân sách
         if (req.budgetPoints() == null || req.budgetPoints() <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Ngân sách phải lớn hơn 0.");
 
+        // ✅ 8. Validate điểm cam kết
+        if (req.commitPointCost() != null && req.commitPointCost() < 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Điểm cam kết không hợp lệ.");
+
+        // ✅ 9. Tạo sự kiện
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -121,10 +140,11 @@ public class EventServiceImpl implements EventService {
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .maxCheckInCount(req.maxCheckInCount())
                 .commitPointCost(req.commitPointCost())
+                .budgetPoints(req.budgetPoints())
                 .rewardMultiplierCap(2)
-
                 .build();
 
+        // ✅ 10. Tạo quan hệ Co-host nếu có
         if (!coHosts.isEmpty()) {
             List<EventCoClub> coRelations = coHosts.stream()
                     .map(c -> EventCoClub.builder()
@@ -136,8 +156,10 @@ public class EventServiceImpl implements EventService {
             event.setCoHostRelations(coRelations);
         }
 
+        // ✅ 11. Lưu sự kiện
         eventRepo.save(event);
 
+        // ✅ 12. Gửi thông báo
         if (coHosts.isEmpty()) {
             notificationService.notifyUniStaffReadyForReview(event);
         } else {
@@ -147,6 +169,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
     // =================================================================
     // 🔹 CO-HOST PHẢN HỒI
@@ -599,6 +622,127 @@ public class EventServiceImpl implements EventService {
                 .build();
     }
 
+    @Transactional
+    public EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        if (event.getStatus() != EventStatusEnum.APPROVED && event.getStatus() != EventStatusEnum.COMPLETED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only approved or completed events can receive budget grant");
+        }
+
+        Wallet eventWallet = event.getWallet();
+        if (eventWallet == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Event wallet not found");
+        }
+
+        // ✅ Ghi nhận ngân sách được duyệt
+        long approvedPoints = req.getApprovedBudgetPoints().longValue();
+        event.setBudgetPoints(approvedPoints);
+
+        // ✅ Cập nhật ví
+        eventWallet.setBalancePoints(eventWallet.getBalancePoints() + approvedPoints);
+
+        // ✅ Giao dịch nạp điểm
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(eventWallet)
+                .amount(approvedPoints)
+                .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
+                .description("UniStaff granted " + approvedPoints + " points to event " + event.getName())
+                .senderName(staff.getUser().getFullName())
+                .receiverName(event.getName())
+                .build();
+
+        walletTransactionRepo.save(transaction);
+        walletRepo.save(eventWallet);
+
+        // ⚠️ BỔ SUNG DÒNG NÀY
+        eventRepo.save(event); // Lưu lại giá trị budgetPoints mới
+
+        return mapToResponse(event);
+    }
+
+
+
+    // =================================================================
+// 🔹 HOÀN ĐIỂM SẢN PHẨM TRONG EVENT (EVENT_REFUND_PRODUCT)
+// =================================================================
+    @Transactional
+    public WalletTransaction refundEventProduct(Long eventId, Long userId, Long productId) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        Wallet eventWallet = event.getWallet();
+        if (eventWallet == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "Event wallet not found");
+
+        walletRepo.findByUser_UserId(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+
+        Product product = productRepo.findById(productId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        Long refundPoints = product.getPointCost();
+
+        // ✅ Hoàn điểm lại cho ví sự kiện
+        eventWallet.setBalancePoints(eventWallet.getBalancePoints() + refundPoints);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(eventWallet)
+                .amount(refundPoints)
+                .type(WalletTransactionTypeEnum.EVENT_REFUND_PRODUCT)
+                .description("Refund product '" + product.getName() + "' for event " + event.getName())
+                .build();
+
+        walletTransactionRepo.save(transaction);
+        walletRepo.save(eventWallet);
+
+        log.info("♻️ [EVENT_REFUND_PRODUCT] Refunded {} points for product {} in event {}",
+                refundPoints, product.getName(), event.getName());
+
+        return transaction;
+    }
+
+    // =====================================================
+// 🧩 Helper: Convert Event -> EventResponse
+// =====================================================
+    private EventResponse toEventResponse(Event event) {
+        if (event == null) return null;
+
+        return EventResponse.builder()
+                .id(event.getEventId())
+                .name(event.getName())
+                .description(event.getDescription())
+                .type(event.getType())
+                .date(event.getDate())
+                .startTime(event.getStartTime())
+                .endTime(event.getEndTime())
+                .status(event.getStatus())
+                .checkInCode(event.getCheckInCode())
+                .budgetPoints(event.getBudgetPoints())
+                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
+                .maxCheckInCount(event.getMaxCheckInCount())
+                .currentCheckInCount(event.getCurrentCheckInCount())
+                .commitPointCost(event.getCommitPointCost())
+                .hostClub(event.getHostClub() != null
+                        ? new EventResponse.SimpleClub(
+                        event.getHostClub().getClubId(),
+                        event.getHostClub().getName(),
+                        null
+                )
+                        : null)
+                .coHostedClubs(
+                        event.getCoHostedClubs() != null
+                                ? event.getCoHostedClubs().stream()
+                                .map(club -> new EventResponse.SimpleClub(
+                                        club.getClubId(),
+                                        club.getName(),
+                                        null
+                                ))
+                                .toList()
+                                : null
+                )
+                .build();
+    }
 
 }

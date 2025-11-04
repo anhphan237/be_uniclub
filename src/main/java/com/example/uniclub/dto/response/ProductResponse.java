@@ -8,7 +8,7 @@ public record ProductResponse(
         String productCode,
         String name,
         String description,
-        Integer pointCost,
+        Long pointCost,
         Integer stockQuantity,
         String type,
         String status,

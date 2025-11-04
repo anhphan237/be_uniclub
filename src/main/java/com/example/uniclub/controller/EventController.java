@@ -5,6 +5,7 @@ import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.entity.User;
+import com.example.uniclub.entity.WalletTransaction;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.*;
@@ -349,6 +350,24 @@ public class EventController {
         ));
     }
 
+    @PutMapping("/{eventId}/approve-budget")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<EventResponse> approveBudget(
+            @PathVariable Long eventId,
+            @RequestBody @Valid EventBudgetApproveRequest req,
+            @AuthenticationPrincipal CustomUserDetails staff
+    ) {
+        return ResponseEntity.ok(eventService.approveEventBudget(eventId, req, staff));
+    }
 
+    @PutMapping("/{eventId}/refund-product/{productId}")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF') or hasRole('ADMIN')")
+    public ResponseEntity<?> refundEventProduct(
+            @PathVariable Long eventId,
+            @PathVariable Long productId,
+            @RequestParam Long userId) {
+        WalletTransaction tx = eventService.refundEventProduct(eventId, userId, productId);
+        return ResponseEntity.ok(tx);
+    }
 
 }

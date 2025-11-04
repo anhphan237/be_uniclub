@@ -24,7 +24,7 @@ public class WalletServiceImpl implements WalletService {
     private final WalletTransactionRepository txRepo;
 
     // ================================================================
-    // 🔍 LẤY VÍ THEO CLUB / MEMBERSHIP / ID
+    // 🔍 LẤY VÍ THEO CLUB / USER / ID
     // ================================================================
     @Override
     public Wallet getWalletByClubId(Long clubId) {
@@ -32,8 +32,6 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                         "Wallet not found for clubId: " + clubId));
     }
-
-
 
     @Override
     public Wallet getWalletById(Long walletId) {
@@ -66,7 +64,6 @@ public class WalletServiceImpl implements WalletService {
                         .balancePoints(0L)
                         .build()));
     }
-
 
     // ================================================================
     // 💰 TĂNG / GIẢM ĐIỂM
@@ -214,35 +211,24 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found when saving transaction"));
         tx.setWallet(w);
 
-        //  Xác định tên người nhận (receiver)
+        // ✅ Receiver name
         if (tx.getReceiverName() == null) {
-            if (w.getUser() != null) {
+            if (w.getUser() != null)
                 tx.setReceiverName(w.getUser().getFullName());
-            } else if (w.getClub() != null) {
+            else if (w.getClub() != null)
                 tx.setReceiverName(w.getClub().getName());
-            } else if (w.getEvent() != null) {
+            else if (w.getEvent() != null)
                 tx.setReceiverName(w.getEvent().getName());
-            } else {
+            else
                 tx.setReceiverName("System");
-            }
         }
 
-        // Xác định người gửi (sender)
+        // ✅ Sender name
         if (tx.getSenderName() == null) {
             switch (tx.getType()) {
-                case CLUB_TO_MEMBER -> {
-                    // ví của user nhận thưởng từ CLB
-                    tx.setSenderName(
-                            w.getClub() != null ? w.getClub().getName() : "Club"
-                    );
-                }
+                case CLUB_TO_MEMBER -> tx.setSenderName(w.getClub() != null ? w.getClub().getName() : "Club");
                 case UNI_TO_CLUB -> tx.setSenderName("University Staff");
-                case REDEEM_PRODUCT -> {
-                    // user dùng ví cá nhân để đổi sản phẩm
-                    tx.setSenderName(
-                            w.getUser() != null ? w.getUser().getFullName() : "User"
-                    );
-                }
+                case REDEEM_PRODUCT -> tx.setSenderName(w.getUser() != null ? w.getUser().getFullName() : "User");
                 case REFUND_PRODUCT -> tx.setSenderName("System Refund");
                 case TRANSFER -> tx.setSenderName("[System Transfer]");
                 case ADD -> tx.setSenderName("System Add");
@@ -251,18 +237,26 @@ public class WalletServiceImpl implements WalletService {
             }
         }
 
-        // ✅ Nếu chưa có thời gian tạo
         if (tx.getCreatedAt() == null)
             tx.setCreatedAt(LocalDateTime.now());
 
         txRepo.save(tx);
     }
 
-
     // ================================================================
-    // 🧾 MAP TRANSACTION → RESPONSE
+    // 🧾 MAP TRANSACTION → RESPONSE (có hiển thị + / −)
     // ================================================================
     private WalletTransactionResponse mapToResponse(WalletTransaction tx) {
+        String signed;
+        switch (tx.getType()) {
+            case ADD, UNI_TO_CLUB, CLUB_TO_MEMBER, REFUND_PRODUCT, BONUS_REWARD ->
+                    signed = "+" + tx.getAmount();
+            case REDUCE, TRANSFER, COMMIT_LOCK, REDEEM_PRODUCT ->
+                    signed = "-" + Math.abs(tx.getAmount());
+            default ->
+                    signed = (tx.getAmount() >= 0 ? "+" : "") + tx.getAmount();
+        }
+
         return WalletTransactionResponse.builder()
                 .id(tx.getId())
                 .type(tx.getType().name())
@@ -271,6 +265,7 @@ public class WalletServiceImpl implements WalletService {
                 .createdAt(tx.getCreatedAt())
                 .senderName(tx.getSenderName())
                 .receiverName(tx.getReceiverName())
+                .signedAmount(signed)   // ✅ thêm field hiển thị + hoặc -
                 .build();
     }
 
@@ -279,36 +274,109 @@ public class WalletServiceImpl implements WalletService {
     // ================================================================
     @Override
     @Transactional
-    public void topupPointsFromUniversity(Wallet targetWallet, long points, String description) {
-        targetWallet.setBalancePoints(targetWallet.getBalancePoints() + points);
-        walletRepo.save(targetWallet);
+    public WalletTransaction topupPointsFromUniversity(Wallet clubWallet, long points, String reason) {
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid points amount");
 
-        saveTransaction(WalletTransaction.builder()
-                .wallet(targetWallet)
-                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() + points);
+        walletRepo.save(clubWallet);
+
+        WalletTransaction tx = WalletTransaction.builder()
+                .wallet(clubWallet)
                 .amount(points)
-                .description(description)
+                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+                .description(reason)
+                .senderName("University Staff")
+                .receiverName(clubWallet.getClub().getName())
                 .createdAt(LocalDateTime.now())
-                .build());
+                .build();
+
+        txRepo.save(tx);
+        return tx;
     }
+
     @Override
     @Transactional
-    public void topupPointsFromUniversityWithOperator(Long walletId, long points, String description, String operatorName) {
-        Wallet targetWallet = walletRepo.findById(walletId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found: " + walletId));
+    public void topupPointsFromUniversityWithOperator(Long walletId, long points, String reason, String senderName) {
+        Wallet wallet = walletRepo.findById(walletId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
-        targetWallet.setBalancePoints(targetWallet.getBalancePoints() + points);
-        walletRepo.save(targetWallet);
+        wallet.setBalancePoints(wallet.getBalancePoints() + points);
+        walletRepo.save(wallet);
 
-        saveTransaction(WalletTransaction.builder()
-                .wallet(targetWallet)
-                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+        WalletTransaction tx = WalletTransaction.builder()
+                .wallet(wallet)
                 .amount(points)
-                .description(description)
-                .senderName(operatorName != null ? operatorName : "University Staff") // ✅ Ghi tên người thật
+                .type(WalletTransactionTypeEnum.UNI_TO_CLUB)
+                .description(reason)
+                .senderName(senderName)
+                .receiverName(wallet.getClub().getName())
                 .createdAt(LocalDateTime.now())
-                .build());
+                .build();
+
+        txRepo.save(tx);
     }
 
+    // ================================================================
+    // 💸 CHUYỂN ĐIỂM VỚI TYPE TUỲ CHỈNH
+    // ================================================================
+    @Transactional
+    public void transferPointsWithType(
+            Wallet sender,
+            Wallet receiver,
+            long amount,
+            String reason,
+            WalletTransactionTypeEnum type
+    ) {
+        if (amount <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Amount must be greater than zero");
+        if (sender.getBalancePoints() < amount)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient balance");
 
+        sender.setBalancePoints(sender.getBalancePoints() - amount);
+        receiver.setBalancePoints(receiver.getBalancePoints() + amount);
+        walletRepo.save(sender);
+        walletRepo.save(receiver);
+
+        String senderDisplay = sender.getUser() != null ? sender.getUser().getFullName()
+                : sender.getClub() != null ? sender.getClub().getName() : "System";
+        String receiverDisplay = receiver.getUser() != null ? receiver.getUser().getFullName()
+                : receiver.getClub() != null ? receiver.getClub().getName() : "System";
+
+        WalletTransaction tx = WalletTransaction.builder()
+                .wallet(sender)
+                .type(type)
+                .amount(amount)
+                .description(reason)
+                .senderName(senderDisplay)
+                .receiverName(receiverDisplay)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        saveTransaction(tx);
+    }
+
+    // ================================================================
+    // 🧾 GHI TRANSACTION TỪ SYSTEM
+    // ================================================================
+    @Transactional
+    public void logTransactionFromSystem(
+            Wallet wallet,
+            long amount,
+            WalletTransactionTypeEnum type,
+            String reason
+    ) {
+        WalletTransaction tx = WalletTransaction.builder()
+                .wallet(wallet)
+                .type(type)
+                .amount(amount)
+                .description(reason)
+                .senderName("[System]")
+                .receiverName(wallet.getUser() != null ? wallet.getUser().getFullName()
+                        : wallet.getClub() != null ? wallet.getClub().getName() : "System")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        saveTransaction(tx);
+    }
 }

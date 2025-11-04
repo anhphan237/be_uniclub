@@ -16,17 +16,23 @@ public class WalletTransactionResponse {
     private Long amount;                // Số điểm thay đổi
     private String description;         // Ghi chú / lý do
     private LocalDateTime createdAt;    // Thời gian tạo
+    private String signedAmount;        // ✅ Hiển thị + hoặc -
 
     private String senderName;          // Ví gửi (CLB / Uni / User)
     private String receiverName;        // Ví nhận (CLB / Member / User)
 
+    // ✅ Build Response từ entity WalletTransaction
     public static WalletTransactionResponse from(WalletTransaction tx) {
+        String typeName = tx.getType() != null ? tx.getType().name() : null;
+        String signedAmount = calculateSignedAmount(typeName, tx.getAmount());
+
         return WalletTransactionResponse.builder()
                 .id(tx.getId())
-                .type(tx.getType() != null ? tx.getType().name() : null)
+                .type(typeName)
                 .amount(tx.getAmount())
                 .description(tx.getDescription())
                 .createdAt(tx.getCreatedAt())
+                .signedAmount(signedAmount)
                 .senderName(
                         tx.getWallet() != null
                                 ? getWalletOwnerName(tx)
@@ -56,5 +62,36 @@ public class WalletTransactionResponse {
         if (tx.getReceiverUser() != null)
             return tx.getReceiverUser().getFullName();
         return "Unknown Receiver";
+    }
+
+    // 🧮 Helper: Tính dấu + hoặc - dựa trên loại giao dịch
+    private static String calculateSignedAmount(String type, Long amount) {
+        if (type == null || amount == null) return String.valueOf(amount);
+
+        switch (type) {
+            // 🟢 Các loại cộng điểm
+            case "ADD":
+            case "UNI_TO_CLUB":
+            case "CLUB_TO_MEMBER":
+            case "EVENT_BUDGET_GRANT":
+            case "REFUND_COMMIT":
+            case "BONUS_REWARD":
+            case "RETURN_SURPLUS":
+            case "REFUND_PRODUCT":
+            case "EVENT_REFUND_PRODUCT":
+                return "+" + amount;
+
+            // 🔴 Các loại trừ điểm
+            case "REDUCE":
+            case "TRANSFER":
+            case "COMMIT_LOCK":
+            case "REDEEM_PRODUCT":
+            case "EVENT_REDEEM_PRODUCT":
+                return "-" + amount;
+
+            // ⚪ Mặc định
+            default:
+                return String.valueOf(amount);
+        }
     }
 }

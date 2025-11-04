@@ -1,10 +1,14 @@
 package com.example.uniclub.security;
 
+import com.example.uniclub.entity.User;
+import com.example.uniclub.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.WeakKeyException;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
@@ -17,6 +21,9 @@ public class JwtUtil {
 
     private final Key key;
     private final long expirationMs;
+
+    @Autowired
+    private UserRepository userRepo; // ✅ Thêm để lấy user từ DB
 
     public JwtUtil(
             @Value("${app.jwt.secret}") String secret,
@@ -39,6 +46,7 @@ public class JwtUtil {
         logger.info("✅ JwtUtil initialized successfully. Expiration(ms): " + expirationMs);
     }
 
+    // 🔹 Sinh token JWT
     public String generateToken(String subject) {
         Date now = new Date();
         Date exp = new Date(now.getTime() + expirationMs);
@@ -51,6 +59,7 @@ public class JwtUtil {
                 .compact();
     }
 
+    // 🔹 Kiểm tra token hợp lệ
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
@@ -61,7 +70,30 @@ public class JwtUtil {
         }
     }
 
+    // 🔹 Lấy subject (email/username) từ token
     public String getSubject(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody().getSubject();
+    }
+
+    // ==============================================================
+    // ✅ Helper: Lấy User từ HttpServletRequest (Bearer token)
+    // ==============================================================
+    public User getUserFromRequest(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+
+        String token = authHeader.substring(7);
+        if (!validateToken(token)) {
+            return null;
+        }
+
+        String email = getSubject(token);
+        if (email == null) {
+            return null;
+        }
+
+        return userRepo.findByEmail(email).orElse(null);
     }
 }

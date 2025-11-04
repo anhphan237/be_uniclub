@@ -8,6 +8,6 @@ public class RedeemResponse {
     private Long redeemId;
     private String productName;
     private Integer quantity;
-    private Integer totalCostPoints;
+    private Long totalCostPoints;
     private String status;
 }

@@ -36,10 +36,6 @@ public class Membership {
     @JoinColumn(name = "club_id")
     private Club club;
 
-
-
-
-
     // 🎭 Vai trò trong CLB
     @Enumerated(EnumType.STRING)
     @Column(name = "club_role", nullable = false, length = 30)
@@ -60,6 +56,7 @@ public class Membership {
 
     @Column(name = "end_date")
     private LocalDate endDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MemberLevelEnum memberLevel = MemberLevelEnum.BASIC;
@@ -68,7 +65,10 @@ public class Membership {
     private Double memberMultiplier = 1.0;
     // 🔹 Dữ liệu phụ trợ (không lưu DB)
     @Transient private String email;
+
     @Transient private String avatarUrl;
+
     @Transient private String studentCode;
+
     @Transient private String major;
 }

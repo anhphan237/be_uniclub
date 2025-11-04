@@ -71,4 +71,19 @@ public class Wallet {
             );
         }
     }
+    // ================================================================
+// 🏷️ Helper hiển thị tên ví (dùng cho log)
+// ================================================================
+    public String getDisplayName() {
+        if (this.getUser() != null) {
+            return this.getUser().getFullName();
+        } else if (this.getClub() != null) {
+            return this.getClub().getName();
+        } else if (this.getEvent() != null) {
+            return this.getEvent().getName();
+        } else {
+            return "System Wallet";
+        }
+    }
+
 }

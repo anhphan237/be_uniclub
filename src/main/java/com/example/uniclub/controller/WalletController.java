@@ -20,7 +20,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wallets")
@@ -32,99 +31,41 @@ public class WalletController {
     private final WalletRepository walletRepo;
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
-    private final MembershipRepository membershipRepo;
     private final JwtUtil jwtUtil;
 
     // ================================================================
-    // 🧩 1️⃣ LẤY TẤT CẢ VÍ THUỘC THÀNH VIÊN (ME)
+    // 🧩 1️⃣ LẤY VÍ USER (ME)
     // ------------------------------------------------
-    // ✅ GET /api/wallets/me/memberships
-    // ================================================================
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<WalletResponse>> getMyWallet(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error("Missing or invalid token"));
-        }
+        if (token == null || !token.startsWith("Bearer "))
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token");
 
-        // ✅ Lấy thông tin user
         String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        // ✅ Lấy hoặc tạo ví cho user
         Wallet wallet = walletService.getOrCreateUserWallet(user);
 
-        // ✅ Build response
         WalletResponse response = WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
                 .ownerType(wallet.getOwnerType())
                 .userId(user.getUserId())
                 .userFullName(user.getFullName())
-                .clubId(null)          // vì user wallet không thuộc CLB cụ thể
-                .clubName(null)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-
     // ================================================================
-    // 🎁 2️⃣ THƯỞNG ĐIỂM CHO 1 THÀNH VIÊN
+    // 🎁 2️⃣ THƯỞNG ĐIỂM CHO 1 USER
     // ------------------------------------------------
-    // ✅ POST /api/wallets/reward/{membershipId}
-    // ================================================================
-    @PostMapping("/reward/{userId:\\d+}")
+    @PostMapping("/reward/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<WalletResponse>> rewardUser(
             @PathVariable Long userId,
-            @RequestParam int points,
-            @RequestParam(required = false) String reason,
-            HttpServletRequest request) {
-
-        // 🧩 Kiểm tra input
-        if (points <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
-
-        // 🔒 Kiểm tra token
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer "))
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
-
-        // 👤 Lấy thông tin người thực hiện (operator)
-        String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        User operator = userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
-
-        // 💰 Gọi service mới (dựa theo userId, không còn membershipId)
-        Wallet updatedWallet = walletRewardService.rewardPointsByUser(operator, userId, points, reason);
-
-        // 🧾 Trả về thông tin ví sau khi thưởng
-        WalletResponse response = WalletResponse.builder()
-                .walletId(updatedWallet.getWalletId())
-                .balancePoints(updatedWallet.getBalancePoints())
-                .ownerType(updatedWallet.getOwnerType())
-                .userId(updatedWallet.getUser().getUserId())
-                .userFullName(updatedWallet.getUser().getFullName())
-                .clubId(null)
-                .clubName(null)
-                .build();
-
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
-
-    // ================================================================
-    // 🏫 3️⃣ THƯỞNG ĐIỂM CHO TOÀN CLB
-    // ------------------------------------------------
-    // ✅ POST /api/wallets/reward/club/{clubId}
-    // ================================================================
-    @PostMapping("/reward/club/{clubId:\\d+}")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> rewardEntireClub(
-            @PathVariable Long clubId,
             @RequestParam int points,
             @RequestParam(required = false) String reason,
             HttpServletRequest request) {
@@ -140,25 +81,52 @@ public class WalletController {
         User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
-        int count = walletRewardService.rewardPointsByClubId(operator, clubId, points, reason);
-        return ResponseEntity.ok(ApiResponse.ok("Rewarded " + count + " members successfully."));
+        Wallet updatedWallet = walletRewardService.rewardPointsByUser(operator, userId, points, reason);
+
+        WalletResponse response = WalletResponse.builder()
+                .walletId(updatedWallet.getWalletId())
+                .balancePoints(updatedWallet.getBalancePoints())
+                .ownerType(updatedWallet.getOwnerType())
+                .userId(updatedWallet.getUser().getUserId())
+                .userFullName(updatedWallet.getUser().getFullName())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    // ================================================================
+    // 🏫 3️⃣ NẠP ĐIỂM CHO CLB (UNI → CLUB)
+    // ------------------------------------------------
+    @PostMapping("/reward/club/{clubId}")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<?>> topupClub(
+            HttpServletRequest request,
+            @PathVariable Long clubId,
+            @RequestParam long points,
+            @RequestParam(required = false) String reason
+    ) {
+        if (points <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
+
+        User operator = jwtUtil.getUserFromRequest(request);
+        Wallet wallet = walletRewardService.topUpClubWallet(operator, clubId, points, reason);
+
+        return ResponseEntity.ok(new ApiResponse<>(true, "Top-up success", wallet));
     }
 
     // ================================================================
     // 💰 4️⃣ XEM VÍ CLB
     // ------------------------------------------------
-    @GetMapping("/club/{clubId:\\d+}")
+    @GetMapping("/club/{clubId}")
     public ResponseEntity<ApiResponse<WalletResponse>> getClubWallet(
             @PathVariable Long clubId,
             HttpServletRequest request) {
 
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer "))
+        String token = request.getHeader("Authorization");
+        if (token == null || !token.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
 
-        String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
+        jwtUtil.getSubject(token.replace("Bearer ", "")); // check token hợp lệ
 
         Wallet wallet = walletService.getOrCreateClubWallet(
                 clubRepo.findById(clubId)
@@ -177,58 +145,9 @@ public class WalletController {
     }
 
     // ================================================================
-    // 🪙 5️⃣ NẠP ĐIỂM CHO CLB
+    // ⚙️ 5️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
     // ------------------------------------------------
-    @PostMapping("/club/{clubId:\\d+}/topup")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<WalletResponse>> topUpClubWallet(
-            @PathVariable Long clubId,
-            @RequestParam int points,
-            @RequestParam(required = false) String reason,
-            HttpServletRequest request) {
-
-        // 🔹 Validate
-        if (points <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
-
-        // 🔹 Xác thực token
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer "))
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
-
-        // 🔹 Lấy thông tin operator (University Staff)
-        String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));
-        User operator = userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
-
-        // 🔹 Thực hiện top-up với thông tin người thực hiện
-        Wallet wallet = walletRewardService.topUpClubWallet(operator, clubId, points, reason);
-
-        // 🔹 Ghi transaction với tên operator
-        walletService.topupPointsFromUniversityWithOperator(
-                wallet.getWalletId(),
-                points,
-                reason != null ? reason : "University top-up",
-                operator.getFullName()   // ✅ Truyền tên thật của UniStaff
-        );
-
-        // 🔹 Tạo response
-        WalletResponse response = WalletResponse.builder()
-                .walletId(wallet.getWalletId())
-                .balancePoints(wallet.getBalancePoints())
-                .ownerType(wallet.getOwnerType())
-                .clubId(clubId)
-                .clubName(wallet.getClub().getName())
-                .build();
-
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
-
-    // ================================================================
-    // ⚙️ 6️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
-    // ------------------------------------------------
-    @PostMapping("/{id:\\d+}/add")
+    @PostMapping("/{id}/add")
     public ResponseEntity<Void> add(@PathVariable Long id, @Valid @RequestBody WalletAdjustRequest req) {
         Wallet wallet = walletRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
@@ -236,7 +155,7 @@ public class WalletController {
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/{id:\\d+}/reduce")
+    @PostMapping("/{id}/reduce")
     public ResponseEntity<Void> reduce(@PathVariable Long id, @Valid @RequestBody WalletAdjustRequest req) {
         Wallet wallet = walletRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
@@ -255,9 +174,9 @@ public class WalletController {
     }
 
     // ================================================================
-    // 📜 7️⃣ LỊCH SỬ GIAO DỊCH
+    // 📜 6️⃣ LỊCH SỬ GIAO DỊCH
     // ------------------------------------------------
-    @GetMapping("/{walletId:\\d+}/transactions")
+    @GetMapping("/{walletId}/transactions")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getWalletTransactions(
             @PathVariable Long walletId) {
@@ -275,9 +194,8 @@ public class WalletController {
     }
 
     // ================================================================
-    // 🎯 8️⃣ PHÁT ĐIỂM HÀNG LOẠT (TÍNH NĂNG MỚI)
+    // 🎯 7️⃣ PHÁT ĐIỂM HÀNG LOẠT
     // ------------------------------------------------
-    // ✅ UniStaff → nhiều CLB
     @PostMapping("/reward/clubs")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> rewardMultipleClubs(
@@ -285,11 +203,16 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleClubs(req)));
     }
 
-    // ✅ Club Leader/Vice → nhiều Member
     @PostMapping("/reward/members")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> rewardMultipleMembers(
-            @Valid @RequestBody WalletRewardBatchRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleMembers(req)));
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<?>> rewardMultipleMembers(
+            HttpServletRequest request,
+            @Valid @RequestBody WalletRewardBatchRequest req
+    ) {
+        User operator = jwtUtil.getUserFromRequest(request);
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Reward success",
+                        walletRewardService.rewardMultipleMembers(operator, req))
+        );
     }
 }

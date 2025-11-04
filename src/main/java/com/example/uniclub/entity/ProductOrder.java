@@ -53,7 +53,7 @@ public class ProductOrder {
 
     // 💰 Tổng điểm trừ = pointCost * quantity
     @Column(nullable = false)
-    private Integer totalPoints;
+    private Long totalPoints;
 
     // ⚙️ Trạng thái đơn
     @Enumerated(EnumType.STRING)

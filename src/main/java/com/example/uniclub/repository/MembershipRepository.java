@@ -68,7 +68,14 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     long countDistinctActiveClubsByUserId(@Param("userId") Long userId);
 
     Optional<Membership> findByUserAndClub(User user, Club club);
+    Optional<Membership> findFirstByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
 
+    // 🔹 2. Kiểm tra xem user có thuộc CLB nào đó với trạng thái cụ thể hay không
+    boolean existsByUser_UserIdAndClub_ClubIdAndStateIn(
+            Long userId,
+            Long clubId,
+            List<MembershipStateEnum> states
+    );
 
 
 }

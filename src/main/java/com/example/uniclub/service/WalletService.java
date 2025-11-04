@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.WalletTransactionTypeEnum;
 
 import java.util.List;
 
@@ -36,8 +37,29 @@ public interface WalletService {
     List<WalletTransactionResponse> getAllClubTopups();
     List<WalletTransactionResponse> getAllMemberRewards();
 
-    void topupPointsFromUniversity(Wallet targetWallet, long points, String description);
+    WalletTransaction topupPointsFromUniversity(Wallet clubWallet, long points, String reason);
+
     // 🏫 Nạp điểm cho CLB có tên người thực hiện (University Staff)
     void topupPointsFromUniversityWithOperator(Long walletId, long points, String description, String operatorName);
+    // ================================================================
+// 💸 HÀM MỚI: CHUYỂN ĐIỂM VỚI TYPE CỤ THỂ (VD: CLUB_TO_MEMBER)
+// ================================================================
+    void transferPointsWithType(
+            Wallet sender,
+            Wallet receiver,
+            long amount,
+            String reason,
+            WalletTransactionTypeEnum type
+    );
+
+    // ================================================================
+// 🧾 HÀM MỚI: GHI TRANSACTION TỪ HỆ THỐNG
+// ================================================================
+    void logTransactionFromSystem(
+            Wallet wallet,
+            long amount,
+            WalletTransactionTypeEnum type,
+            String reason
+    );
 
 }

@@ -41,7 +41,8 @@ public class Product {
     private String description;
 
     @Column(nullable = false)
-    private Integer pointCost;
+    private Long pointCost;
+
 
     @Column(nullable = false)
     private Integer stockQuantity;

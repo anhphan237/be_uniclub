@@ -46,4 +46,6 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
 """)
     List<ClubPointsRankingDTO> findClubPointsRanking();
 
+    Optional<Wallet> findByUser_UserId(Long userId);
+
 }

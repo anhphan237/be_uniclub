@@ -7,7 +7,7 @@ public record OrderResponse(
         String orderCode,
         String productName,
         Integer quantity,
-        Integer totalPoints,
+        Long totalPoints,
         String status,
         LocalDateTime createdAt,
         LocalDateTime completedAt,

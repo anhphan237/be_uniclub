@@ -35,7 +35,7 @@ public class EventResponse {
 
     private EventStatusEnum status;
     private String checkInCode;
-    private Integer budgetPoints;
+    private Long budgetPoints;
     private String locationName;
     private Integer maxCheckInCount;
     private Integer currentCheckInCount;

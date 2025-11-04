@@ -1,11 +1,13 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.request.EventBudgetApproveRequest;
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.request.EventExtendRequest;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.WalletTransaction;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import org.springframework.data.domain.Page;
@@ -77,4 +79,7 @@ public interface EventService {
 
     EventResponse extendEvent(Long eventId, EventExtendRequest request);
 
+    EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff);
+
+    WalletTransaction refundEventProduct(Long eventId, Long userId, Long productId);
 }

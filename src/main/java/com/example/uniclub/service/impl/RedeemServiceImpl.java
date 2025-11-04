@@ -30,7 +30,7 @@ public class RedeemServiceImpl implements RedeemService {
     private final MembershipRepository membershipRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
-    private final UserRepository  userRepo;
+    private final UserRepository userRepo;
     private final QrService qrService;
     private final EmailService emailService;
 
@@ -47,7 +47,6 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getClub().getName(),
                 o.getMembership().getUser().getFullName()
         );
-
     }
 
     // 🟢 Thành viên đổi hàng trong CLB
@@ -76,9 +75,9 @@ public class RedeemServiceImpl implements RedeemService {
         if (product.getStockQuantity() < req.quantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
-        int totalPoints = product.getPointCost() * req.quantity();
-        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
+        long totalPoints = product.getPointCost() * req.quantity(); // ✅ Long-safe
 
+        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
         Wallet wallet = walletRepo
                 .findByUser_UserIdAndClub_ClubId(userId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for membership"));
@@ -160,7 +159,7 @@ public class RedeemServiceImpl implements RedeemService {
         Membership membership = membershipRepo.findById(req.membershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        int totalPoints = product.getPointCost() * req.quantity();
+        long totalPoints = product.getPointCost() * req.quantity(); // ✅ Long-safe
         Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
         Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
@@ -236,7 +235,7 @@ public class RedeemServiceImpl implements RedeemService {
 
         WalletTransaction tx = WalletTransaction.builder()
                 .wallet(wallet)
-                .amount(order.getTotalPoints().longValue())
+                .amount(order.getTotalPoints())
                 .type(WalletTransactionTypeEnum.REFUND_PRODUCT)
                 .description("Refund product: " + product.getName())
                 .build();
@@ -267,7 +266,7 @@ public class RedeemServiceImpl implements RedeemService {
         Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
-        int refundPoints = product.getPointCost() * quantityToRefund;
+        long refundPoints = product.getPointCost() * quantityToRefund; // ✅ Long-safe
 
         wallet.setBalancePoints(wallet.getBalancePoints() + refundPoints);
         product.setStockQuantity(product.getStockQuantity() + quantityToRefund);
@@ -276,12 +275,12 @@ public class RedeemServiceImpl implements RedeemService {
         order.setStatus(order.getQuantity() == 0
                 ? OrderStatusEnum.REFUNDED
                 : OrderStatusEnum.PARTIALLY_REFUNDED);
-        order.setTotalPoints(order.getQuantity() * product.getPointCost());
+        order.setTotalPoints(product.getPointCost() * order.getQuantity());
         order.setCompletedAt(LocalDateTime.now());
 
         WalletTransaction tx = WalletTransaction.builder()
                 .wallet(wallet)
-                .amount((long) refundPoints)
+                .amount(refundPoints)
                 .type(WalletTransactionTypeEnum.REFUND_PRODUCT)
                 .description("Partial refund: " + product.getName() + " x" + quantityToRefund)
                 .build();
@@ -291,24 +290,9 @@ public class RedeemServiceImpl implements RedeemService {
         walletTxRepo.save(tx);
         orderRepo.save(order);
 
-        return new OrderResponse(
-                order.getOrderId(),
-                order.getOrderCode(),
-                product.getName(),
-                quantityToRefund,
-                refundPoints,
-                order.getStatus().name(),
-                order.getCreatedAt(),
-                order.getCompletedAt(),
-                order.getClub() != null ? order.getClub().getName() : "Unknown Club",
-                order.getMembership() != null && order.getMembership().getUser() != null
-                        ? order.getMembership().getUser().getFullName()
-                        : "Unknown Member"
-        );
-
+        return toResponse(order);
     }
 
-    // 🟢 Xác nhận hoàn tất đơn hàng
     @Override
     @Transactional
     public OrderResponse complete(Long orderId, Long staffUserId) {
@@ -324,7 +308,6 @@ public class RedeemServiceImpl implements RedeemService {
         return toResponse(order);
     }
 
-    // 🔹 Kiểm tra event còn hoạt động
     private boolean isEventStillActive(Event event) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime start = event.getDate().atStartOfDay();
@@ -332,7 +315,6 @@ public class RedeemServiceImpl implements RedeemService {
         return !now.isBefore(start) && !now.isAfter(end);
     }
 
-    // 🔹 Lấy danh sách đơn hàng
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByMember(Long userId) {

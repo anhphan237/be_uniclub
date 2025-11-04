@@ -76,8 +76,8 @@ public class Event {
     private Integer rewardMultiplierCap = 2;
 
     // 💰 Ngân sách điểm (UniStaff cấp sau khi duyệt)
-    @Column(nullable = false)
-    private Integer budgetPoints = 0;
+    @Column(name = "budget_points", nullable = false)
+    private Long budgetPoints = 0L;
 
 
     // 💼 Ví của sự kiện
