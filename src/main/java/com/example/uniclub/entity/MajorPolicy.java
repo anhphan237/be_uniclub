@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -25,7 +26,9 @@ public class MajorPolicy {
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "major_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_major_policy_major"))
+    @JsonBackReference
     private Major major;
+
 
     @Column(name = "policy_name", nullable = false, length = 150)
     private String policyName;

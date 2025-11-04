@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,6 +31,7 @@ public class Major {
 
 
     @OneToOne(mappedBy = "major", fetch = FetchType.LAZY)
+    @JsonManagedReference
     private MajorPolicy majorPolicy;
 
 }
