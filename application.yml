@@ -62,10 +62,12 @@ spring:
             token-uri: https://oauth2.googleapis.com/token
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
-servlet:
-  multipart:
-    max-file-size: 100MB
-    max-request-size: 100MB
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
 jwt:
   secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
   expiration: 7776000000  # 90 ngày
@@ -90,4 +92,3 @@ logging:
     org.hibernate.type.descriptor.sql: TRACE
 
 APP_CRYPTO_AES_GCM_KEY_B64: "c2VjcmV0MTIzNDU2Nzg5MGFiY2RlZg=="
-
