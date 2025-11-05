@@ -8,4 +8,8 @@ import java.util.List;
 
 public interface ProductMediaRepository extends JpaRepository<ProductMedia, Long> {
     List<ProductMedia> findByProductOrderByDisplayOrderAscMediaIdAsc(Product product);
+    List<ProductMedia> findByProduct(Product product);
+    long countByProduct(Product product);
+
+
 }

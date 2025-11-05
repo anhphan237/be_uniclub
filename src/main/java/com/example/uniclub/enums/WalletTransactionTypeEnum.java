@@ -17,5 +17,5 @@ public enum WalletTransactionTypeEnum {
     REDEEM_PRODUCT,
     REFUND_PRODUCT,
     EVENT_REDEEM_PRODUCT,
-    EVENT_REFUND_PRODUCT,   // Chia/hoàn điểm dư từ ví event về ví các CLB tổ chức
+    EVENT_REFUND_PRODUCT,
 }
