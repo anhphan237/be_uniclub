@@ -12,6 +12,9 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.WalletRewardService;
 import com.example.uniclub.service.WalletService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,18 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(
+        name = "Wallet & Points Management",
+        description = """
+        Quản lý **ví điểm (Wallet)** trong hệ thống UniClub.<br>
+        Bao gồm:<br>
+        - Lấy thông tin ví của user / CLB.<br>
+        - Chuyển, thưởng, nạp, trừ điểm.<br>
+        - Lịch sử giao dịch và phát điểm hàng loạt.<br>
+        - Dành cho **ADMIN**, **UNIVERSITY_STAFF**, và **CLUB_LEADER**.
+        """
+)
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
@@ -34,8 +49,9 @@ public class WalletController {
     private final JwtUtil jwtUtil;
 
     // ================================================================
-    // 🧩 1️⃣ LẤY VÍ USER (ME)
-    // ------------------------------------------------
+    // 🟢 1️⃣ LẤY VÍ CỦA USER HIỆN TẠI
+    // ================================================================
+    @Operation(summary = "Lấy ví của người dùng hiện tại", description = "Trả về số dư điểm, loại ví và thông tin người dùng (theo JWT).")
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<WalletResponse>> getMyWallet(HttpServletRequest request) {
         String token = request.getHeader("Authorization");
@@ -60,8 +76,9 @@ public class WalletController {
     }
 
     // ================================================================
-    // 🎁 2️⃣ THƯỞNG ĐIỂM CHO 1 USER
-    // ------------------------------------------------
+    // 🎁 2️⃣ THƯỞNG ĐIỂM CHO USER
+    // ================================================================
+    @Operation(summary = "Thưởng điểm cho một user", description = "ADMIN, STAFF hoặc CLUB_LEADER thưởng điểm cho thành viên cụ thể.")
     @PostMapping("/reward/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<WalletResponse>> rewardUser(
@@ -96,15 +113,16 @@ public class WalletController {
 
     // ================================================================
     // 🏫 3️⃣ NẠP ĐIỂM CHO CLB (UNI → CLUB)
-    // ------------------------------------------------
+    // ================================================================
+    @Operation(summary = "UniStaff nạp điểm cho CLB", description = "Dành cho STAFF/ADMIN để cấp ngân sách điểm cho CLB.")
     @PostMapping("/reward/club/{clubId}")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<?>> topupClub(
             HttpServletRequest request,
             @PathVariable Long clubId,
             @RequestParam long points,
-            @RequestParam(required = false) String reason
-    ) {
+            @RequestParam(required = false) String reason) {
+
         if (points <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Points must be greater than zero.");
 
@@ -116,7 +134,8 @@ public class WalletController {
 
     // ================================================================
     // 💰 4️⃣ XEM VÍ CLB
-    // ------------------------------------------------
+    // ================================================================
+    @Operation(summary = "Xem ví của CLB", description = "Trả về thông tin ví của CLB (số dư, loại ví, tên CLB).")
     @GetMapping("/club/{clubId}")
     public ResponseEntity<ApiResponse<WalletResponse>> getClubWallet(
             @PathVariable Long clubId,
@@ -146,7 +165,8 @@ public class WalletController {
 
     // ================================================================
     // ⚙️ 5️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
-    // ------------------------------------------------
+    // ================================================================
+    @Operation(summary = "Cộng điểm thủ công", description = "ADMIN có thể cộng điểm trực tiếp vào ví (dùng cho test hoặc điều chỉnh).")
     @PostMapping("/{id}/add")
     public ResponseEntity<Void> add(@PathVariable Long id, @Valid @RequestBody WalletAdjustRequest req) {
         Wallet wallet = walletRepo.findById(id)
@@ -155,6 +175,7 @@ public class WalletController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Trừ điểm thủ công", description = "ADMIN có thể trừ điểm trực tiếp khỏi ví (dùng cho test hoặc điều chỉnh).")
     @PostMapping("/{id}/reduce")
     public ResponseEntity<Void> reduce(@PathVariable Long id, @Valid @RequestBody WalletAdjustRequest req) {
         Wallet wallet = walletRepo.findById(id)
@@ -163,6 +184,7 @@ public class WalletController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Chuyển điểm giữa hai ví", description = "Thực hiện chuyển điểm từ ví này sang ví khác, kèm lý do mô tả.")
     @PostMapping("/transfer")
     public ResponseEntity<Void> transfer(@Valid @RequestBody WalletTransferRequest req) {
         Wallet from = walletRepo.findById(req.fromWalletId())
@@ -175,7 +197,8 @@ public class WalletController {
 
     // ================================================================
     // 📜 6️⃣ LỊCH SỬ GIAO DỊCH
-    // ------------------------------------------------
+    // ================================================================
+    @Operation(summary = "Xem lịch sử giao dịch của ví", description = "Trả về danh sách các giao dịch của ví cụ thể.")
     @GetMapping("/{walletId}/transactions")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER','STUDENT')")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getWalletTransactions(
@@ -183,19 +206,22 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.ok(walletService.getWalletTransactions(walletId)));
     }
 
+    @Operation(summary = "Danh sách giao dịch Uni → CLB", description = "Thống kê các giao dịch nạp điểm từ UniStaff cho CLB.")
     @GetMapping("/transactions/uni-to-club")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getUniToClubTransactions() {
         return ResponseEntity.ok(ApiResponse.ok(walletService.getAllClubTopups()));
     }
 
+    @Operation(summary = "Danh sách giao dịch CLB → Member", description = "Thống kê các giao dịch CLB thưởng điểm cho thành viên.")
     @GetMapping("/transactions/club-to-member")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getClubToMemberTransactions() {
         return ResponseEntity.ok(ApiResponse.ok(walletService.getAllMemberRewards()));
     }
 
     // ================================================================
-    // 🎯 7️⃣ PHÁT ĐIỂM HÀNG LOẠT
-    // ------------------------------------------------
+    // 🎯 7️⃣ PHÁT ĐIỂM HÀNG LOẠT (BATCH REWARD)
+    // ================================================================
+    @Operation(summary = "Phát điểm hàng loạt cho CLB", description = "STAFF hoặc ADMIN phát điểm cho nhiều CLB cùng lúc.")
     @PostMapping("/reward/clubs")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> rewardMultipleClubs(
@@ -203,12 +229,15 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.ok(walletRewardService.rewardMultipleClubs(req)));
     }
 
+    // ================================================================
+    // 🧾 8️⃣ PHÁT ĐIỂM HÀNG LOẠT CHO MEMBER
+    // ================================================================
+    @Operation(summary = "Phát điểm hàng loạt cho thành viên", description = "CLUB_LEADER, STAFF hoặc ADMIN thưởng điểm cho nhiều member.")
     @PostMapping("/reward/members")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<?>> rewardMultipleMembers(
             HttpServletRequest request,
-            @Valid @RequestBody WalletRewardBatchRequest req
-    ) {
+            @Valid @RequestBody WalletRewardBatchRequest req) {
         User operator = jwtUtil.getUserFromRequest(request);
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Reward success",

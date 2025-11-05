@@ -4,6 +4,9 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.response.MembershipResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MembershipService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,6 +16,17 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Tag(
+        name = "Membership Management",
+        description = """
+        Quản lý **quan hệ thành viên (Membership)** giữa sinh viên và CLB trong hệ thống UniClub:<br>
+        - Sinh viên tham gia, rời khỏi, hoặc xem danh sách CLB của mình.<br>
+        - Leader/Vice Leader quản lý danh sách thành viên CLB (duyệt, phân vai, xoá, kick).<br>
+        - Staff/Admin theo dõi toàn bộ membership trong hệ thống.<br>
+        Dành cho: **STUDENT**, **CLUB_LEADER**, **VICE_LEADER**, **UNIVERSITY_STAFF**, **ADMIN**.
+        """
+)
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -24,31 +38,52 @@ public class MembershipController {
     // 🟩 1️⃣ CLUB → MEMBERS RELATIONS
     // ============================================================
 
-    /** 🔹 Lấy tất cả thành viên của 1 CLB */
+    @Operation(
+            summary = "Lấy danh sách thành viên của CLB",
+            description = """
+                Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STUDENT**.<br>
+                Trả về danh sách toàn bộ thành viên hiện có trong CLB (bao gồm leader, vice, staff, member).
+                """
+    )
     @GetMapping("/clubs/{clubId}/members")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STUDENT')")
-    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getAllMembers(
-            @PathVariable Long clubId) {
+    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getAllMembers(@PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMembersByClub(clubId)));
     }
 
-    /** 🔹 Lấy danh sách đơn chờ duyệt của CLB */
+    @Operation(
+            summary = "Lấy danh sách đơn tham gia đang chờ duyệt của CLB",
+            description = """
+                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+                Trả về danh sách các sinh viên có đơn đang ở trạng thái `PENDING`.
+                """
+    )
     @GetMapping("/clubs/{clubId}/members/pending")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getPendingMembers(
-            @PathVariable Long clubId) {
+    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getPendingMembers(@PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getPendingMembers(clubId)));
     }
 
-    /** 🔹 Lấy danh sách Staff của CLB */
+    @Operation(
+            summary = "Lấy danh sách Staff của CLB",
+            description = """
+                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+                Trả về danh sách các thành viên có vai trò STAFF trong CLB.
+                """
+    )
     @GetMapping("/clubs/{clubId}/members/staff")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getStaffMembers(
-            @PathVariable Long clubId) {
+    public ResponseEntity<ApiResponse<List<MembershipResponse>>> getStaffMembers(@PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getStaffMembers(clubId)));
     }
 
-    /** 🔹 Sinh viên tham gia CLB */
+    @Operation(
+            summary = "Sinh viên tham gia CLB",
+            description = """
+                Dành cho **STUDENT**.<br>
+                Sinh viên gửi yêu cầu tham gia CLB cụ thể, đơn sẽ được duyệt bởi Leader.
+                """
+    )
     @PostMapping("/clubs/{clubId}/join")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<MembershipResponse>> joinClub(
@@ -58,10 +93,16 @@ public class MembershipController {
     }
 
     // ============================================================
-    // 🟨 2️⃣ MEMBERSHIP MANAGEMENT (Admin, Leader)
+    // 🟨 2️⃣ MEMBERSHIP MANAGEMENT (Leader/Admin)
     // ============================================================
 
-    /** 🔹 Lấy danh sách thành viên theo tên Leader (Admin / Staff) */
+    @Operation(
+            summary = "Lấy danh sách thành viên theo tên Leader (Admin/Staff)",
+            description = """
+                Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
+                Tìm kiếm danh sách thành viên CLB dựa theo tên Leader.
+                """
+    )
     @GetMapping("/members")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<List<MembershipResponse>>> getMembersByLeaderName(
@@ -69,7 +110,13 @@ public class MembershipController {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMembersByLeaderName(leaderName)));
     }
 
-    /** 🔹 Duyệt đơn tham gia CLB */
+    @Operation(
+            summary = "Leader/Vice Leader duyệt thành viên mới",
+            description = """
+                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+                Duyệt yêu cầu tham gia CLB, chuyển trạng thái thành viên sang `APPROVED`.
+                """
+    )
     @PatchMapping("/memberships/{membershipId}/approve")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<MembershipResponse>> approveMember(
@@ -78,7 +125,13 @@ public class MembershipController {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.approveMember(membershipId, user.getId())));
     }
 
-    /** 🔹 Từ chối đơn tham gia CLB */
+    @Operation(
+            summary = "Leader/Vice Leader từ chối đơn tham gia CLB",
+            description = """
+                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+                Từ chối đơn của sinh viên, có thể ghi lý do từ chối (reason).
+                """
+    )
     @PatchMapping("/memberships/{membershipId}/reject")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<MembershipResponse>> rejectMember(
@@ -88,7 +141,13 @@ public class MembershipController {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.rejectMember(membershipId, user.getId(), reason)));
     }
 
-    /** 🔹 Cập nhật vai trò của thành viên (Leader Only) */
+    @Operation(
+            summary = "Leader cập nhật vai trò của thành viên",
+            description = """
+                Dành cho **CLUB_LEADER**.<br>
+                Cập nhật vai trò của thành viên trong CLB (`MEMBER`, `STAFF`, `VICE_LEADER`, ...).
+                """
+    )
     @PutMapping("/memberships/{membershipId}/role")
     @PreAuthorize("hasRole('CLUB_LEADER')")
     public ResponseEntity<ApiResponse<MembershipResponse>> updateRole(
@@ -100,7 +159,13 @@ public class MembershipController {
         ));
     }
 
-    /** 🔹 Xóa hoặc hủy kích hoạt thành viên khỏi CLB */
+    @Operation(
+            summary = "Leader xoá hoặc huỷ kích hoạt thành viên khỏi CLB",
+            description = """
+                Dành cho **CLUB_LEADER**.<br>
+                Xoá thành viên ra khỏi CLB (ví dụ: vi phạm quy định hoặc nghỉ hoạt động).
+                """
+    )
     @DeleteMapping("/memberships/{membershipId}")
     @PreAuthorize("hasRole('CLUB_LEADER')")
     public ResponseEntity<ApiResponse<Map<String, String>>> removeMember(
@@ -110,25 +175,36 @@ public class MembershipController {
         return ResponseEntity.ok(ApiResponse.ok(Map.of("message", "Member removed successfully")));
     }
 
+    @Operation(
+            summary = "Leader/Vice Leader kick thành viên khỏi CLB",
+            description = """
+                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+                Loại bỏ thành viên ngay lập tức khỏi CLB mà không cần qua trạng thái pending.
+                """
+    )
+    @PatchMapping("/memberships/{membershipId}/kick")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<String>> kickMember(
+            @PathVariable Long membershipId,
+            @AuthenticationPrincipal CustomUserDetails user) {
+        return ResponseEntity.ok(ApiResponse.ok(membershipService.kickMember(user, membershipId)));
+    }
+
     // ============================================================
     // 🔵 3️⃣ USER → PERSONAL MEMBERSHIPS
     // ============================================================
 
-    /** 🔹 Xem danh sách CLB mà user hiện tại tham gia */
+    @Operation(
+            summary = "Xem danh sách CLB mà người dùng hiện tại tham gia",
+            description = """
+                Dành cho **bất kỳ người dùng đã đăng nhập**.<br>
+                Trả về danh sách tất cả CLB mà user hiện đang là thành viên (APPROVED).
+                """
+    )
     @GetMapping("/users/me/clubs")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<MembershipResponse>>> getMyClubs(
             @AuthenticationPrincipal CustomUserDetails user) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMyMemberships(user.getId())));
     }
-    @PatchMapping("/memberships/{membershipId}/kick")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
-    public ResponseEntity<ApiResponse<String>> kickMember(
-            @PathVariable Long membershipId,
-            @AuthenticationPrincipal CustomUserDetails user) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                membershipService.kickMember(user, membershipId)
-        ));
-    }
-
 }

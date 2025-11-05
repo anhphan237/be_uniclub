@@ -46,7 +46,7 @@ public interface EventService {
 
     List<EventResponse> getCoHostedEvents(Long clubId);
 
-    List<EventResponse> getAllEvents(); // ✅ Lấy toàn bộ event (không phân trang)
+    List<EventResponse> getAllEvents();
 
     Event getEntity(Long id);
 
@@ -55,12 +55,6 @@ public interface EventService {
     // =========================================================
     String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
 
-    String submitEventToUniStaff(Long eventId, CustomUserDetails principal);
-
-    // =========================================================
-    // 🔹 UNISTAFF APPROVAL
-    // =========================================================
-    String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints);
 
     // =========================================================
     // 🔹 EVENT LIFECYCLE

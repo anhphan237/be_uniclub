@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +43,9 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getStatus().name(),
                 o.getCreatedAt(),
                 o.getCompletedAt(),
+                o.getProduct().getType().name(),
+                o.getClub().getClubId(),
+                o.getProduct().getEvent() != null ? o.getProduct().getEvent().getEventId() : null,
                 o.getClub().getName(),
                 o.getMembership().getUser().getFullName()
         );
@@ -62,8 +64,9 @@ public class RedeemServiceImpl implements RedeemService {
         if (!product.getClub().getClubId().equals(clubId))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product not belongs to this club");
 
-        if (!Boolean.TRUE.equals(product.getIsActive()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Product is inactive");
+        // Phải ACTIVE và isActive=true
+        if (product.getStatus() != ProductStatusEnum.ACTIVE || !Boolean.TRUE.equals(product.getIsActive()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Product is not ACTIVE");
 
         if (product.getType() != ProductTypeEnum.CLUB_ITEM)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product is not CLUB_ITEM");
@@ -75,18 +78,20 @@ public class RedeemServiceImpl implements RedeemService {
         if (product.getStockQuantity() < req.quantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
-        long totalPoints = product.getPointCost() * req.quantity(); // ✅ Long-safe
+        long totalPoints = product.getPointCost() * req.quantity();
 
-        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
+        // Ví của CHÍNH user trong CLB này
         Wallet wallet = walletRepo
-                .findByUser_UserIdAndClub_ClubId(userId, existClub.get().getClubId())
+                .findByUser_UserIdAndClub_ClubId(userId, clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for membership"));
 
         if (wallet.getBalancePoints() < totalPoints)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points");
 
+        // Trừ điểm & Stock + tăng redeemCount
         wallet.setBalancePoints(wallet.getBalancePoints() - totalPoints);
         product.setStockQuantity(product.getStockQuantity() - req.quantity());
+        product.increaseRedeemCount(req.quantity());
 
         ProductOrder order = ProductOrder.builder()
                 .product(product)
@@ -117,7 +122,7 @@ public class RedeemServiceImpl implements RedeemService {
         order.setQrCodeBase64(qrBase64);
         orderRepo.save(order);
 
-        // 📧 Gửi email thông báo
+        // 📧 Email cho member
         String memberEmail = membership.getUser().getEmail();
         String content = """
             <h3>🎉 Bạn đã đổi hàng thành công!</h3>
@@ -153,22 +158,30 @@ public class RedeemServiceImpl implements RedeemService {
         if (product.getEvent() == null || !product.getEvent().getEventId().equals(eventId))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product not belongs to this event");
 
+        if (product.getStatus() != ProductStatusEnum.ACTIVE || !Boolean.TRUE.equals(product.getIsActive()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Product is not ACTIVE");
+
         if (product.getStockQuantity() < req.quantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
+        // Member mà staff đang redeem cho
         Membership membership = membershipRepo.findById(req.membershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        long totalPoints = product.getPointCost() * req.quantity(); // ✅ Long-safe
-        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
+        // Ví của CHÍNH MEMBER đó trong CLB sở hữu sản phẩm
+        Long memberUserId = membership.getUser().getUserId();
+        Long productClubId = product.getClub().getClubId();
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, productClubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for member in this club"));
 
+        long totalPoints = product.getPointCost() * req.quantity();
         if (wallet.getBalancePoints() < totalPoints)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points");
 
+        // Trừ điểm & Stock + tăng redeemCount
         wallet.setBalancePoints(wallet.getBalancePoints() - totalPoints);
         product.setStockQuantity(product.getStockQuantity() - req.quantity());
+        product.increaseRedeemCount(req.quantity());
 
         ProductOrder order = ProductOrder.builder()
                 .product(product)
@@ -176,7 +189,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .club(product.getClub())
                 .quantity(req.quantity())
                 .totalPoints(totalPoints)
-                .status(OrderStatusEnum.COMPLETED)
+                .status(OrderStatusEnum.COMPLETED) // booth giao ngay
                 .createdAt(LocalDateTime.now())
                 .completedAt(LocalDateTime.now())
                 .build();
@@ -223,12 +236,21 @@ public class RedeemServiceImpl implements RedeemService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order already refunded");
 
         Product product = order.getProduct();
-        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
+
+        if (product.getType() == ProductTypeEnum.EVENT_ITEM && !isEventStillActive(product.getEvent())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot refund after event ended");
+        }
+
+        // Ví của member đã thanh toán đơn này (trả điểm về chính ví đó trong CLB tương ứng)
+        Long memberUserId = order.getMembership().getUser().getUserId();
+        Long clubId = product.getClub().getClubId();
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
+        // Hoàn điểm + trả stock + giảm redeemCount
         wallet.setBalancePoints(wallet.getBalancePoints() + order.getTotalPoints());
         product.setStockQuantity(product.getStockQuantity() + order.getQuantity());
+        product.decreaseRedeemCount(order.getQuantity());
 
         order.setStatus(OrderStatusEnum.REFUNDED);
         order.setCompletedAt(LocalDateTime.now());
@@ -258,18 +280,26 @@ public class RedeemServiceImpl implements RedeemService {
         if (order.getStatus() == OrderStatusEnum.REFUNDED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order already refunded");
 
-        if (quantityToRefund <= 0 || quantityToRefund > order.getQuantity())
+        if (quantityToRefund == null || quantityToRefund <= 0 || quantityToRefund > order.getQuantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid refund quantity");
 
         Product product = order.getProduct();
-        Optional<Club> existClub = clubRepo.findByClubId(product.getProductId());
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(staffUserId, existClub.get().getClubId())
+
+        if (product.getType() == ProductTypeEnum.EVENT_ITEM && !isEventStillActive(product.getEvent())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot refund after event ended");
+        }
+
+        Long memberUserId = order.getMembership().getUser().getUserId();
+        Long clubId = product.getClub().getClubId();
+        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
-        long refundPoints = product.getPointCost() * quantityToRefund; // ✅ Long-safe
+        long refundPoints = product.getPointCost() * quantityToRefund;
 
+        // Hoàn điểm + trả stock + giảm redeemCount
         wallet.setBalancePoints(wallet.getBalancePoints() + refundPoints);
         product.setStockQuantity(product.getStockQuantity() + quantityToRefund);
+        product.decreaseRedeemCount(quantityToRefund);
 
         order.setQuantity(order.getQuantity() - quantityToRefund);
         order.setStatus(order.getQuantity() == 0

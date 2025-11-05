@@ -3,13 +3,15 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubCreateRequest;
 import com.example.uniclub.dto.response.ClubResponse;
-import com.example.uniclub.entity.Club;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.service.ClubService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
+@Tag(
+        name = "🏫 Club Management (CLUB / ADMIN / STAFF)",
+        description = """
+        Quản lý thông tin các câu lạc bộ (CLB) bao gồm:
+        - Tạo mới, xem chi tiết, thống kê, xóa CLB
+        - Lấy danh sách CLB, số lượng thành viên, sự kiện được duyệt
+        """
+)
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/clubs")
 @RequiredArgsConstructor
@@ -28,15 +39,39 @@ public class ClubController {
     private final ClubService clubService;
     private final ClubRepository clubRepo;
     private final MembershipRepository membershipRepo;
-    private final EventRepository eventRepo; // ✅ Thêm repository này
+    private final EventRepository eventRepo;
 
-    // 🟢 1. Tạo CLB mới
+    // ==========================================================
+    // 🟢 1. TẠO CLB MỚI
+    // ==========================================================
+    @Operation(
+            summary = "Tạo CLB mới",
+            description = """
+                Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
+                Tạo mới 1 CLB trong hệ thống với các thông tin cơ bản (tên, mô tả, hình ảnh...).
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Tạo CLB thành công")
+    )
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @PostMapping
-    public ResponseEntity<ApiResponse<ClubResponse>> create(@Valid @RequestBody ClubCreateRequest req) {
+    public ResponseEntity<ApiResponse<ClubResponse>> create(
+            @Valid @RequestBody ClubCreateRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(clubService.create(req)));
     }
 
-    // 🔵 2. Lấy thông tin chi tiết 1 CLB (có memberCount)
+    // ==========================================================
+    // 🔵 2. LẤY THÔNG TIN CHI TIẾT 1 CLB
+    // ==========================================================
+    @Operation(
+            summary = "Xem thông tin chi tiết CLB",
+            description = """
+                Public API.<br>
+                Trả về chi tiết CLB bao gồm số lượng thành viên ACTIVE.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Lấy thông tin thành công")
+    )
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ClubResponse>> get(@PathVariable Long id) {
         ClubResponse club = clubService.get(id);
@@ -45,21 +80,54 @@ public class ClubController {
         return ResponseEntity.ok(ApiResponse.ok(club));
     }
 
-    // 🟣 3. Lấy danh sách CLB (phân trang)
+    // ==========================================================
+    // 🟣 3. LẤY DANH SÁCH CLB (PHÂN TRANG)
+    // ==========================================================
+    @Operation(
+            summary = "Lấy danh sách CLB (phân trang)",
+            description = """
+                Public API.<br>
+                Cho phép lọc và phân trang danh sách các CLB đang hoạt động trong hệ thống.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Lấy danh sách thành công")
+    )
     @GetMapping
-    public ResponseEntity<?> list(Pageable pageable) {
-        return ResponseEntity.ok(clubService.list(pageable));
+    public ResponseEntity<ApiResponse<?>> list(Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.ok(clubService.list(pageable)));
     }
 
-    // 🔴 4. Xoá CLB (chỉ dành cho admin)
+    // ==========================================================
+    // 🔴 4. XOÁ CLB (ADMIN)
+    // ==========================================================
+    @Operation(
+            summary = "Xóa CLB khỏi hệ thống",
+            description = """
+                Chỉ dành cho **ADMIN**.<br>
+                Thực hiện xóa (soft delete hoặc hard delete tùy config) CLB khỏi hệ thống.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Xóa CLB thành công")
+    )
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long id) {
         clubService.delete(id);
-        return ResponseEntity.ok(ApiResponse.msg("Deleted"));
+        return ResponseEntity.ok(ApiResponse.msg("Deleted successfully"));
     }
 
-    // 🟡 5. Thống kê toàn hệ thống CLB
+    // ==========================================================
+    // 🟡 5. THỐNG KÊ TOÀN HỆ THỐNG CLB
+    // ==========================================================
+    @Operation(
+            summary = "Thống kê toàn hệ thống CLB",
+            description = """
+                Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
+                Trả về tổng số CLB, tổng số thành viên, thành viên đang ACTIVE và số sự kiện được duyệt.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Lấy thống kê thành công")
+    )
     @GetMapping("/stats")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
@@ -72,7 +140,18 @@ public class ClubController {
         return ResponseEntity.ok(ApiResponse.ok(stats));
     }
 
-    // 🧩 6. Lấy tổng số thành viên ACTIVE trong 1 CLB
+    // ==========================================================
+    // 🧩 6. LẤY TỔNG SỐ THÀNH VIÊN ACTIVE CỦA 1 CLB
+    // ==========================================================
+    @Operation(
+            summary = "Lấy tổng số thành viên đang ACTIVE trong CLB",
+            description = """
+                Public API.<br>
+                Trả về số lượng thành viên có trạng thái ACTIVE trong CLB.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Lấy dữ liệu thành công")
+    )
     @GetMapping("/{id}/member-count")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberCount(@PathVariable Long id) {
         long count = membershipRepo.countByClub_ClubIdAndState(id, MembershipStateEnum.ACTIVE);

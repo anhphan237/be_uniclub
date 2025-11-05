@@ -8,6 +8,7 @@ import com.example.uniclub.repository.EventRegistrationRepository;
 import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.service.UniversityService;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,16 +35,17 @@ public class UniversityController {
     // 🔹 Thống kê tổng hợp cấp trường & CLB
     // ===============================================================
 
+    @Operation(summary = "Thống kê tổng hợp toàn trường", description = "Dành cho UniStaff. Trả về dữ liệu tổng quan về CLB, sự kiện, thành viên, điểm và hoạt động.")
     @GetMapping("/statistics")
     public ResponseEntity<UniversityStatisticsResponse> getUniversityStatistics() {
         return ResponseEntity.ok(universityService.getUniversitySummary());
     }
-
+    @Operation(summary = "Thống kê chi tiết theo CLB", description = "Trả về dữ liệu tổng hợp riêng của 1 CLB (số thành viên, sự kiện, điểm trung bình, tỷ lệ attendance, v.v.).")
     @GetMapping("/statistics/{clubId}")
     public ResponseEntity<ClubStatisticsResponse> getClubStatistics(@PathVariable Long clubId) {
         return ResponseEntity.ok(universityService.getClubSummary(clubId));
     }
-
+    @Operation(summary = "Xếp hạng điểm toàn trường", description = "Trả về bảng xếp hạng điểm của các CLB trong trường theo tổng điểm và hiệu suất hoạt động.")
     @GetMapping("/points")
     public ResponseEntity<UniversityPointsResponse> getPointsOverview() {
         return ResponseEntity.ok(universityService.getPointsRanking());
@@ -52,19 +54,19 @@ public class UniversityController {
     // ===============================================================
     // 🔹 Attendance overview
     // ===============================================================
-
+    @Operation(summary = "Xếp hạng attendance toàn trường", description = "Thống kê tỷ lệ điểm danh trung bình và xếp hạng CLB hoặc thành viên theo attendance.")
     @GetMapping("/attendance-ranking")
     public ResponseEntity<UniversityAttendanceResponse> getAttendanceRanking() {
         return ResponseEntity.ok(universityService.getAttendanceRanking());
     }
-
+    @Operation(summary = "Tổng hợp attendance theo năm", description = "Thống kê tỷ lệ attendance cho toàn trường trong 1 năm cụ thể.")
     @GetMapping("/attendance-summary")
     public ResponseEntity<AttendanceSummaryResponse> getAttendanceSummary(
             @RequestParam(defaultValue = "2025") int year
     ) {
         return ResponseEntity.ok(universityService.getAttendanceSummary(year));
     }
-
+    @Operation(summary = "Tổng hợp attendance theo CLB", description = "Thống kê tỷ lệ điểm danh cho một CLB cụ thể theo năm.")
     @GetMapping("/attendance-summary/club/{clubId}")
     public ResponseEntity<AttendanceSummaryResponse> getClubAttendanceSummary(
             @PathVariable Long clubId,
@@ -72,7 +74,7 @@ public class UniversityController {
     ) {
         return ResponseEntity.ok(universityService.getAttendanceSummaryByClub(year, clubId));
     }
-
+    @Operation(summary = "Tổng hợp attendance theo sự kiện", description = "Thống kê chi tiết attendance của một sự kiện cụ thể trong năm.")
     @GetMapping("/attendance-summary/event/{eventId}")
     public ResponseEntity<AttendanceSummaryResponse> getEventAttendanceSummary(
             @PathVariable Long eventId,
@@ -84,7 +86,7 @@ public class UniversityController {
     // ===============================================================
     // 🔹 Xem CLB hoạt động sôi nổi theo tháng hoặc năm
     // ===============================================================
-
+    @Operation(summary = "Thống kê hoạt động CLB theo tháng/năm", description = "Thống kê số lượng sự kiện và tình trạng hoạt động của các CLB trong tháng hoặc năm được chọn.")
     @GetMapping("/stats/clubs")
     public ResponseEntity<List<Map<String, Object>>> getClubActivityStats(
             @RequestParam int year,
@@ -127,7 +129,7 @@ public class UniversityController {
     // ===============================================================
     // 🔹 Xem thành viên hoạt động tích cực theo tháng hoặc năm
     // ===============================================================
-
+    @Operation(summary = "Thống kê hoạt động thành viên theo tháng/năm", description = "Trả về danh sách thành viên năng nổ nhất theo số lần tham gia sự kiện trong tháng hoặc năm được chọn.")
     @GetMapping("/stats/members")
     public ResponseEntity<List<Map<String, Object>>> getMemberActivityStats(
             @RequestParam int year,
@@ -173,6 +175,7 @@ public class UniversityController {
     // ===============================================================
     // 📆 1️⃣ CLB hoạt động trong khoảng thời gian tùy chọn
     // ===============================================================
+    @Operation(summary = "Thống kê hoạt động CLB trong khoảng thời gian tùy chọn", description = "Trả về danh sách CLB có hoạt động trong khoảng thời gian cụ thể (theo tháng/năm bắt đầu - kết thúc).")
     @GetMapping("/stats/clubs/range")
     public ResponseEntity<List<Map<String, Object>>> getClubActivityRange(
             @RequestParam int fromYear,
@@ -225,6 +228,7 @@ public class UniversityController {
     // ===============================================================
     // 📊 2️⃣ Thành viên hoạt động trong khoảng thời gian tùy chọn
     // ===============================================================
+    @Operation(summary = "Thống kê thành viên hoạt động trong khoảng thời gian tùy chọn", description = "Liệt kê thành viên có tham gia sự kiện trong khoảng thời gian xác định, kèm số lượng sự kiện.")
     @GetMapping("/stats/members/range")
     public ResponseEntity<List<Map<String, Object>>> getMemberActivityRange(
             @RequestParam int fromYear,

@@ -99,6 +99,10 @@ public class Product {
     // 🧩 Tăng lượt redeem
     public void increaseRedeemCount(int count) {
         this.redeemCount = (this.redeemCount == null ? 0 : this.redeemCount) + count;
+    }// 🧩 Giảm lượt redeem
+    public void decreaseRedeemCount(int count) {
+        if (this.redeemCount == null) this.redeemCount = 0;
+        this.redeemCount = Math.max(0, this.redeemCount - count);
     }
 
     // Generate productCode trước khi persist
@@ -123,5 +127,6 @@ public class Product {
         int n = 100000 + rnd.nextInt(900000);
         return "UC-P" + n;
     }
+
 
 }

@@ -11,6 +11,11 @@ public record OrderResponse(
         String status,
         LocalDateTime createdAt,
         LocalDateTime completedAt,
+
+        String productType,   // CLUB_ITEM / EVENT_ITEM
+        Long clubId,
+        Long eventId,
+
         String clubName,
         String memberName
 ) {}

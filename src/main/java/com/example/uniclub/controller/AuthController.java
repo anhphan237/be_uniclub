@@ -1,10 +1,7 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
-import com.example.uniclub.dto.request.ForgotPasswordRequest;
-import com.example.uniclub.dto.request.LoginRequest;
-import com.example.uniclub.dto.request.RegisterRequest;
-import com.example.uniclub.dto.request.ResetPasswordRequest;
+import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.AuthResponse;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
@@ -13,18 +10,30 @@ import com.example.uniclub.repository.RoleRepository;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.security.GoogleTokenVerifier;
 import com.example.uniclub.security.JwtUtil;
+import com.example.uniclub.service.UserService;
 import com.example.uniclub.service.impl.AuthServiceImpl;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import com.example.uniclub.dto.request.ChangePasswordRequest;
-import com.example.uniclub.service.UserService;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Tag(
+        name = "🔐 Authentication & Account Management",
+        description = """
+        Quản lý đăng nhập và bảo mật người dùng:
+        - Đăng nhập / Đăng ký tài khoản
+        - Đăng nhập bằng Google OAuth (mọi Gmail đều được phép)
+        - Quên mật khẩu, đặt lại mật khẩu
+        - Đổi mật khẩu với JWT
+        """
+)
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -37,19 +46,55 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserService userService;
 
-
-    // ===== Login/Register =====
+    // ==========================================================
+    // 🟢 1. ĐĂNG NHẬP
+    // ==========================================================
+    @Operation(
+            summary = "Đăng nhập vào hệ thống",
+            description = """
+                Nhập email và mật khẩu để nhận JWT token.<br>
+                Dành cho tất cả người dùng có tài khoản trong hệ thống.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Đăng nhập thành công")
+    )
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
         return ResponseEntity.ok(authServiceImpl.login(req));
     }
 
+    // ==========================================================
+    // 🟣 2. ĐĂNG KÝ
+    // ==========================================================
+    @Operation(
+            summary = "Đăng ký tài khoản mới",
+            description = """
+                Dành cho sinh viên / người dùng mới muốn tạo tài khoản trong hệ thống.<br>
+                Sau khi đăng ký thành công sẽ tự động đăng nhập và nhận JWT token.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "201", description = "Đăng ký thành công")
+    )
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authServiceImpl.register(req));
     }
 
-    // ===== Google OAuth =====
+    // ==========================================================
+// 🌐 3. GOOGLE OAUTH ĐĂNG NHẬP (KHÔNG GIỚI HẠN DOMAIN)
+// ==========================================================
+    @Operation(
+            summary = "Đăng nhập bằng Google (mọi Gmail đều được phép)",
+            description = """
+            Cho phép **mọi tài khoản Google hợp lệ** đăng nhập hệ thống.<br>
+            Nếu người dùng chưa tồn tại → tự động tạo tài khoản với role **STUDENT**.<br>
+            Xác thực token thật với Google, lưu thông tin cơ bản và trả về JWT token.
+            """,
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đăng nhập Google thành công"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Token không hợp lệ")
+            }
+    )
     @PostMapping("/google")
     public ResponseEntity<?> loginWithGoogle(@RequestBody Map<String, String> body) {
         String googleToken = body.get("token");
@@ -60,47 +105,50 @@ public class AuthController {
         // ✅ Bước 1: Verify token thật với Google
         var payload = googleVerifier.verify(googleToken);
         if (payload == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Invalid Google token"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Invalid Google token"));
         }
 
-        // ✅ Bước 2: Lấy thông tin người dùng từ Google
+        // ✅ Bước 2: Lấy thông tin từ Google
         String email = payload.getEmail();
         String name = (String) payload.get("name");
         String picture = (String) payload.get("picture");
-
-        // ✅ Bước 3: Chỉ cho phép domain FPT University
-        if (!email.endsWith("@fpt.edu.vn") && !email.endsWith("@fe.edu.vn")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Only FPT University accounts are allowed to login."));
+        if (picture == null) {
+            picture = "https://res.cloudinary.com/uniclub/image/upload/v1/defaults/default-avatar.png";
         }
 
-        // ✅ Bước 4: Tìm user theo email, nếu chưa có thì tạo mới với role STUDENT
-        var user = userRepo.findByEmail(email).orElseGet(() -> {
-            var studentRole = roleRepo.findByRoleName("STUDENT")
+        // ✅ Fix lỗi "variable must be final"
+        final String finalEmail = email;
+        final String finalName = name;
+        final String finalPicture = picture;
+
+        // ✅ Bước 3: Tìm user theo email hoặc tạo mới nếu chưa có
+        var user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
+            Role studentRole = roleRepo.findByRoleName("STUDENT")
                     .orElseThrow(() -> new RuntimeException("Role STUDENT not found in database"));
 
-            var newUser = User.builder()
-                    .email(email)
+            User newUser = User.builder()
+                    .email(finalEmail)
                     .passwordHash("{noop}-") // không cần mật khẩu thật
-                    .fullName(name)
+                    .fullName(finalName)
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(studentRole)
-                    .avatarUrl(picture)
+                    .avatarUrl(finalPicture)
                     .build();
 
             return userRepo.save(newUser);
         });
 
-        // ✅ Bước 5: Cập nhật thông tin nếu thiếu
+        // ✅ Bước 4: Cập nhật thông tin nếu thiếu
         boolean updated = false;
-        if (user.getFullName() == null) { user.setFullName(name); updated = true; }
-        if (user.getAvatarUrl() == null) { user.setAvatarUrl(picture); updated = true; }
+        if (user.getFullName() == null) { user.setFullName(finalName); updated = true; }
+        if (user.getAvatarUrl() == null) { user.setAvatarUrl(finalPicture); updated = true; }
         if (updated) userRepo.save(user);
 
-        // ✅ Bước 6: Sinh JWT nội bộ
+        // ✅ Bước 5: Sinh JWT nội bộ
         String jwt = jwtUtil.generateToken(user.getEmail());
 
-        // ✅ Bước 7: Trả về cho FE
+        // ✅ Bước 6: Trả về FE
         return ResponseEntity.ok(ApiResponse.ok(Map.of(
                 "jwt", jwt,
                 "user", Map.of(
@@ -113,27 +161,63 @@ public class AuthController {
     }
 
 
-    // ===== Forgot & Reset Password (KHÔNG yêu cầu bearer) =====
+    // ==========================================================
+    // 🟠 4. QUÊN MẬT KHẨU (PUBLIC)
+    // ==========================================================
+    @Operation(
+            summary = "Yêu cầu gửi link đặt lại mật khẩu",
+            description = """
+                Public API (không yêu cầu đăng nhập).<br>
+                Gửi email chứa đường dẫn đặt lại mật khẩu cho người dùng.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Email đặt lại mật khẩu đã được gửi")
+    )
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
         authServiceImpl.sendResetPasswordEmail(req.getEmail());
         return ResponseEntity.ok(ApiResponse.msg("Reset password link has been sent to your email."));
     }
 
+    // ==========================================================
+    // 🔵 5. ĐẶT LẠI MẬT KHẨU (PUBLIC)
+    // ==========================================================
+    @Operation(
+            summary = "Đặt lại mật khẩu bằng token email",
+            description = """
+                Public API.<br>
+                Người dùng nhập email, token xác minh và mật khẩu mới để khôi phục tài khoản.
+                """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Đặt lại mật khẩu thành công")
+    )
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
         authServiceImpl.resetPassword(req.getEmail(), req.getToken(), req.getNewPassword());
         return ResponseEntity.ok(ApiResponse.msg("Your password has been successfully reset."));
     }
-    // ===== Change Password (Yêu cầu JWT) =====
+
+    // ==========================================================
+    // 🔐 6. ĐỔI MẬT KHẨU (CẦN JWT)
+    // ==========================================================
+    @Operation(
+            summary = "Đổi mật khẩu (yêu cầu JWT)",
+            description = """
+                Dành cho người dùng đã đăng nhập.<br>
+                Cần truyền mật khẩu cũ và mật khẩu mới.<br>
+                Sau khi đổi mật khẩu thành công → cần đăng nhập lại.
+                """,
+            security = {@SecurityRequirement(name = "bearerAuth")},
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Đổi mật khẩu thành công")
+    )
     @PostMapping("/change-password")
     public ResponseEntity<ApiResponse<String>> changePassword(
             @Valid @RequestBody ChangePasswordRequest req,
             Authentication authentication
     ) {
-        String email = authentication.getName(); // lấy từ JWT
+        String email = authentication.getName();
         userService.changePassword(email, req.getOldPassword(), req.getNewPassword());
         return ResponseEntity.ok(ApiResponse.msg("Password changed successfully. Please re-login."));
     }
-
 }

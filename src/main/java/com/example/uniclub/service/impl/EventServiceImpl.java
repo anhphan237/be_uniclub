@@ -266,67 +266,6 @@ public class EventServiceImpl implements EventService {
     }
 
 
-
-
-
-    // =================================================================
-    // 🔹 DUYỆT BỞI UNI STAFF
-    // =================================================================
-    @Override
-    @Transactional
-    public String reviewByUniStaff(Long eventId, boolean approve, CustomUserDetails principal, Integer budgetPoints) {
-        Event event = eventRepo.findByIdWithCoHostRelations(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
-
-        String role = principal.getRoleName();
-        if (!List.of("UNIVERSITY_STAFF", "ADMIN").contains(role))
-            throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ UniStaff hoặc Admin có quyền duyệt sự kiện.");
-
-        if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Sự kiện chưa sẵn sàng để UniStaff duyệt.");
-
-        // ❌ Nếu bị từ chối
-        if (!approve) {
-            event.setStatus(EventStatusEnum.REJECTED);
-            eventRepo.saveAndFlush(event); // ✅ Flush ngay để cập nhật trạng thái
-            notificationService.notifyEventRejected(event);
-            return "❌ Sự kiện bị từ chối bởi UniStaff.";
-        }
-
-        // 🔹 Kiểm tra ngân sách hợp lệ
-        if (budgetPoints == null || budgetPoints <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Vui lòng nhập ngân sách hợp lệ (>0).");
-
-        // ✅ Cập nhật trạng thái và ngân sách
-        event.setStatus(EventStatusEnum.APPROVED);
-
-
-        // 🔹 Xử lý ví của sự kiện
-        Wallet wallet = Optional.ofNullable(event.getWallet()).orElse(new Wallet());
-        wallet.setOwnerType(WalletOwnerTypeEnum.EVENT);
-        wallet.setEvent(event);
-
-        // Nếu ví mới tạo → khởi tạo 0 điểm
-        if (wallet.getBalancePoints() == null) wallet.setBalancePoints(0L);
-
-        wallet.setBalancePoints(wallet.getBalancePoints() + budgetPoints);
-        walletRepo.save(wallet);
-
-        // 🔹 Gắn ví vào event và flush ngay để đảm bảo cập nhật DB
-        event.setWallet(wallet);
-        eventRepo.saveAndFlush(event);
-
-        // 🔹 Gửi thông báo
-        notificationService.notifyEventApproved(event);
-
-        // 🔹 Log debug
-        log.info("✅ [REVIEW_BY_UNISTAFF] Event {} approved with {} points by {}",
-                event.getEventId(), budgetPoints, role);
-
-        return "✅ Sự kiện '" + event.getName() + "' đã được UniStaff duyệt.";
-    }
-
-
     // =================================================================
     // 🔹 KẾT THÚC SỰ KIỆN
     // =================================================================
@@ -499,36 +438,7 @@ public class EventServiceImpl implements EventService {
         eventRepo.deleteById(id);
     }
 
-    @Override
-    @Transactional
-    public String submitEventToUniStaff(Long eventId, CustomUserDetails principal) {
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        User user = userRepo.findById(principal.getUser().getUserId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-
-        Club hostClub = event.getHostClub();
-        boolean isHostLeader = user.getMemberships().stream()
-                .anyMatch(m -> m.getClub().getClubId().equals(hostClub.getClubId())
-                        && (m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER));
-
-        if (!isHostLeader)
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only Host Club's Leader or Vice Leader can submit event.");
-
-        if (event.getCoHostRelations() != null && !event.getCoHostRelations().isEmpty()) {
-            boolean allApproved = event.getCoHostRelations().stream()
-                    .allMatch(r -> r.getStatus() == EventCoHostStatusEnum.APPROVED);
-            if (!allApproved)
-                throw new ApiException(HttpStatus.BAD_REQUEST, "All co-host clubs must accept before submission.");
-        }
-
-        event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
-        eventRepo.save(event);
-        notificationService.notifyUniStaffReadyForReview(event);
-
-        return "📤 Event '" + event.getName() + "' submitted to UniStaff (PENDING_UNISTAFF).";
-    }
     @Override
     public List<EventResponse> getAllEvents() {
         return eventRepo.findAll()
