@@ -34,6 +34,8 @@ public class ProductServiceImpl implements ProductService {
     private final ProductTagRepository productTagRepository;
     private final ProductMediaRepository mediaRepo;
     private final ProductStockHistoryRepository stockHistoryRepo;
+    private List<ProductMedia> mediaList;
+    private List<ProductTag> productTags;
 
     // =========================
     // Mapper
@@ -453,5 +455,54 @@ public class ProductServiceImpl implements ProductService {
 
         return toResp(product);
     }
+    @Override
+    @Transactional
+    public ProductResponse activateProduct(Long productId) {
+        Product product = productRepo.findById(productId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        // Không cho bật lại ARCHIVED
+        if (product.getStatus() == ProductStatusEnum.ARCHIVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Archived products cannot be reactivated");
+        }
+
+        // Nếu đã ACTIVE thì bỏ qua
+        if (product.getStatus() == ProductStatusEnum.ACTIVE) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Product is already active");
+        }
+
+        // Cập nhật trạng thái
+        product.setStatus(ProductStatusEnum.ACTIVE);
+        product.setIsActive(true);
+        productRepo.save(product);
+
+        // Trả về DTO đầy đủ
+        return new ProductResponse(
+                product.getProductId(),
+                product.getProductCode(),
+                product.getName(),
+                product.getDescription(),
+                product.getPointCost(),
+                product.getStockQuantity(),
+                product.getType().name(),
+                product.getStatus().name(),
+                product.getClub().getClubId(),
+                product.getClub().getName(),
+                product.getEvent() != null ? product.getEvent().getEventId() : null,
+                product.getCreatedAt(),
+                product.getRedeemCount(),
+                product.getMediaList() != null
+                        ? product.getMediaList().stream()
+                        .map(ProductMediaResponse::fromEntity)
+                        .toList()
+                        : List.of(),
+                product.getProductTags() != null
+                        ? product.getProductTags().stream()
+                        .map(tag -> tag.getTag().getName())
+                        .toList()
+                        : List.of()
+        );
+    }
+
 
 }

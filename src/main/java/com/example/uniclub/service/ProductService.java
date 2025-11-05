@@ -32,4 +32,7 @@ public interface ProductService {
 
     // Lịch sử nhập hàng
     List<ProductStockHistory> getStockHistory(Long productId);
+
+    ProductResponse activateProduct(Long productId);
+
 }

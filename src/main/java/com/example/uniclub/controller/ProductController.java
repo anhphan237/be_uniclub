@@ -384,4 +384,42 @@ public class ProductController {
     }
 
 
+
+    @Operation(
+            summary = "Kích hoạt lại sản phẩm (Activate Product)",
+            description = """
+        Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+        API này dùng để **chuyển trạng thái sản phẩm từ INACTIVE sang ACTIVE**.<br><br>
+        🔹 Không thể kích hoạt lại sản phẩm có trạng thái **ARCHIVED**.<br>
+        🔹 Nếu sản phẩm đã ở trạng thái **ACTIVE**, hệ thống sẽ báo lỗi.<br>
+        🔹 Khi kích hoạt thành công, trường <code>status</code> được cập nhật thành <b>ACTIVE</b> 
+        và <code>isActive</code> = <b>true</b>.<br><br>
+        Trả về đầy đủ thông tin của sản phẩm sau khi được kích hoạt (bao gồm media, tags, club, event...).
+        """,
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                            responseCode = "200",
+                            description = "Kích hoạt sản phẩm thành công"
+                    ),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                            responseCode = "400",
+                            description = "Sản phẩm đã ACTIVE hoặc đã ARCHIVED – không thể kích hoạt"
+                    ),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                            responseCode = "404",
+                            description = "Không tìm thấy sản phẩm"
+                    )
+            }
+    )
+    @PutMapping("/{productId}/activate")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<ProductResponse>> activateProduct(
+            @PathVariable Long productId) {
+
+        ProductResponse res = productService.activateProduct(productId);
+        return ResponseEntity.ok(ApiResponse.ok(res));
+    }
+
+
+
 }

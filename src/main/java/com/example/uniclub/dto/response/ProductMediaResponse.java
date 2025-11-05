@@ -13,4 +13,15 @@ public class ProductMediaResponse {
     private String type;
     private boolean isThumbnail;
     private int displayOrder;
+    public static ProductMediaResponse fromEntity(com.example.uniclub.entity.ProductMedia media) {
+        if (media == null) return null;
+        return new ProductMediaResponse(
+                media.getMediaId(),
+                media.getUrl(),
+                media.getType(),
+                media.isThumbnail(),
+                media.getDisplayOrder()
+        );
+    }
+
 }
