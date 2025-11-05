@@ -290,14 +290,17 @@ public class ProductServiceImpl implements ProductService {
         Product p = productRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
 
-        if (p.getStatus() == ProductStatusEnum.INACTIVE)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa sản phẩm đã INACTIVE");
+        // ❌ Chỉ chặn khi ARCHIVED (INACTIVE vẫn cho phép sửa)
+        if (p.getStatus() == ProductStatusEnum.ARCHIVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa sản phẩm đã ARCHIVED");
+        }
 
         if (req.name() != null && !req.name().isBlank()) p.setName(req.name());
         if (req.description() != null) p.setDescription(req.description());
         if (req.pointCost() != null && req.pointCost() >= 0) p.setPointCost(req.pointCost());
         if (req.stockQuantity() != null && req.stockQuantity() >= 0) p.setStockQuantity(req.stockQuantity());
 
+        // Đổi type (CLUB_ITEM <-> EVENT_ITEM)
         if (req.type() != null) {
             p.setType(req.type());
             if (req.type() == ProductTypeEnum.EVENT_ITEM) {
@@ -305,24 +308,38 @@ public class ProductServiceImpl implements ProductService {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "EVENT_ITEM cần eventId");
                 Event ev = eventRepo.findById(req.eventId())
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+                // Event phải thuộc CLB của product
                 if (!Objects.equals(ev.getHostClub().getClubId(), p.getClub().getClubId()))
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Event không thuộc CLB của sản phẩm");
+
+                // Không gán event đã qua
                 if (ev.getDate() != null && ev.getDate().isBefore(LocalDate.now()))
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Event đã kết thúc, không thể gán");
+
                 p.setEvent(ev);
             } else {
+                // CLUB_ITEM -> bỏ event
                 p.setEvent(null);
             }
         }
 
+        // Cập nhật status (và đồng bộ isActive theo rule mới)
         if (req.status() != null) {
             p.setStatus(req.status());
-            p.setIsActive(req.status() == ProductStatusEnum.ACTIVE);
+            // ✅ isActive = true khi ACTIVE hoặc INACTIVE; false khi ARCHIVED
+            p.setIsActive(p.getStatus() != ProductStatusEnum.ARCHIVED);
         }
 
         productRepo.save(p);
-        if (req.tagIds() != null) syncTags(p, req.tagIds());
+
+        if (req.tagIds() != null) {
+            syncTags(p, req.tagIds());
+        }
+
+        // Nếu là EVENT_ITEM, tự check hết hạn để ARCHIVE nếu cần
         archiveIfExpiredEventItem(p);
+
         return toResp(p);
     }
 

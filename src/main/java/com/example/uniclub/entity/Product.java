@@ -43,7 +43,6 @@ public class Product {
     @Column(nullable = false)
     private Long pointCost;
 
-
     @Column(nullable = false)
     private Integer stockQuantity;
 
@@ -59,12 +58,12 @@ public class Product {
     @JoinColumn(name = "event_id")
     private Event event; // Nullable nếu là CLUB_ITEM
 
-    // Trạng thái hiển thị/hoạt động
+    // 🔹 Trạng thái hoạt động
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductStatusEnum status = ProductStatusEnum.ACTIVE;
 
-    // Cờ legacy (vẫn giữ tương thích — map theo status)
+    // 🔹 Cờ hiển thị (true cho ACTIVE & INACTIVE, false cho ARCHIVED)
     @Column(nullable = false)
     private Boolean isActive = true;
 
@@ -72,7 +71,6 @@ public class Product {
     @Column(nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
-
 
     // 🔁 Tổng lượt redeem
     @Column(nullable = false)
@@ -90,36 +88,40 @@ public class Product {
     @Builder.Default
     private List<ProductTag> productTags = new ArrayList<>();
 
-    // 🧩 Thêm media vào product
+    // ======================================================
+    // 🧩 Helper methods
+    // ======================================================
     public void addMedia(ProductMedia media) {
         mediaList.add(media);
         media.setProduct(this);
     }
 
-    // 🧩 Tăng lượt redeem
     public void increaseRedeemCount(int count) {
         this.redeemCount = (this.redeemCount == null ? 0 : this.redeemCount) + count;
-    }// 🧩 Giảm lượt redeem
+    }
+
     public void decreaseRedeemCount(int count) {
         if (this.redeemCount == null) this.redeemCount = 0;
         this.redeemCount = Math.max(0, this.redeemCount - count);
     }
 
-    // Generate productCode trước khi persist
+    // ======================================================
+    // ⚙️ Entity Lifecycle
+    // ======================================================
     @PrePersist
     public void prePersist() {
         if (this.productCode == null || this.productCode.isBlank()) {
             this.productCode = randomCode();
         }
-        // Đồng bộ isActive theo status
         if (this.status == null) this.status = ProductStatusEnum.ACTIVE;
-        this.isActive = this.status == ProductStatusEnum.ACTIVE;
+        // ✅ Đúng quy ước: chỉ ARCHIVED mới false
+        this.isActive = this.status != ProductStatusEnum.ARCHIVED;
     }
 
     @PreUpdate
     public void preUpdate() {
-        // Đồng bộ isActive theo status
-        this.isActive = this.status == ProductStatusEnum.ACTIVE;
+        // ✅ Đồng bộ lại theo quy ước
+        this.isActive = this.status != ProductStatusEnum.ARCHIVED;
     }
 
     private String randomCode() {
@@ -127,6 +129,4 @@ public class Product {
         int n = 100000 + rnd.nextInt(900000);
         return "UC-P" + n;
     }
-
-
 }
