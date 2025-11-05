@@ -333,6 +333,7 @@ public class WalletServiceImpl implements WalletService {
         if (sender.getBalancePoints() < amount)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient balance");
 
+        // ✅ Cập nhật số dư thực tế
         sender.setBalancePoints(sender.getBalancePoints() - amount);
         receiver.setBalancePoints(receiver.getBalancePoints() + amount);
         walletRepo.save(sender);
@@ -343,18 +344,31 @@ public class WalletServiceImpl implements WalletService {
         String receiverDisplay = receiver.getUser() != null ? receiver.getUser().getFullName()
                 : receiver.getClub() != null ? receiver.getClub().getName() : "System";
 
-        WalletTransaction tx = WalletTransaction.builder()
+        // 🔻 Transaction cho bên gửi (OUT)
+        WalletTransaction outTx = WalletTransaction.builder()
                 .wallet(sender)
                 .type(type)
-                .amount(amount)
-                .description(reason)
+                .amount(-amount) // ❗ Trừ điểm thực tế
+                .description("[OUT] " + reason)
                 .senderName(senderDisplay)
                 .receiverName(receiverDisplay)
                 .createdAt(LocalDateTime.now())
                 .build();
+        saveTransaction(outTx);
 
-        saveTransaction(tx);
+        // 🔺 Transaction cho bên nhận (IN)
+        WalletTransaction inTx = WalletTransaction.builder()
+                .wallet(receiver)
+                .type(type)
+                .amount(amount) // ❗ Cộng điểm thực tế
+                .description("[IN] " + reason)
+                .senderName(senderDisplay)
+                .receiverName(receiverDisplay)
+                .createdAt(LocalDateTime.now())
+                .build();
+        saveTransaction(inTx);
     }
+
 
     // ================================================================
     // 🧾 GHI TRANSACTION TỪ SYSTEM
