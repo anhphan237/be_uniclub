@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.RedeemOrderRequest;
+import com.example.uniclub.dto.request.RefundRequest;
 import com.example.uniclub.dto.response.OrderResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.RedeemService;
@@ -106,21 +107,25 @@ public class RedeemController {
     // 🟤 4. HOÀN ĐIỂM ĐƠN HÀNG (FULL REFUND)
     // ==========================================================
     @Operation(
-            summary = "Hoàn điểm toàn bộ cho đơn hàng",
+            summary = "Hoàn điểm toàn bộ cho đơn hàng (có lý do)",
             description = """
-                Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STAFF**.<br>
-                Dùng khi sản phẩm lỗi hoặc giao sai. Hệ thống tự động hoàn lại toàn bộ điểm cho thành viên.
-                """,
+            Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STAFF**.<br>
+            Khi sản phẩm lỗi hoặc giao sai. Nhập lý do refund để hệ thống ghi log.
+            """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Hoàn điểm thành công")
     )
-    @PutMapping("/order/{orderId}/refund")
+    @PutMapping("/order/refund")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
     public ResponseEntity<ApiResponse<OrderResponse>> refund(
             @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long orderId
+            @RequestBody RefundRequest req
     ) {
-        OrderResponse res = redeemService.refund(orderId, principal.getUser().getUserId());
+        OrderResponse res = redeemService.refund(
+                req.orderId(),
+                principal.getUser().getUserId(),
+                req.reason()
+        );
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
@@ -128,25 +133,29 @@ public class RedeemController {
     // 🟡 5. HOÀN ĐIỂM MỘT PHẦN (PARTIAL REFUND)
     // ==========================================================
     @Operation(
-            summary = "Hoàn điểm một phần cho đơn hàng",
+            summary = "Hoàn điểm một phần cho đơn hàng (có lý do)",
             description = """
-                Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
-                Cho phép hoàn lại điểm tương ứng với số lượng bị lỗi hoặc không nhận hàng (`quantity` truyền qua param).
-                """,
+            Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
+            Cho phép hoàn lại một phần điểm kèm lý do hoàn hàng.
+            """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Hoàn điểm một phần thành công")
     )
-    @PutMapping("/order/{orderId}/refund-partial")
+    @PutMapping("/order/refund-partial")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<OrderResponse>> refundPartial(
-            @PathVariable Long orderId,
-            @RequestParam Integer quantity,
-            @AuthenticationPrincipal CustomUserDetails principal
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestBody RefundRequest req
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                redeemService.refundPartial(orderId, quantity, principal.getUser().getUserId())
-        ));
+        OrderResponse res = redeemService.refundPartial(
+                req.orderId(),
+                req.quantityToRefund(),
+                principal.getUser().getUserId(),
+                req.reason()
+        );
+        return ResponseEntity.ok(ApiResponse.ok(res));
     }
+
 
     // ==========================================================
     // 🧾 6. LỊCH SỬ ĐƠN HÀNG CỦA MEMBER

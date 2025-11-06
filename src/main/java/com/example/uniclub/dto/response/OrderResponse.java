@@ -17,5 +17,6 @@ public record OrderResponse(
         Long eventId,
 
         String clubName,
-        String memberName
+        String memberName,
+        String reasonRefund
 ) {}

@@ -16,10 +16,10 @@ public interface RedeemService {
     OrderResponse complete(Long orderId, Long staffUserId);
 
     // 🟡 Hoàn hàng toàn phần
-    OrderResponse refund(Long orderId, Long staffUserId);
+    OrderResponse refund(Long orderId, Long staffUserId, String reason);
 
     // 🟡 Hoàn hàng một phần
-    OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId);
+    OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId, String reason);
 
     // 🔹 Lấy danh sách đơn hàng của member / club / event
     List<OrderResponse> getOrdersByMember(Long userId);

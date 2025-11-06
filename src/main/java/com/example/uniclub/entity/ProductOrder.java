@@ -71,6 +71,9 @@ public class ProductOrder {
     @Column(name = "order_code", length = 20, unique = true, nullable = false)
     private String orderCode;
 
+    @Column(length = 255)
+    private String reasonRefund;
+
     // 🆕 Ảnh QR encode Base64 (gửi kèm email)
     @Column(name = "qr_code_base64", columnDefinition = "TEXT")
     private String qrCodeBase64;

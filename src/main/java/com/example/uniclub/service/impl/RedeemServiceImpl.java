@@ -47,7 +47,8 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getClub().getClubId(),
                 o.getProduct().getEvent() != null ? o.getProduct().getEvent().getEventId() : null,
                 o.getClub().getName(),
-                o.getMembership().getUser().getFullName()
+                o.getMembership().getUser().getFullName(),
+                o.getReasonRefund()
         );
     }
 
@@ -273,7 +274,7 @@ public class RedeemServiceImpl implements RedeemService {
     // 🟡 Hoàn hàng toàn phần
     @Override
     @Transactional
-    public OrderResponse refund(Long orderId, Long staffUserId) {
+    public OrderResponse refund(Long orderId, Long staffUserId, String reason) {
         ProductOrder order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
 
@@ -310,8 +311,9 @@ public class RedeemServiceImpl implements RedeemService {
         product.setStockQuantity(product.getStockQuantity() + order.getQuantity());
         product.decreaseRedeemCount(order.getQuantity());
         order.setStatus(OrderStatusEnum.REFUNDED);
+        order.setReasonRefund(reason);
         order.setCompletedAt(LocalDateTime.now());
-
+        order.setReasonRefund("Full refund processed by staff ID " + staffUserId);
         WalletTransaction txUser = WalletTransaction.builder()
                 .wallet(userWallet)
                 .amount(refundPoints)
@@ -346,7 +348,7 @@ public class RedeemServiceImpl implements RedeemService {
     // 🟡 Hoàn hàng một phần
     @Override
     @Transactional
-    public OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId) {
+    public OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId, String reason) {
         ProductOrder order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
 
@@ -390,7 +392,10 @@ public class RedeemServiceImpl implements RedeemService {
                 ? OrderStatusEnum.REFUNDED
                 : OrderStatusEnum.PARTIALLY_REFUNDED);
         order.setTotalPoints(product.getPointCost() * order.getQuantity());
+        order.setReasonRefund(reason);
         order.setCompletedAt(LocalDateTime.now());
+
+        order.setReasonRefund("Partial refund (" + quantityToRefund + " items) processed by staff ID " + staffUserId);
 
         WalletTransaction txUser = WalletTransaction.builder()
                 .wallet(userWallet)
