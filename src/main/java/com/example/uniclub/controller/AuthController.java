@@ -3,6 +3,7 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.AuthResponse;
+import com.example.uniclub.dto.response.GoogleLoginResponse;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.UserStatusEnum;
@@ -22,6 +23,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Tag(
@@ -102,14 +106,14 @@ public class AuthController {
             return ResponseEntity.badRequest().body(ApiResponse.error("Missing Google token"));
         }
 
-        // ✅ Bước 1: Verify token thật với Google
+        // ✅ Verify Google token
         var payload = googleVerifier.verify(googleToken);
         if (payload == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("Invalid Google token"));
         }
 
-        // ✅ Bước 2: Lấy thông tin từ Google
+        // ✅ Extract user info from Google
         String email = payload.getEmail();
         String name = (String) payload.get("name");
         String picture = (String) payload.get("picture");
@@ -117,19 +121,19 @@ public class AuthController {
             picture = "https://res.cloudinary.com/uniclub/image/upload/v1/defaults/default-avatar.png";
         }
 
-        // ✅ Fix lỗi "variable must be final"
+        // ✅ Fix: make variables effectively final for lambda
         final String finalEmail = email;
         final String finalName = name;
         final String finalPicture = picture;
 
-        // ✅ Bước 3: Tìm user theo email hoặc tạo mới nếu chưa có
+        // ✅ Find existing user or create new
         var user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
             Role studentRole = roleRepo.findByRoleName("STUDENT")
                     .orElseThrow(() -> new RuntimeException("Role STUDENT not found in database"));
 
             User newUser = User.builder()
                     .email(finalEmail)
-                    .passwordHash("{noop}-") // không cần mật khẩu thật
+                    .passwordHash("{noop}-") // no password needed
                     .fullName(finalName)
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(studentRole)
@@ -139,26 +143,30 @@ public class AuthController {
             return userRepo.save(newUser);
         });
 
-        // ✅ Bước 4: Cập nhật thông tin nếu thiếu
         boolean updated = false;
         if (user.getFullName() == null) { user.setFullName(finalName); updated = true; }
         if (user.getAvatarUrl() == null) { user.setAvatarUrl(finalPicture); updated = true; }
         if (updated) userRepo.save(user);
 
-        // ✅ Bước 5: Sinh JWT nội bộ
+        // ✅ Generate JWT
         String jwt = jwtUtil.generateToken(user.getEmail());
 
-        // ✅ Bước 6: Trả về FE
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "jwt", jwt,
-                "user", Map.of(
-                        "email", user.getEmail(),
-                        "fullName", user.getFullName(),
-                        "avatar", user.getAvatarUrl(),
-                        "role", user.getRole().getRoleName()
-                )
-        )));
+        // ✅ Build DTO for response
+        GoogleLoginResponse response = GoogleLoginResponse.builder()
+                .token(jwt)
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .avatar(user.getAvatarUrl())
+                .userId(user.getUserId())
+                .role(user.getRole().getRoleName())
+                .staff(user.getRole().getRoleName().equalsIgnoreCase("UNIVERSITY_STAFF"))
+                .clubIds(List.of()) // can fill later when club module ready
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+
 
 
     // ==========================================================
