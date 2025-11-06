@@ -49,7 +49,7 @@ spring:
       client:
         registration:
           google:
-            client-id: 510788979653-63atu8gg3ku7hmidufpr6kf2aknhhini.apps.googleusercontent.com
+            client-id: ${GOOGLE_CLIENT_ID}
             client-secret: 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
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             scope:
