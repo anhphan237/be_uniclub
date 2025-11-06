@@ -64,7 +64,6 @@ public class RedeemServiceImpl implements RedeemService {
         if (!product.getClub().getClubId().equals(clubId))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product not belongs to this club");
 
-        // Phải ACTIVE và isActive=true
         if (product.getStatus() != ProductStatusEnum.ACTIVE || !Boolean.TRUE.equals(product.getIsActive()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product is not ACTIVE");
 
@@ -80,19 +79,25 @@ public class RedeemServiceImpl implements RedeemService {
 
         long totalPoints = product.getPointCost() * req.quantity();
 
-        // Ví của CHÍNH user trong CLB này
-        Wallet wallet = walletRepo
-                .findByUser_UserIdAndClub_ClubId(userId, clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for membership"));
+        // 🧾 Ví của sinh viên & ví CLB
+        Wallet userWallet = walletRepo.findByUser_UserId(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
 
-        if (wallet.getBalancePoints() < totalPoints)
+        Wallet clubWallet = walletRepo.findByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club wallet not found"));
+
+        if (userWallet.getBalancePoints() < totalPoints)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points");
 
-        // Trừ điểm & Stock + tăng redeemCount
-        wallet.setBalancePoints(wallet.getBalancePoints() - totalPoints);
+        // 🔁 1️⃣ Trừ ví user, cộng ví CLB
+        userWallet.setBalancePoints(userWallet.getBalancePoints() - totalPoints);
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() + totalPoints);
+
+        // 🧾 2️⃣ Cập nhật sản phẩm
         product.setStockQuantity(product.getStockQuantity() - req.quantity());
         product.increaseRedeemCount(req.quantity());
 
+        // 🧾 3️⃣ Ghi đơn hàng
         ProductOrder order = ProductOrder.builder()
                 .product(product)
                 .membership(membership)
@@ -103,17 +108,32 @@ public class RedeemServiceImpl implements RedeemService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        WalletTransaction tx = WalletTransaction.builder()
-                .wallet(wallet)
-                .amount(-1L * totalPoints)
+        // 🧾 4️⃣ Ghi 2 giao dịch
+        WalletTransaction txUser = WalletTransaction.builder()
+                .wallet(userWallet)
+                .amount(-totalPoints)
                 .type(WalletTransactionTypeEnum.REDEEM_PRODUCT)
-                .description("Redeem product: " + product.getName())
+                .description("User redeemed product '" + product.getName() + "' from club " + club.getName())
+                .senderName(membership.getUser().getFullName())
+                .receiverName(club.getName())
                 .build();
 
-        walletRepo.save(wallet);
+        WalletTransaction txClub = WalletTransaction.builder()
+                .wallet(clubWallet)
+                .amount(totalPoints)
+                .type(WalletTransactionTypeEnum.CLUB_RECEIVE_REDEEM)
+                .description("Received points from user '" + membership.getUser().getFullName() + "' redeeming " + product.getName())
+                .senderName(membership.getUser().getFullName())
+                .receiverName(club.getName())
+                .build();
+
+        // 💾 Lưu toàn bộ thay đổi
+        walletRepo.save(userWallet);
+        walletRepo.save(clubWallet);
         productRepo.save(product);
         orderRepo.save(order);
-        walletTxRepo.save(tx);
+        walletTxRepo.save(txUser);
+        walletTxRepo.save(txClub);
 
         // 🧾 Gán mã đơn & QR
         String orderCode = "UC-" + Long.toHexString(order.getOrderId()).toUpperCase();
@@ -122,24 +142,24 @@ public class RedeemServiceImpl implements RedeemService {
         order.setQrCodeBase64(qrBase64);
         orderRepo.save(order);
 
-        // 📧 Email cho member
+        // 📧 Email xác nhận
         String memberEmail = membership.getUser().getEmail();
         String content = """
-            <h3>🎉 Bạn đã đổi hàng thành công!</h3>
-            <p><b>Sản phẩm:</b> %s</p>
-            <p><b>Số lượng:</b> %d</p>
-            <p><b>Điểm đã trừ:</b> %d</p>
-            <p><b>Mã đơn hàng:</b> %s</p>
-            <div style='text-align:center;margin:20px 0'>
-                <img src="data:image/png;base64,%s" alt="QR Code" style="width:150px"/>
-            </div>
-            """.formatted(product.getName(), req.quantity(), totalPoints, orderCode, qrBase64);
+        <h3>🎉 Bạn đã đổi hàng thành công!</h3>
+        <p><b>Sản phẩm:</b> %s</p>
+        <p><b>Số lượng:</b> %d</p>
+        <p><b>Điểm đã trừ:</b> %d</p>
+        <p><b>Mã đơn hàng:</b> %s</p>
+        <div style='text-align:center;margin:20px 0'>
+            <img src="data:image/png;base64,%s" alt="QR Code" style="width:150px"/>
+        </div>
+        """.formatted(product.getName(), req.quantity(), totalPoints, orderCode, qrBase64);
 
         emailService.sendEmail(memberEmail, "[UniClub] Xác nhận đổi hàng #" + orderCode, content);
         return toResponse(order);
     }
 
-    // 🟢 Staff redeem trong event booth
+
     @Override
     @Transactional
     public OrderResponse eventRedeem(Long eventId, RedeemOrderRequest req, Long staffUserId) {
@@ -164,22 +184,32 @@ public class RedeemServiceImpl implements RedeemService {
         if (product.getStockQuantity() < req.quantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
-        // Member mà staff đang redeem cho
         Membership membership = membershipRepo.findById(req.membershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        // Ví của CHÍNH MEMBER đó trong CLB sở hữu sản phẩm
-        Long memberUserId = membership.getUser().getUserId();
-        Long productClubId = product.getClub().getClubId();
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, productClubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found for member in this club"));
+        Long clubId = product.getClub().getClubId();
+
+        // ✅ Kiểm tra membership có đúng CLB và ACTIVE
+        if (!membership.getClub().getClubId().equals(clubId))
+            throw new ApiException(HttpStatus.FORBIDDEN, "Membership not belongs to this club");
+        if (membership.getState() != MembershipStateEnum.ACTIVE)
+            throw new ApiException(HttpStatus.FORBIDDEN, "Membership is not ACTIVE");
+
+        Wallet userWallet = walletRepo.findByUser_UserId(membership.getUser().getUserId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+        Wallet clubWallet = walletRepo.findByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club wallet not found"));
 
         long totalPoints = product.getPointCost() * req.quantity();
-        if (wallet.getBalancePoints() < totalPoints)
+
+        if (userWallet.getBalancePoints() < totalPoints)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points");
 
-        // Trừ điểm & Stock + tăng redeemCount
-        wallet.setBalancePoints(wallet.getBalancePoints() - totalPoints);
+        // 🔁 Trừ user, cộng CLB
+        userWallet.setBalancePoints(userWallet.getBalancePoints() - totalPoints);
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() + totalPoints);
+
+        // Cập nhật sản phẩm
         product.setStockQuantity(product.getStockQuantity() - req.quantity());
         product.increaseRedeemCount(req.quantity());
 
@@ -189,22 +219,35 @@ public class RedeemServiceImpl implements RedeemService {
                 .club(product.getClub())
                 .quantity(req.quantity())
                 .totalPoints(totalPoints)
-                .status(OrderStatusEnum.COMPLETED) // booth giao ngay
+                .status(OrderStatusEnum.COMPLETED)
                 .createdAt(LocalDateTime.now())
                 .completedAt(LocalDateTime.now())
                 .build();
 
-        WalletTransaction tx = WalletTransaction.builder()
-                .wallet(wallet)
-                .amount(-1L * totalPoints)
+        WalletTransaction txUser = WalletTransaction.builder()
+                .wallet(userWallet)
+                .amount(-totalPoints)
                 .type(WalletTransactionTypeEnum.EVENT_REDEEM_PRODUCT)
                 .description("Event redeem: " + product.getName())
+                .senderName(membership.getUser().getFullName())
+                .receiverName(clubWallet.getClub().getName())
                 .build();
 
-        walletRepo.save(wallet);
+        WalletTransaction txClub = WalletTransaction.builder()
+                .wallet(clubWallet)
+                .amount(totalPoints)
+                .type(WalletTransactionTypeEnum.CLUB_RECEIVE_REDEEM)
+                .description("Club received event redeem from " + membership.getUser().getFullName())
+                .senderName(membership.getUser().getFullName())
+                .receiverName(clubWallet.getClub().getName())
+                .build();
+
+        walletRepo.save(userWallet);
+        walletRepo.save(clubWallet);
         productRepo.save(product);
         orderRepo.save(order);
-        walletTxRepo.save(tx);
+        walletTxRepo.save(txUser);
+        walletTxRepo.save(txClub);
 
         String orderCode = "EV-" + Long.toHexString(order.getOrderId()).toUpperCase();
         String qrBase64 = qrService.generateQrAsBase64(orderCode);
@@ -214,16 +257,18 @@ public class RedeemServiceImpl implements RedeemService {
 
         String memberEmail = membership.getUser().getEmail();
         String content = """
-            <h3>🎉 Đổi quà tại sự kiện thành công!</h3>
-            <p><b>Sản phẩm:</b> %s</p>
-            <p><b>Số lượng:</b> %d</p>
-            <p><b>Điểm đã trừ:</b> %d</p>
-            <p><b>Mã đơn hàng:</b> %s</p>
-            """.formatted(product.getName(), req.quantity(), totalPoints, orderCode);
+        <h3>🎉 Đổi quà tại sự kiện thành công!</h3>
+        <p><b>Sản phẩm:</b> %s</p>
+        <p><b>Số lượng:</b> %d</p>
+        <p><b>Điểm đã trừ:</b> %d</p>
+        <p><b>Mã đơn hàng:</b> %s</p>
+        """.formatted(product.getName(), req.quantity(), totalPoints, orderCode);
 
         emailService.sendEmail(memberEmail, "[UniClub] Đổi quà tại sự kiện " + event.getName(), content);
         return toResponse(order);
     }
+
+
 
     // 🟡 Hoàn hàng toàn phần
     @Override
@@ -235,40 +280,68 @@ public class RedeemServiceImpl implements RedeemService {
         if (order.getStatus() == OrderStatusEnum.REFUNDED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order already refunded");
 
+        // ✅ Chỉ cho phép refund nếu đơn đã hoàn tất hoặc đang pending
+        if (order.getStatus() != OrderStatusEnum.COMPLETED && order.getStatus() != OrderStatusEnum.PENDING)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Order status not refundable");
+
         Product product = order.getProduct();
 
         if (product.getType() == ProductTypeEnum.EVENT_ITEM && !isEventStillActive(product.getEvent())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot refund after event ended");
         }
 
-        // Ví của member đã thanh toán đơn này (trả điểm về chính ví đó trong CLB tương ứng)
         Long memberUserId = order.getMembership().getUser().getUserId();
         Long clubId = product.getClub().getClubId();
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
 
-        // Hoàn điểm + trả stock + giảm redeemCount
-        wallet.setBalancePoints(wallet.getBalancePoints() + order.getTotalPoints());
+        Wallet userWallet = walletRepo.findByUser_UserId(memberUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+        Wallet clubWallet = walletRepo.findByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club wallet not found"));
+
+        long refundPoints = order.getTotalPoints();
+
+        // ✅ Kiểm tra CLB đủ điểm hoàn
+        if (clubWallet.getBalancePoints() < refundPoints)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet has insufficient points to refund");
+
+        // 🔁 Hoàn điểm & cập nhật kho
+        userWallet.setBalancePoints(userWallet.getBalancePoints() + refundPoints);
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() - refundPoints);
         product.setStockQuantity(product.getStockQuantity() + order.getQuantity());
         product.decreaseRedeemCount(order.getQuantity());
-
         order.setStatus(OrderStatusEnum.REFUNDED);
         order.setCompletedAt(LocalDateTime.now());
 
-        WalletTransaction tx = WalletTransaction.builder()
-                .wallet(wallet)
-                .amount(order.getTotalPoints())
+        WalletTransaction txUser = WalletTransaction.builder()
+                .wallet(userWallet)
+                .amount(refundPoints)
                 .type(WalletTransactionTypeEnum.REFUND_PRODUCT)
                 .description("Refund product: " + product.getName())
+                .senderName(product.getClub().getName())
+                .receiverName(order.getMembership().getUser().getFullName())
                 .build();
 
-        walletRepo.save(wallet);
+        WalletTransaction txClub = WalletTransaction.builder()
+                .wallet(clubWallet)
+                .amount(-refundPoints)
+                .type(WalletTransactionTypeEnum.CLUB_REFUND)
+                .description("Club refunded points for product: " + product.getName())
+                .senderName(product.getClub().getName())
+                .receiverName(order.getMembership().getUser().getFullName())
+                .build();
+
+        walletRepo.save(userWallet);
+        walletRepo.save(clubWallet);
         productRepo.save(product);
         orderRepo.save(order);
-        walletTxRepo.save(tx);
+        walletTxRepo.save(txUser);
+        walletTxRepo.save(txClub);
 
         return toResponse(order);
     }
+
+
+
 
     // 🟡 Hoàn hàng một phần
     @Override
@@ -279,6 +352,9 @@ public class RedeemServiceImpl implements RedeemService {
 
         if (order.getStatus() == OrderStatusEnum.REFUNDED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order already refunded");
+
+        if (order.getStatus() != OrderStatusEnum.COMPLETED && order.getStatus() != OrderStatusEnum.PENDING)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Order status not refundable");
 
         if (quantityToRefund == null || quantityToRefund <= 0 || quantityToRefund > order.getQuantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid refund quantity");
@@ -291,13 +367,21 @@ public class RedeemServiceImpl implements RedeemService {
 
         Long memberUserId = order.getMembership().getUser().getUserId();
         Long clubId = product.getClub().getClubId();
-        Wallet wallet = walletRepo.findByUser_UserIdAndClub_ClubId(memberUserId, clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
+
+        Wallet userWallet = walletRepo.findByUser_UserId(memberUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+        Wallet clubWallet = walletRepo.findByClub_ClubId(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club wallet not found"));
 
         long refundPoints = product.getPointCost() * quantityToRefund;
 
-        // Hoàn điểm + trả stock + giảm redeemCount
-        wallet.setBalancePoints(wallet.getBalancePoints() + refundPoints);
+        // ✅ Kiểm tra CLB đủ điểm
+        if (clubWallet.getBalancePoints() < refundPoints)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet has insufficient points to refund");
+
+        // 🔁 Cập nhật ví & đơn hàng
+        userWallet.setBalancePoints(userWallet.getBalancePoints() + refundPoints);
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() - refundPoints);
         product.setStockQuantity(product.getStockQuantity() + quantityToRefund);
         product.decreaseRedeemCount(quantityToRefund);
 
@@ -308,20 +392,36 @@ public class RedeemServiceImpl implements RedeemService {
         order.setTotalPoints(product.getPointCost() * order.getQuantity());
         order.setCompletedAt(LocalDateTime.now());
 
-        WalletTransaction tx = WalletTransaction.builder()
-                .wallet(wallet)
+        WalletTransaction txUser = WalletTransaction.builder()
+                .wallet(userWallet)
                 .amount(refundPoints)
                 .type(WalletTransactionTypeEnum.REFUND_PRODUCT)
                 .description("Partial refund: " + product.getName() + " x" + quantityToRefund)
+                .senderName(product.getClub().getName())
+                .receiverName(order.getMembership().getUser().getFullName())
                 .build();
 
-        walletRepo.save(wallet);
+        WalletTransaction txClub = WalletTransaction.builder()
+                .wallet(clubWallet)
+                .amount(-refundPoints)
+                .type(WalletTransactionTypeEnum.CLUB_REFUND)
+                .description("Club partial refund for product: " + product.getName() + " x" + quantityToRefund)
+                .senderName(product.getClub().getName())
+                .receiverName(order.getMembership().getUser().getFullName())
+                .build();
+
+        walletRepo.save(userWallet);
+        walletRepo.save(clubWallet);
         productRepo.save(product);
-        walletTxRepo.save(tx);
         orderRepo.save(order);
+        walletTxRepo.save(txUser);
+        walletTxRepo.save(txClub);
 
         return toResponse(order);
     }
+
+
+
 
     @Override
     @Transactional

@@ -18,4 +18,7 @@ public enum WalletTransactionTypeEnum {
     REFUND_PRODUCT,
     EVENT_REDEEM_PRODUCT,
     EVENT_REFUND_PRODUCT,
+    // Giao dịch giữa User ↔ CLB
+    CLUB_RECEIVE_REDEEM,
+    CLUB_REFUND
 }
