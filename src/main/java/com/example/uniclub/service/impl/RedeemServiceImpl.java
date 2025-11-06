@@ -339,6 +339,27 @@ public class RedeemServiceImpl implements RedeemService {
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
 
+        String memberEmail = order.getMembership().getUser().getEmail();
+        String content = """
+    <h3>💸 Hoàn điểm thành công!</h3>
+    <p><b>Sản phẩm:</b> %s</p>
+    <p><b>Số lượng hoàn:</b> %d</p>
+    <p><b>Điểm được hoàn:</b> %d</p>
+    <p><b>Lý do hoàn hàng:</b> %s</p>
+""".formatted(
+                product.getName(),
+                order.getQuantity(),
+                refundPoints,
+                order.getReasonRefund() != null ? order.getReasonRefund() : "Không có lý do cụ thể"
+        );
+
+        emailService.sendEmail(
+                memberEmail,
+                "[UniClub] Hoàn điểm thành công cho đơn #" + order.getOrderCode(),
+                content
+        );
+
+
         return toResponse(order);
     }
 
@@ -421,6 +442,26 @@ public class RedeemServiceImpl implements RedeemService {
         orderRepo.save(order);
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
+        // 📧 Gửi email thông báo hoàn điểm một phần
+        String memberEmail = order.getMembership().getUser().getEmail();
+        String content = """
+    <h3>💸 Hoàn điểm một phần!</h3>
+    <p><b>Sản phẩm:</b> %s</p>
+    <p><b>Số lượng hoàn:</b> %d</p>
+    <p><b>Điểm được hoàn:</b> %d</p>
+    <p><b>Lý do hoàn hàng:</b> %s</p>
+""".formatted(
+                product.getName(),
+                quantityToRefund,
+                refundPoints,
+                order.getReasonRefund() != null ? order.getReasonRefund() : "Không có lý do cụ thể"
+        );
+
+        emailService.sendEmail(
+                memberEmail,
+                "[UniClub] Hoàn điểm một phần cho đơn #" + order.getOrderCode(),
+                content
+        );
 
         return toResponse(order);
     }
