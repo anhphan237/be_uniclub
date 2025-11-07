@@ -20,6 +20,7 @@ public class MajorPolicy {
     // 🔗 Nhiều policy có thể trỏ về 1 major
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "major_id", nullable = false)
+    @JsonBackReference   // ✅ thêm dòng này
     private Major major;
 
     @Column(name = "policy_name", nullable = false, length = 150)

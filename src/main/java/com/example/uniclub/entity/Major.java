@@ -34,6 +34,8 @@ public class Major {
 
     // 🔁 Một Major có thể có nhiều Policy
     @OneToMany(mappedBy = "major", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference   // ✅ thêm dòng này
     private List<MajorPolicy> policies = new ArrayList<>();
 }
+
 
