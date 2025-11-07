@@ -7,6 +7,7 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.EmailService;
+import com.example.uniclub.service.EventLogService;
 import com.example.uniclub.service.QrService;
 import com.example.uniclub.service.RedeemService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class RedeemServiceImpl implements RedeemService {
+    private final EventLogService eventLogService;
 
     private final ProductRepository productRepo;
     private final ProductOrderRepository orderRepo;
@@ -157,8 +159,19 @@ public class RedeemServiceImpl implements RedeemService {
 """.formatted(product.getName(), req.quantity(), totalPoints, orderCode, qrBase64);
 
         emailService.sendEmail(memberEmail, "[UniClub] Redemption Confirmation #" + orderCode, content);
-        return toResponse(order);
 
+        User user = membership.getUser();
+        Event event = product.getEvent(); // có thể null nếu là CLUB_ITEM
+        eventLogService.logAction(
+                user.getUserId(),
+                user.getFullName(),
+                event != null ? event.getEventId() : null,
+                event != null ? event.getName() : null,
+                UserActionEnum.REDEEM_PRODUCT,
+                "User redeemed product '" + product.getName() + "' x" + req.quantity() +
+                        " from club " + club.getName()
+        );
+        return toResponse(order);
     }
 
 
@@ -267,7 +280,19 @@ public class RedeemServiceImpl implements RedeemService {
 """.formatted(product.getName(), req.quantity(), totalPoints, orderCode);
 
         emailService.sendEmail(memberEmail, "[UniClub] Gift Redemption at Event " + event.getName(), content);
+        // 🧾 Log hành động redeem product (event)
+        User user = membership.getUser();
+        eventLogService.logAction(
+                user.getUserId(),
+                user.getFullName(),
+                event.getEventId(),
+                event.getName(),
+                UserActionEnum.REDEEM_PRODUCT,
+                "User redeemed event product '" + product.getName() + "' x" + req.quantity()
+        );
+
         return toResponse(order);
+
 
     }
 
