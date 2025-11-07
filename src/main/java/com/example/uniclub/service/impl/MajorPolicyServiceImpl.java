@@ -11,6 +11,7 @@ import com.example.uniclub.service.MajorPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,7 +45,7 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     }
 
     // ================================================================
-    // 🔍 LẤY THEO MAJOR ID
+    // 🔍 LẤY TẤT CẢ POLICY THEO MAJOR ID
     // ================================================================
     @Override
     public List<MajorPolicyResponse> getByMajor(Long majorId) {
@@ -56,12 +57,31 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     }
 
     // ================================================================
-    // ➕ TẠO MỚI (CHO PHÉP NHIỀU POLICY / MAJOR)
+    // 🟩 LẤY POLICY ACTIVE THEO MAJOR (ĐANG DÙNG)
     // ================================================================
     @Override
+    public List<MajorPolicyResponse> getActiveByMajor(Long majorId) {
+        List<MajorPolicy> activePolicies = majorPolicyRepo.findByMajor_IdAndActiveTrue(majorId);
+        if (activePolicies.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "No active policies for this major");
+        }
+        return activePolicies.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    // ================================================================
+    // ➕ TẠO MỚI — CHỐNG TRÙNG MAJOR POLICY
+    // ================================================================
+    @Override
+    @Transactional
     public MajorPolicyResponse create(MajorPolicyRequest req) {
         Major major = majorRepo.findById(req.getMajorId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+
+        // ✅ Chỉ cho phép 1 policy/major (hoặc điều kiện tùy bạn)
+        if (majorPolicyRepo.existsByMajor_Id(req.getMajorId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "A policy already exists for this major. Please update the existing one instead.");
+        }
 
         MajorPolicy policy = MajorPolicy.builder()
                 .policyName(req.getPolicyName())
@@ -71,7 +91,8 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
                 .active(req.isActive())
                 .build();
 
-        return toResponse(majorPolicyRepo.save(policy));
+        MajorPolicy saved = majorPolicyRepo.save(policy);
+        return toResponse(saved);
     }
 
     // ================================================================
@@ -87,7 +108,8 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         existing.setMaxClubJoin(req.getMaxClubJoin());
         existing.setActive(req.isActive());
 
-        return toResponse(majorPolicyRepo.save(existing));
+        MajorPolicy updated = majorPolicyRepo.save(existing);
+        return toResponse(updated);
     }
 
     // ================================================================

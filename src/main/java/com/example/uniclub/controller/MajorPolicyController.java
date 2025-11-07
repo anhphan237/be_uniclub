@@ -135,4 +135,25 @@ public class MajorPolicyController {
         majorPolicyService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(
+            summary = "Lấy danh sách policy đang hoạt động theo ngành",
+            description = """
+        Dành cho **UNIVERSITY_STAFF**.<br>
+        Trả về danh sách các **Major Policy** đang bật (`active = true`) của ngành được chọn.<br>
+        Dùng để áp dụng khi tính giới hạn CLB hoặc multiplier cho sinh viên ngành đó.
+        """,
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.
+                            ApiResponse(responseCode = "200", description = "Lấy danh sách policy đang hoạt động thành công"),
+                    @io.swagger.v3.oas.annotations.responses.
+                            ApiResponse(responseCode = "404", description = "Không tìm thấy policy đang hoạt động")
+            }
+    )
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @GetMapping("/active")
+    public ResponseEntity<List<MajorPolicyResponse>> getActiveByMajor(@RequestParam Long majorId) {
+        return ResponseEntity.ok(majorPolicyService.getActiveByMajor(majorId));
+    }
+
 }

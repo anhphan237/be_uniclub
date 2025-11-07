@@ -20,4 +20,6 @@ public interface MajorPolicyService {
     MajorPolicyResponse update(Long id, MajorPolicyRequest req);
 
     void delete(Long id);
+
+    List<MajorPolicyResponse> getActiveByMajor(Long majorId);
 }

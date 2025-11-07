@@ -20,10 +20,26 @@ public interface MultiplierPolicyRepository extends JpaRepository<MultiplierPoli
     List<MultiplierPolicy> findByTargetTypeAndActiveTrueOrderByMinEventsDesc(PolicyTargetTypeEnum targetType);
 
     // ✅ Lấy 1 policy cụ thể theo loại và levelOrStatus
-    @Query("SELECT p FROM MultiplierPolicy p WHERE p.targetType = :targetType AND p.levelOrStatus = :levelOrStatus AND p.active = true")
+    @Query("""
+           SELECT p FROM MultiplierPolicy p 
+           WHERE p.targetType = :targetType 
+             AND p.levelOrStatus = :levelOrStatus 
+             AND p.active = true
+           """)
     Optional<MultiplierPolicy> findByTargetTypeAndLevelOrStatusAndActiveTrue(
             @Param("targetType") PolicyTargetTypeEnum targetType,
             @Param("levelOrStatus") String levelOrStatus
     );
 
+    // ✅ FIX: dùng @Query để JPA không tách sai tên field
+    @Query("""
+           SELECT CASE WHEN COUNT(p) > 0 THEN TRUE ELSE FALSE END 
+           FROM MultiplierPolicy p 
+           WHERE p.targetType = :targetType 
+             AND p.levelOrStatus = :levelOrStatus
+           """)
+    boolean existsByTargetTypeAndLevelOrStatus(
+            @Param("targetType") PolicyTargetTypeEnum targetType,
+            @Param("levelOrStatus") String levelOrStatus
+    );
 }

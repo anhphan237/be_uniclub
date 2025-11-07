@@ -47,9 +47,18 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     // ================================================================
     @Override
     public MultiplierPolicyResponse create(MultiplierPolicyRequest req) {
+
+        // ⚙️ Kiểm tra trùng targetType + levelOrStatus
+        boolean exists = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
+                req.getTargetType(), req.getLevelOrStatus());
+        if (exists) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Policy already exists for this target type and level/status");
+        }
+
         MultiplierPolicy policy = MultiplierPolicy.builder()
                 .targetType(req.getTargetType())
-                .levelOrStatus(req.getLevelOrStatus()) // ✅ sửa
+                .levelOrStatus(req.getLevelOrStatus())
                 .minEvents(req.getMinEvents())
                 .multiplier(req.getMultiplier())
                 .updatedBy(req.getUpdatedBy())
@@ -70,8 +79,16 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         MultiplierPolicy existing = multiplierPolicyRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
 
+        // 🔒 Nếu update sang levelOrStatus khác → kiểm tra trùng
+        boolean duplicate = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
+                req.getTargetType(), req.getLevelOrStatus());
+        if (duplicate && !req.getLevelOrStatus().equals(existing.getLevelOrStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "A policy already exists for this target type and level/status");
+        }
+
         existing.setTargetType(req.getTargetType());
-        existing.setLevelOrStatus(req.getLevelOrStatus()); // ✅ sửa
+        existing.setLevelOrStatus(req.getLevelOrStatus());
         existing.setMinEvents(req.getMinEvents());
         existing.setMultiplier(req.getMultiplier());
         existing.setUpdatedBy(req.getUpdatedBy());
@@ -131,6 +148,9 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                 .build();
     }
 
+    // ================================================================
+    // 🔹 Lấy toàn bộ theo loại (bất kể active)
+    // ================================================================
     @Override
     public List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type) {
         return multiplierPolicyRepository.findByTargetTypeOrderByMinEventsDesc(type);
