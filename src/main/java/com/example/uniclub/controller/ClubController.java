@@ -160,4 +160,23 @@ public class ClubController {
         result.put("activeMemberCount", count);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+    @Operation(
+            summary = "Lấy danh sách CLB mà người dùng có thể apply",
+            description = """
+            Public API.<br>
+            Trả về danh sách CLB mà user **chưa tham gia hoặc chưa chờ duyệt**.
+            Có hỗ trợ tìm kiếm theo tên (keyword) và phân trang.
+            """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Lấy danh sách thành công")
+    )
+    @GetMapping("/available-for-apply")
+    public ResponseEntity<ApiResponse<?>> getAvailableForApply(
+            @RequestParam Long userId, // hoặc lấy từ token nếu bạn có @AuthenticationPrincipal
+            @RequestParam(required = false) String keyword,
+            Pageable pageable
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(clubService.getAvailableForApply(userId, keyword, pageable)));
+    }
+
 }

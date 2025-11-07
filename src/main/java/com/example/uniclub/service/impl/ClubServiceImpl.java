@@ -13,6 +13,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Collections;
+import java.util.List;
+
 
 @Service
 @RequiredArgsConstructor
@@ -113,4 +116,21 @@ public class ClubServiceImpl implements ClubService {
 
         System.out.println("Updated member_count for club " + clubId + " = " + total);
     }
+
+
+
+    @Override
+    public Page<ClubResponse> getAvailableForApply(Long userId, String keyword, Pageable pageable) {
+        // Lấy danh sách clubId mà user đã tham gia hoặc đang chờ duyệt
+        List<Long> excluded = membershipRepo.findJoinedOrPendingClubIds(
+                userId,
+                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.PENDING, MembershipStateEnum.APPROVED)
+        );
+
+        if (excluded.isEmpty()) excluded = Collections.singletonList(-1L); // tránh lỗi "NOT IN ()"
+
+        return clubRepo.findAvailableForApply(excluded, keyword, pageable)
+                .map(this::toResponse);
+    }
+
 }

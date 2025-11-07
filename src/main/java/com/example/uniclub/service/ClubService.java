@@ -25,4 +25,7 @@ public interface ClubService {
 
     // 🟩 6. Cập nhật lại số lượng thành viên
     void updateMemberCount(Long clubId);
+
+    Page<ClubResponse> getAvailableForApply(Long userId, String keyword, Pageable pageable);
+
 }
