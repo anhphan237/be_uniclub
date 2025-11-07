@@ -252,14 +252,27 @@ public class UserServiceImpl implements UserService {
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {
         User user = getByEmail(email);
 
-        if (req.getPhone() != null && !req.getPhone().isBlank()) user.setPhone(req.getPhone());
-        if (req.getBio() != null && !req.getBio().isBlank()) user.setBio(req.getBio());
+
+        if (req.getFullName() != null && !req.getFullName().isBlank())
+            user.setFullName(req.getFullName());
+
+        if (req.getPhone() != null && !req.getPhone().isBlank())
+            user.setPhone(req.getPhone());
+
+        if (req.getBio() != null && !req.getBio().isBlank())
+            user.setBio(req.getBio());
 
         if (req.getMajorId() != null) {
             Major major = majorRepo.findById(req.getMajorId())
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
             user.setMajor(major);
         }
+
+        if (req.getAvatarUrl() != null && !req.getAvatarUrl().isBlank())
+            user.setAvatarUrl(req.getAvatarUrl());
+
+        if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
+            user.setBackgroundUrl(req.getBackgroundUrl());
 
         userRepo.save(user);
 
@@ -268,6 +281,7 @@ public class UserServiceImpl implements UserService {
         resp.setWallet(wallet);
         return resp;
     }
+
 
     @Override
     public UserResponse updateAvatarResponse(String email, String avatarUrl) {
