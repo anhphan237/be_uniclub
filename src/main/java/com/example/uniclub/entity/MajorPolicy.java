@@ -5,12 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(
-        name = "major_policies",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_major_policies_major_id", columnNames = "major_id")
-        }
-)
+@Table(name = "major_policies")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,39 +17,31 @@ public class MajorPolicy {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 🔗 Mỗi major chỉ có 1 policy
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "major_id", nullable = false,
-            foreignKey = @ForeignKey(name = "fk_major_policy_major"))
-    @JsonBackReference
+    // 🔗 Nhiều policy có thể trỏ về 1 major
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_id", nullable = false)
     private Major major;
-
 
     @Column(name = "policy_name", nullable = false, length = 150)
     private String policyName;
 
-    @Column(name = "description", columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT")
     private String description;
 
-    // ⚠️ Không set mặc định trong code; UniStaff cấu hình hết
-    @Column(name = "max_club_join", nullable = false)
+    @Column(name = "max_club_join")
     private Integer maxClubJoin;
 
     @Column(nullable = false)
-    private boolean active;
+    private boolean active = true;
 
-    // 📝 Lưu kèm tên ngành để hiển thị nhanh (denormalized),
-    // sẽ đồng bộ từ Major ở lifecycle callbacks phía dưới
-    @Column(name = "major_name", nullable = false, length = 100)
+    @Column(name = "major_name", length = 100)
     private String majorName;
 
     @PrePersist
     @PreUpdate
     private void syncMajorName() {
-        if (this.major == null) {
-            throw new IllegalStateException("MajorPolicy.major must not be null");
+        if (this.major != null) {
+            this.majorName = this.major.getName();
         }
-        // luôn đồng bộ theo Major hiện tại để tránh lệch dữ liệu
-        this.majorName = this.major.getName();
     }
 }

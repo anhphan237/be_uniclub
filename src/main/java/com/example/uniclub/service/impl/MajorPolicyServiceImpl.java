@@ -44,16 +44,24 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     }
 
     // ================================================================
-    // ➕ TẠO MỚI
+    // 🔍 LẤY THEO MAJOR ID
+    // ================================================================
+    @Override
+    public List<MajorPolicyResponse> getByMajor(Long majorId) {
+        List<MajorPolicy> policies = majorPolicyRepo.findByMajor_Id(majorId);
+        if (policies.isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "No policies found for this major");
+        }
+        return policies.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    // ================================================================
+    // ➕ TẠO MỚI (CHO PHÉP NHIỀU POLICY / MAJOR)
     // ================================================================
     @Override
     public MajorPolicyResponse create(MajorPolicyRequest req) {
         Major major = majorRepo.findById(req.getMajorId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
-
-        if (majorPolicyRepo.existsByMajor_Id(major.getId())) {
-            throw new ApiException(HttpStatus.CONFLICT, "This major already has a policy");
-        }
 
         MajorPolicy policy = MajorPolicy.builder()
                 .policyName(req.getPolicyName())
@@ -74,12 +82,8 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
         MajorPolicy existing = majorPolicyRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MajorPolicy not found"));
 
-        Major major = majorRepo.findById(req.getMajorId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
-
         existing.setPolicyName(req.getPolicyName());
         existing.setDescription(req.getDescription());
-        existing.setMajor(major);
         existing.setMaxClubJoin(req.getMaxClubJoin());
         existing.setActive(req.isActive());
 
@@ -98,16 +102,7 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
     }
 
     // ================================================================
-    // 📘 LẤY CHÍNH SÁCH ĐANG HOẠT ĐỘNG CỦA NGÀNH
-    // ================================================================
-    @Override
-    public MajorPolicy getActivePolicyByMajor(Long majorId) {
-        return majorPolicyRepo.findByMajor_IdAndActiveTrue(majorId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No active policy for this major"));
-    }
-
-    // ================================================================
-    // 🔄 ENTITY → RESPONSE DTO
+    // 🔁 ENTITY → RESPONSE DTO
     // ================================================================
     private MajorPolicyResponse toResponse(MajorPolicy entity) {
         return MajorPolicyResponse.builder()

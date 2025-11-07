@@ -8,15 +8,16 @@ import java.util.List;
 
 public interface MajorPolicyService {
 
+
     List<MajorPolicyResponse> getAll();
 
     MajorPolicyResponse getById(Long id);
 
-    MajorPolicyResponse create(MajorPolicyRequest request);
+    List<MajorPolicyResponse> getByMajor(Long majorId);
 
-    MajorPolicyResponse update(Long id, MajorPolicyRequest request);
+    MajorPolicyResponse create(MajorPolicyRequest req);
+
+    MajorPolicyResponse update(Long id, MajorPolicyRequest req);
 
     void delete(Long id);
-
-    MajorPolicy getActivePolicyByMajor(Long majorId);
 }

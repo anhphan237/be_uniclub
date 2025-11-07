@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "majors")
 @Getter
@@ -24,14 +27,13 @@ public class Major {
     private String description;
 
     @Column(nullable = false, unique = true, length = 20)
-    private String majorCode; // 🆕 Mã ngành: SE, MKT, BA
+    private String majorCode; // VD: SE, MKT, AI
 
     @Column(nullable = false)
     private boolean active = true;
 
-
-    @OneToOne(mappedBy = "major", fetch = FetchType.LAZY)
-    @JsonManagedReference
-    private MajorPolicy majorPolicy;
-
+    // 🔁 Một Major có thể có nhiều Policy
+    @OneToMany(mappedBy = "major", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MajorPolicy> policies = new ArrayList<>();
 }
+
