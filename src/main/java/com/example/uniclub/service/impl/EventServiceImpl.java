@@ -14,6 +14,8 @@ import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.EventService;
 import com.example.uniclub.service.NotificationService;
 import com.example.uniclub.service.RewardService;
+import com.example.uniclub.util.CsvExportUtil;
+import com.example.uniclub.util.ExcelExportUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -657,6 +659,16 @@ public class EventServiceImpl implements EventService {
                                 : null
                 )
                 .build();
+    }
+    @Override
+    public byte[] exportAttendanceData(Long eventId, String format) {
+        List<EventRegistration> list = eventRegistrationRepo.findByEvent_EventId(eventId);
+
+        if (format.equalsIgnoreCase("csv")) {
+            return CsvExportUtil.exportToCsv(list);
+        } else {
+            return ExcelExportUtil.exportToExcel(list);
+        }
     }
 
 }

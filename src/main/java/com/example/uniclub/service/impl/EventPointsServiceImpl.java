@@ -8,10 +8,7 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
-import com.example.uniclub.service.AttendanceService;
-import com.example.uniclub.service.EventPointsService;
-import com.example.uniclub.service.JwtEventTokenService;
-import com.example.uniclub.service.WalletService;
+import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +21,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class EventPointsServiceImpl implements EventPointsService {
+    private final EventLogService eventLogService;
 
     private final EventRepository eventRepo;
     private final EventRegistrationRepository regRepo;
@@ -106,6 +104,18 @@ public class EventPointsServiceImpl implements EventPointsService {
             case "END"   -> attendanceService.handleEndCheckout(user, event);
             default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid check-in phase: " + req.getLevel());
         }
+        UserActionEnum actionType = req.getLevel().equalsIgnoreCase("END")
+                ? UserActionEnum.CHECKOUT_EVENT
+                : UserActionEnum.CHECKIN_EVENT;
+
+        eventLogService.logAction(
+                user.getUserId(),
+                user.getFullName(),
+                event.getEventId(),
+                event.getName(),
+                actionType,
+                "User performed " + req.getLevel().toUpperCase() + " phase for event " + event.getName()
+        );
 
         return "✅ " + req.getLevel() + " check-in successful for event: " + event.getName();
     }

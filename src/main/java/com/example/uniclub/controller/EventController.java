@@ -18,6 +18,8 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -405,5 +407,33 @@ public class EventController {
         WalletTransaction tx = eventService.refundEventProduct(eventId, userId, productId);
         return ResponseEntity.ok(tx);
     }
+
+    @Operation(
+            summary = "Xuất danh sách điểm danh (Attendance Export)",
+            description = """
+        Cho phép tải danh sách điểm danh của sự kiện dưới dạng CSV hoặc Excel (.xlsx).  
+        - Tham số `format` có thể là `csv` hoặc `xlsx` (mặc định: csv).  
+        - Kết quả bao gồm họ tên, email, trạng thái đăng ký, thời gian check-in và check-out.  
+        Chức năng dành cho ban tổ chức hoặc UniStaff để thống kê và lưu trữ dữ liệu sự kiện.
+        """
+    )
+    @GetMapping("/{eventId}/export")
+    public ResponseEntity<?> exportAttendance(
+            @PathVariable Long eventId,
+            @RequestParam(defaultValue = "csv") String format
+    ) {
+        byte[] file = eventService.exportAttendanceData(eventId, format);
+        String fileName = "attendance_event_" + eventId + "." + format;
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + fileName)
+                .contentType(format.equals("csv")
+                        ? MediaType.TEXT_PLAIN
+                        : MediaType.APPLICATION_OCTET_STREAM)
+                .body(file);
+    }
+
+
+
 
 }

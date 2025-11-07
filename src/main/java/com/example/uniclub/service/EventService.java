@@ -76,4 +76,7 @@ public interface EventService {
     EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff);
 
     WalletTransaction refundEventProduct(Long eventId, Long userId, Long productId);
+
+    byte[] exportAttendanceData(Long eventId, String format);
+
 }

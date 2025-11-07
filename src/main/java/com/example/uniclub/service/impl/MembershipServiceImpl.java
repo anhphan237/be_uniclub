@@ -8,6 +8,7 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubService;
 import com.example.uniclub.service.EmailService;
+import com.example.uniclub.service.EventLogService;
 import com.example.uniclub.service.MembershipService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +25,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class MembershipServiceImpl implements MembershipService {
-
+    private final EventLogService eventLogService;
     private final MembershipRepository membershipRepo;
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
@@ -148,6 +149,14 @@ public class MembershipServiceImpl implements MembershipService {
                 .build();
 
         membershipRepo.save(newMembership);
+        eventLogService.logAction(
+                userId,
+                user.getFullName(),
+                null,
+                null,
+                UserActionEnum.JOIN_CLUB,
+                "User joined club " + club.getName()
+        );
         return toResp(newMembership);
     }
 
@@ -319,7 +328,14 @@ public class MembershipServiceImpl implements MembershipService {
         } catch (Exception e) {
             log.warn("⚠Failed to send email to {}", membership.getUser().getEmail());
         }
-
+        eventLogService.logAction(
+                membership.getUser().getUserId(),
+                membership.getUser().getFullName(),
+                null,
+                null,
+                UserActionEnum.LEAVE_CLUB,
+                "User left club " + membership.getClub().getName()
+        );
         return "Member " + receiverName + " has been removed from " + clubName + " by " + kickerName;
     }
 }
