@@ -35,8 +35,7 @@ public class UserServiceImpl implements UserService {
 
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
-        List<Membership> memberships = membershipRepo.findByUser_UserId(u.getUserId());
-
+        List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(u.getUserId());
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
                 .map(m -> new UserResponse.ClubInfo(
                         m.getClub().getClubId(),
@@ -221,13 +220,15 @@ public class UserServiceImpl implements UserService {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
+        List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(user.getUserId());
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
                 .map(m -> new UserResponse.ClubInfo(
                         m.getClub().getClubId(),
                         m.getClub().getName()
                 ))
                 .toList();
+
+
 
         WalletResponse wallet = mapWallet(user);
 

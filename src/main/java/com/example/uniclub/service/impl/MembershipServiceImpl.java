@@ -59,7 +59,7 @@ public class MembershipServiceImpl implements MembershipService {
     private void validateMajorPolicy(User user) {
         Major major = user.getMajor();
         if (major == null) {
-            log.warn("⚠️ User {} has no major assigned, skipping policy validation", user.getEmail());
+            log.warn("User {} has no major assigned, skipping policy validation", user.getEmail());
             return;
         }
 
@@ -71,7 +71,7 @@ public class MembershipServiceImpl implements MembershipService {
                 .orElse(null);
 
         if (policy == null) {
-            log.info("ℹ️ Major {} has no active policy, skipping limit check", major.getName());
+            log.info("Major {} has no active policy, skipping limit check", major.getName());
             return;
         }
 
@@ -88,11 +88,12 @@ public class MembershipServiceImpl implements MembershipService {
     // ========================== 🔹 1. Basic Membership Operations ==========================
     @Override
     public List<MembershipResponse> getMyMemberships(Long userId) {
-        return membershipRepo.findByUser_UserId(userId)
+        return membershipRepo.findActiveMembershipsByUserId(userId)
                 .stream()
                 .map(this::toResp)
                 .toList();
     }
+
 
     @Override
     public boolean isMemberOfClub(Long userId, Long clubId) {
@@ -107,52 +108,38 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // ✅ Check for existing membership
-        Optional<Membership> existing = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
-        if (existing.isPresent()) {
-            Membership old = existing.get();
-            if (old.getState() == MembershipStateEnum.KICKED ||
-                    old.getState() == MembershipStateEnum.INACTIVE ||
-                    old.getState() == MembershipStateEnum.REJECTED) {
-                old.setState(MembershipStateEnum.PENDING);
-                old.setJoinedDate(LocalDate.now());
-                membershipRepo.save(old);
-                return toResp(old);
-            } else {
-                throw new ApiException(HttpStatus.CONFLICT, "You have already applied or are a current member of this club");
+        // ✅ Check if membership exists
+        Optional<Membership> existingOpt = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
+
+        if (existingOpt.isPresent()) {
+            Membership existing = existingOpt.get();
+            MembershipStateEnum state = existing.getState();
+
+            switch (state) {
+                // ❌ Nếu đang hoạt động hoặc đang chờ duyệt — không được apply lại
+                case ACTIVE, APPROVED, PENDING -> {
+                    throw new ApiException(HttpStatus.CONFLICT, "You are already a member or have a pending request.");
+                }
+
+                // ✅ Nếu bị kick / inactive / rejected → cho phép reapply
+                case KICKED, INACTIVE, REJECTED -> {
+                    existing.setState(MembershipStateEnum.PENDING);
+                    existing.setJoinedDate(LocalDate.now());
+                    existing.setEndDate(null);
+                    existing.setClubRole(ClubRoleEnum.MEMBER);
+                    membershipRepo.save(existing);
+                    return toResp(existing);
+                }
+
+                default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Unexpected membership state: " + state);
             }
         }
 
-        // ⚖️ Check Major Policy limit
-        Major major = user.getMajor();
-        if (major == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "User has no major assigned");
-        }
-
-        // 🔍 Retrieve first active policy
-        MajorPolicy policy = major.getPolicies()
-                .stream()
-                .filter(MajorPolicy::isActive)
-                .findFirst()
-                .orElse(null);
-
-        if (policy == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND,
-                    "No active policy found for this major (" + major.getName() + ")");
-        }
-
-        // 📊 Count clubs (ACTIVE + PENDING)
-        int joinedCount = membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.ACTIVE)
-                + membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.PENDING);
-
-        if (joinedCount >= policy.getMaxClubJoin()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    String.format("You have reached the club limit for your major (%s). Maximum allowed: %d",
-                            major.getName(), policy.getMaxClubJoin()));
-        }
+        // ⚖️ Check major policy limit
+        validateMajorPolicy(user);
 
         // ✅ Create new membership
-        Membership m = Membership.builder()
+        Membership newMembership = Membership.builder()
                 .user(user)
                 .club(club)
                 .clubRole(ClubRoleEnum.MEMBER)
@@ -160,9 +147,10 @@ public class MembershipServiceImpl implements MembershipService {
                 .joinedDate(LocalDate.now())
                 .build();
 
-        membershipRepo.save(m);
-        return toResp(m);
+        membershipRepo.save(newMembership);
+        return toResp(newMembership);
     }
+
 
     // ========================== 🔹 2. Membership Approval Management ==========================
     @Override

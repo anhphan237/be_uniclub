@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.*;
 @Tag(
         name = "Reward Email Test",
         description = """
-        🧪 **Reward Test API** – Kiểm thử gửi email tự động trong hệ thống UniClub.<br>
+         **Reward Test API** – Kiểm thử gửi email tự động trong hệ thống UniClub.<br>
         Các API này chỉ dùng nội bộ cho mục đích kiểm thử email từ **RewardService**:<br>
         - Gửi email khi thành viên **check-in sự kiện**.<br>
         - Gửi email **thưởng điểm thủ công**.<br>
         - Gửi email khi đạt **mốc điểm thưởng (milestone)**.<br><br>
-        ⚠️ Dành cho môi trường DEV/TEST — không nên sử dụng trong production.
+         Dành cho môi trường DEV/TEST — không nên sử dụng trong production.
         """
 )
 @SecurityRequirement(name = "bearerAuth")

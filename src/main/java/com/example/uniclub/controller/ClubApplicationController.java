@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @Tag(
-        name = "📋 Club Application Management",
+        name = "Club Application Management",
         description = """
         Quản lý đơn ứng tuyển thành lập CLB tại trường:
         - Sinh viên nộp đơn thành lập CLB

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Tag(
-        name = "💳 Club Card Management",
+        name = "Club Card Management",
         description = """
         Quản lý thẻ nhận diện (Card) của CLB, bao gồm:
         - Tạo hoặc cập nhật thẻ cho CLB

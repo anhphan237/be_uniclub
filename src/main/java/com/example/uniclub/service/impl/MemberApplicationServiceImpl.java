@@ -12,6 +12,7 @@ import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MemberApplicationService;
 import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MemberApplicationServiceImpl implements MemberApplicationService {
@@ -36,22 +37,40 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     @Override
     @Transactional
     public MemberApplicationResponse createByEmail(String email, MemberApplicationCreateRequest req) {
+        // 🔹 1. Tìm user và club
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
         Club club = clubRepo.findById(req.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        if (membershipRepo.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId())) {
+        // 🔹 2. Kiểm tra xem user có đang là thành viên hợp lệ không
+        List<MembershipStateEnum> blockedStates = List.of(
+                MembershipStateEnum.ACTIVE,
+                MembershipStateEnum.APPROVED,
+                MembershipStateEnum.PENDING
+        );
+
+        boolean isAlreadyMember = membershipRepo.existsByUser_UserIdAndClub_ClubIdAndStateIn(
+                user.getUserId(),
+                club.getClubId(),
+                blockedStates
+        );
+
+        if (isAlreadyMember) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You are already a member of this club");
         }
 
-        boolean duplicate = appRepo.findAll().stream()
+        // 🔹 3. Kiểm tra trùng đơn ứng tuyển đang pending
+        boolean hasPendingApplication = appRepo.findAll().stream()
                 .anyMatch(a -> a.getApplicant().getUserId().equals(user.getUserId())
                         && a.getClub().getClubId().equals(req.getClubId())
                         && a.getStatus() == MemberApplicationStatusEnum.PENDING);
-        if (duplicate)
-            throw new ApiException(HttpStatus.CONFLICT, "You already have a pending application for this club");
 
+        if (hasPendingApplication) {
+            throw new ApiException(HttpStatus.CONFLICT, "You already have a pending application for this club");
+        }
+
+        // 🔹 4. Tạo đơn ứng tuyển mới
         MemberApplication app = MemberApplication.builder()
                 .club(club)
                 .applicant(user)
@@ -61,9 +80,17 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 .build();
 
         MemberApplication saved = appRepo.save(app);
-        notificationService.sendApplicationSubmitted(user.getEmail(), club.getName());
+
+        // 🔹 5. Gửi email thông báo
+        try {
+            notificationService.sendApplicationSubmitted(user.getEmail(), club.getName());
+        } catch (Exception e) {
+            log.warn("Failed to send application notification email to {}", user.getEmail(), e);
+        }
+
         return mapToResponse(saved);
     }
+
 
     // ✅ Leader / Admin update status
     @Override

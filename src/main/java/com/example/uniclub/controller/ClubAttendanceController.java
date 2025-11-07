@@ -19,7 +19,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 @Tag(
-        name = "🗓️ Club Attendance Management",
+        name = "Club Attendance Management",
         description = """
         Quản lý điểm danh câu lạc bộ (CLB) bao gồm:
         - Tạo buổi điểm danh (session)

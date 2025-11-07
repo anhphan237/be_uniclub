@@ -12,7 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(
-        name = "🤝 Event Co-Host Management",
+        name = "Event Co-Host Management",
         description = """
         Quản lý mối quan hệ đồng tổ chức (Co-Host) giữa các CLB trong sự kiện.<br>
         Bao gồm: cập nhật trạng thái đồng tổ chức (PENDING, APPROVED, REJECTED)

@@ -76,6 +76,8 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
             Long clubId,
             List<MembershipStateEnum> states
     );
+    @Query("SELECT m FROM Membership m WHERE m.user.userId = :userId AND m.state IN ('ACTIVE', 'APPROVED')")
+    List<Membership> findActiveMembershipsByUserId(@Param("userId") Long userId);
 
 
 }

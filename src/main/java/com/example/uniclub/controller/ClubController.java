@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Tag(
-        name = "🏫 Club Management (CLUB / ADMIN / STAFF)",
+        name = "Club Management (CLUB / ADMIN / STAFF)",
         description = """
         Quản lý thông tin các câu lạc bộ (CLB) bao gồm:
         - Tạo mới, xem chi tiết, thống kê, xóa CLB

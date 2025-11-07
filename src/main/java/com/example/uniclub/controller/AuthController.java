@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 @Tag(
-        name = "🔐 Authentication & Account Management",
+        name = "Authentication & Account Management",
         description = """
         Quản lý đăng nhập và bảo mật người dùng:
         - Đăng nhập / Đăng ký tài khoản

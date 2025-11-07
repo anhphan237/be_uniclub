@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Tag(
-        name = "🎁 Redeem & Order Management",
+        name = "Redeem & Order Management",
         description = """
         Quản lý quá trình đổi quà / đặt hàng sản phẩm:
         - Sinh viên đổi quà từ kho CLB hoặc sự kiện
