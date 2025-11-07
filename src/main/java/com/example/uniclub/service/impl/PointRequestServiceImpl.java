@@ -83,7 +83,7 @@ public class PointRequestServiceImpl implements PointRequestService {
             );
         }
 
-        return approve ? "✅ Request approved & points granted." : "❌ Request rejected.";
+        return approve ? " Request approved & points granted." : " Request rejected.";
     }
 
 

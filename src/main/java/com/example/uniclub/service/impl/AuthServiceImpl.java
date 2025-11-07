@@ -185,11 +185,11 @@ public class AuthServiceImpl {
                 Reset Password</a><br><br>
                 This link will expire in 15 minutes.<br><br>
                 Best regards,<br>
-                <b>UniClub Vietnam</b> 💌
+                <b>UniClub Vietnam</b> 
                 """.formatted(user.getFullName() != null ? user.getFullName() : "there", resetLink);
 
         emailService.sendEmail(email, subject, content);
-        System.out.println("✅ Sent reset password email to " + email + " with token=" + token);
+        System.out.println("Sent reset password email to " + email + " with token=" + token);
     }
 
     // ==============================================
@@ -214,6 +214,6 @@ public class AuthServiceImpl {
         userRepository.save(user);
         tokenRepository.delete(resetToken);
 
-        System.out.println("✅ Password reset successfully for user: " + user.getEmail());
+        System.out.println("Password reset successfully for user: " + user.getEmail());
     }
 }

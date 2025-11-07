@@ -32,7 +32,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final EmailService emailService;
     private final MajorPolicyRepository majorPolicyRepository;
 
-    // ========================== 🔹 Helper Mapping ==========================
+    // ========================== 🔹 Helper: Mapping ==========================
     private MembershipResponse toResp(Membership m) {
         User u = m.getUser();
         Club c = m.getClub();
@@ -55,15 +55,15 @@ public class MembershipServiceImpl implements MembershipService {
                 .build();
     }
 
-    // ========================== 🔹 Helper: Kiểm tra chính sách ngành ==========================
+    // ========================== 🔹 Helper: Validate Major Policy ==========================
     private void validateMajorPolicy(User user) {
         Major major = user.getMajor();
         if (major == null) {
-            log.warn("⚠️ User {} chưa có major, bỏ qua kiểm tra policy", user.getEmail());
+            log.warn("⚠️ User {} has no major assigned, skipping policy validation", user.getEmail());
             return;
         }
 
-        // 🔍 Lấy policy active đầu tiên của ngành (nếu có)
+        // 🔍 Retrieve first active policy for this major (if any)
         MajorPolicy policy = major.getPolicies()
                 .stream()
                 .filter(MajorPolicy::isActive)
@@ -71,21 +71,21 @@ public class MembershipServiceImpl implements MembershipService {
                 .orElse(null);
 
         if (policy == null) {
-            log.info("ℹ️ Major {} chưa có policy active, bỏ qua giới hạn", major.getName());
+            log.info("ℹ️ Major {} has no active policy, skipping limit check", major.getName());
             return;
         }
 
-        // 📊 Đếm số CLB đang ACTIVE
+        // 📊 Count ACTIVE club memberships
         int joinedCount = membershipRepo.countByUser_UserIdAndState(user.getUserId(), MembershipStateEnum.ACTIVE);
 
         if (joinedCount >= policy.getMaxClubJoin()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Bạn đã đạt giới hạn số CLB có thể tham gia (" + policy.getMaxClubJoin() +
-                            ") cho chuyên ngành " + major.getName());
+                    "You have reached the maximum number of clubs allowed (" + policy.getMaxClubJoin() +
+                            ") for your major " + major.getName());
         }
     }
 
-    // ========================== 🔹 1. Membership cơ bản ==========================
+    // ========================== 🔹 1. Basic Membership Operations ==========================
     @Override
     public List<MembershipResponse> getMyMemberships(Long userId) {
         return membershipRepo.findByUser_UserId(userId)
@@ -107,7 +107,7 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // ✅ Kiểm tra membership cũ
+        // ✅ Check for existing membership
         Optional<Membership> existing = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
         if (existing.isPresent()) {
             Membership old = existing.get();
@@ -119,17 +119,17 @@ public class MembershipServiceImpl implements MembershipService {
                 membershipRepo.save(old);
                 return toResp(old);
             } else {
-                throw new ApiException(HttpStatus.CONFLICT, "Already applied or member of this club");
+                throw new ApiException(HttpStatus.CONFLICT, "You have already applied or are a current member of this club");
             }
         }
 
-        // ⚖️ Kiểm tra giới hạn Major Policy
+        // ⚖️ Check Major Policy limit
         Major major = user.getMajor();
         if (major == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "User has no major assigned");
         }
 
-        // 🔍 Lấy policy active đầu tiên
+        // 🔍 Retrieve first active policy
         MajorPolicy policy = major.getPolicies()
                 .stream()
                 .filter(MajorPolicy::isActive)
@@ -141,17 +141,17 @@ public class MembershipServiceImpl implements MembershipService {
                     "No active policy found for this major (" + major.getName() + ")");
         }
 
-        // 📊 Đếm số CLB user đang tham gia (ACTIVE + PENDING)
+        // 📊 Count clubs (ACTIVE + PENDING)
         int joinedCount = membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.ACTIVE)
                 + membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.PENDING);
 
         if (joinedCount >= policy.getMaxClubJoin()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    String.format("You have reached the club limit for your major (%s). Max allowed: %d",
+                    String.format("You have reached the club limit for your major (%s). Maximum allowed: %d",
                             major.getName(), policy.getMaxClubJoin()));
         }
 
-        // ✅ Cho phép apply mới
+        // ✅ Create new membership
         Membership m = Membership.builder()
                 .user(user)
                 .club(club)
@@ -164,14 +164,13 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(m);
     }
 
-    // ========================== 🔹 2. Quản lý đơn duyệt ==========================
+    // ========================== 🔹 2. Membership Approval Management ==========================
     @Override
     @Transactional
     public MembershipResponse approveMember(Long membershipId, Long approverId) {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        // ✅ Kiểm tra policy lần nữa khi approve
         validateMajorPolicy(m.getUser());
 
         m.setState(MembershipStateEnum.ACTIVE);
@@ -201,7 +200,7 @@ public class MembershipServiceImpl implements MembershipService {
         clubService.updateMemberCount(m.getClub().getClubId());
     }
 
-    // ========================== 🔹 3. Quản lý vai trò ==========================
+    // ========================== 🔹 3. Role Management ==========================
     @Override
     public MembershipResponse updateClubRole(Long membershipId, ClubRoleEnum newRole, Long approverId) {
         Membership membership = membershipRepo.findById(membershipId)
@@ -212,16 +211,16 @@ public class MembershipServiceImpl implements MembershipService {
         switch (newRole) {
             case LEADER -> {
                 if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.LEADER))
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có 1 Chủ nhiệm");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Each club can have only one Leader");
             }
             case VICE_LEADER -> {
                 if (membershipRepo.existsByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.VICE_LEADER))
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có 1 Phó chủ nhiệm");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Each club can have only one Vice Leader");
             }
             case STAFF -> {
                 long count = membershipRepo.countByClub_ClubIdAndClubRole(clubId, ClubRoleEnum.STAFF);
                 if (count >= 5)
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Mỗi CLB chỉ có tối đa 5 staff");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Each club can have a maximum of 5 staff members");
             }
             default -> {}
         }
@@ -231,7 +230,7 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(membership);
     }
 
-    // ========================== 🔹 4. Lấy danh sách theo CLB ==========================
+    // ========================== 🔹 4. Member Queries ==========================
     @Override
     public List<MembershipResponse> getMembersByClub(Long clubId) {
         return membershipRepo.findByClub_ClubIdAndState(clubId, MembershipStateEnum.ACTIVE)
@@ -299,16 +298,16 @@ public class MembershipServiceImpl implements MembershipService {
 
         if (!(actorMembership.getClubRole() == ClubRoleEnum.LEADER
                 || actorMembership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can kick members");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Leader or Vice Leader can remove members");
         }
 
         if (Objects.equals(membership.getUser().getUserId(), principal.getUser().getUserId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot kick yourself");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove yourself");
         }
 
         if (membership.getClubRole() == ClubRoleEnum.LEADER
                 || membership.getClubRole() == ClubRoleEnum.VICE_LEADER) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot kick the Club Leader or Vice Leader");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove the Club Leader or Vice Leader");
         }
 
         membership.setState(MembershipStateEnum.KICKED);
@@ -323,16 +322,16 @@ public class MembershipServiceImpl implements MembershipService {
         String body = """
         <p>Dear %s,</p>
         <p>You have been <b>removed</b> from the club <b>%s</b> by <b>%s</b>.</p>
-        <p>If you believe this was a mistake, please reach out to your Club Leader or University Staff.</p>
+        <p>If you believe this was a mistake, please contact your Club Leader or University Staff.</p>
         <br><p>Best regards,<br>%s<br>%s Club<br>UniClub Platform</p>
         """.formatted(receiverName, clubName, kickerName, kickerName, clubName);
 
         try {
             emailService.sendEmail(membership.getUser().getEmail(), subject, body);
         } catch (Exception e) {
-            log.warn("⚠️ Failed to send email to {}", membership.getUser().getEmail());
+            log.warn("⚠Failed to send email to {}", membership.getUser().getEmail());
         }
 
-        return "👢 Member " + receiverName + " has been kicked from " + clubName + " by " + kickerName;
+        return "Member " + receiverName + " has been removed from " + clubName + " by " + kickerName;
     }
 }

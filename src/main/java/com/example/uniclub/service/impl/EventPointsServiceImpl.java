@@ -80,7 +80,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .build();
         regRepo.save(reg);
 
-        return "✅ Registered successfully. " + commitPoints + " points locked for commitment.";
+        return "Registered successfully. " + commitPoints + " points locked for commitment.";
     }
 
     // =========================================================
@@ -126,7 +126,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not registered for this event"));
 
         if (reg.getStatus() == RegistrationStatusEnum.CANCELED)
-            return "ℹ️ Already canceled.";
+            return " Already canceled.";
 
         Membership membership = membershipRepo
                 .findByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
@@ -143,7 +143,7 @@ public class EventPointsServiceImpl implements EventPointsService {
         reg.setCanceledAt(LocalDateTime.now());
         regRepo.save(reg);
 
-        return "❌ Registration canceled. " + refund + " points refunded.";
+        return " Registration canceled. " + refund + " points refunded.";
     }
 
     // =========================================================
@@ -217,7 +217,7 @@ public class EventPointsServiceImpl implements EventPointsService {
         eventWallet.setActive(false);
         walletRepo.save(eventWallet);
 
-        return "🏁 Event completed. Total reward " + totalReward + " pts (multiplied); leftover returned.";
+        return "Event completed. Total reward " + totalReward + " pts (multiplied); leftover returned.";
     }
 
     // =========================================================

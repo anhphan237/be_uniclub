@@ -106,14 +106,14 @@ public class UserServiceImpl implements UserService {
         try {
             emailService.sendEmail(
                     req.email(),
-                    "Welcome to UniClub 🎉",
+                    "Welcome to UniClub ",
                     String.format(
                             "Hi %s,<br><br>Welcome to UniClub!<br>Your account has been successfully created.<br><br>Best regards,<br>UniClub Team 💌",
                             req.fullName()
                     )
             );
         } catch (Exception e) {
-            System.err.println("⚠️ Failed to send welcome email: " + e.getMessage());
+            System.err.println(" Failed to send welcome email: " + e.getMessage());
         }
 
         return toResp(user);
@@ -188,7 +188,7 @@ public class UserServiceImpl implements UserService {
         emailService.sendEmail(
                 user.getEmail(),
                 "Your UniClub password has been reset",
-                String.format("Hi %s,<br><br>Your password has been reset.<br>— UniClub Support 💬", user.getFullName())
+                String.format("Hi %s,<br><br>Your password has been reset.<br>— UniClub Support ", user.getFullName())
         );
     }
 
@@ -219,7 +219,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse getProfileResponse(String email) {
         User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy người dùng."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
         List<Membership> memberships = membershipRepo.findByUser_UserId(user.getUserId());
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()

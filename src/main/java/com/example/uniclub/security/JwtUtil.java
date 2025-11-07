@@ -30,20 +30,20 @@ public class JwtUtil {
             @Value("${app.jwt.expiration-ms:86400000}") long expirationMs) {
 
         if (secret == null || secret.trim().isEmpty()) {
-            throw new IllegalArgumentException("❌ app.jwt.secret is missing in application.properties");
+            throw new IllegalArgumentException("app.jwt.secret is missing in application.properties");
         }
 
         Key tempKey;
         try {
             tempKey = Keys.hmacShaKeyFor(secret.getBytes());
         } catch (WeakKeyException e) {
-            throw new IllegalArgumentException("❌ JWT secret key must be at least 32 characters long (256 bits)");
+            throw new IllegalArgumentException("JWT secret key must be at least 32 characters long (256 bits)");
         }
 
         this.key = tempKey;
         this.expirationMs = expirationMs;
 
-        logger.info("✅ JwtUtil initialized successfully. Expiration(ms): " + expirationMs);
+        logger.info("JwtUtil initialized successfully. Expiration(ms): " + expirationMs);
     }
 
     // 🔹 Sinh token JWT
@@ -65,7 +65,7 @@ public class JwtUtil {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             return true;
         } catch (JwtException e) {
-            logger.warning("⚠️ JWT validation failed: " + e.getMessage());
+            logger.warning("JWT validation failed: " + e.getMessage());
             return false;
         }
     }

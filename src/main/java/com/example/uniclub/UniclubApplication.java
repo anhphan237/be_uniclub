@@ -12,6 +12,6 @@ public class UniclubApplication {
     public static void main(String[] args) {
         SpringApplication.run(UniclubApplication.class, args);
         TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-        System.out.println("🚀 UniClub Backend is running with Scheduler enabled!");
+        System.out.println("UniClub Backend is running with Scheduler enabled!");
     }
 }

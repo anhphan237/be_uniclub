@@ -111,6 +111,6 @@ public class ClubServiceImpl implements ClubService {
         club.setMemberCount(total);
         clubRepo.saveAndFlush(club);
 
-        System.out.println("🔁 Updated member_count for club " + clubId + " = " + total);
+        System.out.println("Updated member_count for club " + clubId + " = " + total);
     }
 }

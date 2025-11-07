@@ -15,8 +15,8 @@ public class ProductTagAutoScheduler {
 
     @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Ho_Chi_Minh")
     public void runAutoTagUpdate() {
-        log.info("🔁 [Scheduler] Starting auto-tag update for Products...");
+        log.info("[Scheduler] Starting auto-tag update for Products...");
         productTagAutoService.updateDynamicTags();
-        log.info("✅ [Scheduler] Auto-tag update completed successfully.");
+        log.info("[Scheduler] Auto-tag update completed successfully.");
     }
 }

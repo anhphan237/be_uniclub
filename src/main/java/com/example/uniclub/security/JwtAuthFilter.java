@@ -35,8 +35,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                     var userDetails = userDetailsService.loadUserByUsername(email);
-                    System.out.println("🔹 Authenticated email: " + email);
-                    System.out.println("🔹 Authorities: " + userDetails.getAuthorities());
+                    System.out.println("Authenticated email: " + email);
+                    System.out.println("Authorities: " + userDetails.getAuthorities());
 
                     var authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
@@ -44,7 +44,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             } catch (Exception ex) {
-                System.out.println("❌ JWT Error: " + ex.getMessage());
+                System.out.println("JWT Error: " + ex.getMessage());
             }
         }
 

@@ -25,20 +25,18 @@ public class EventCoClubServiceImpl implements EventCoClubService {
     @Override
     @Transactional
     public void updateStatus(Long eventId, Long clubId, EventCoHostStatusEnum newStatus) {
-        // 1️⃣ Tìm mối quan hệ giữa event và club
-        EventCoClub relation = eventCoClubRepository.findByEvent_EventIdAndClub_ClubId(eventId, clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy mối quan hệ đồng tổ chức"));
 
-        // 2️⃣ Kiểm tra trạng thái hiện tại
+        EventCoClub relation = eventCoClubRepository.findByEvent_EventIdAndClub_ClubId(eventId, clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Co-host relationship not found"));
+
+
         if (relation.getStatus() == newStatus) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Trạng thái đã là " + newStatus);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Status is already " + newStatus);
         }
 
-        // 3️⃣ Cập nhật trạng thái mới
         relation.setStatus(newStatus);
         eventCoClubRepository.save(relation);
 
-        // 4️⃣ Nếu tất cả cohost đều APPROVED → event chuyển sang READY
         if (newStatus == EventCoHostStatusEnum.APPROVED) {
             Event event = relation.getEvent();
             List<EventCoClub> allRelations = eventCoClubRepository.findAllByEvent_EventId(eventId);

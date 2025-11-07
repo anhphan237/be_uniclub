@@ -30,7 +30,7 @@ public class LocationServiceImpl implements LocationService {
     @Override
     public LocationResponse create(LocationCreateRequest req) {
         if (locationRepo.existsByName(req.name()))
-            throw new ApiException(HttpStatus.CONFLICT, "Địa điểm đã tồn tại");
+            throw new ApiException(HttpStatus.CONFLICT, "Location already exists.");
         Location l = Location.builder()
                 .name(req.name())
                 .address(req.address())
@@ -43,7 +43,7 @@ public class LocationServiceImpl implements LocationService {
     public LocationResponse get(Long id) {
         return locationRepo.findById(id)
                 .map(this::toResp)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy địa điểm"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Location not found."));
     }
 
     @Override
@@ -54,7 +54,7 @@ public class LocationServiceImpl implements LocationService {
     @Override
     public void delete(Long id) {
         if (!locationRepo.existsById(id))
-            throw new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy địa điểm");
+            throw new ApiException(HttpStatus.NOT_FOUND, "Location not found.");
         locationRepo.deleteById(id);
     }
 }

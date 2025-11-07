@@ -89,44 +89,44 @@ public class EventServiceImpl implements EventService {
     public EventResponse create(EventCreateRequest req) {
         LocalDate today = LocalDate.now();
 
-        // ✅ 1. Kiểm tra ngày không ở quá khứ
+        // ✅ 1. Validate date is not in the past
         if (req.date().isBefore(today))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ngày sự kiện không được ở quá khứ.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event date cannot be in the past.");
 
-        // ✅ 2. Kiểm tra giờ bắt đầu - kết thúc
+        // ✅ 2. Validate start and end times
         if (req.startTime() != null && req.endTime() != null && req.endTime().isBefore(req.startTime()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Thời gian kết thúc phải sau thời gian bắt đầu.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time.");
 
-        // ✅ 3. Kiểm tra nếu sự kiện trong hôm nay mà giờ bắt đầu < hiện tại
+        // ✅ 3. If the event is today, start time must be after current time
         if (req.date().isEqual(today) && req.startTime() != null && req.startTime().isBefore(LocalTime.now()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Giờ bắt đầu phải sau thời điểm hiện tại.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Start time must be after the current time.");
 
         // ✅ 4. Validate location
         Location location = locationRepo.findById(req.locationId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Địa điểm không tồn tại."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Location not found."));
 
         if (req.maxCheckInCount() != null && req.maxCheckInCount() > location.getCapacity())
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Địa điểm chỉ chứa tối đa " + location.getCapacity() + " người.");
+                    "This location can only accommodate up to " + location.getCapacity() + " people.");
 
         // ✅ 5. Validate host club
         Club hostClub = clubRepo.findById(req.hostClubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CLB tổ chức không tồn tại."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club not found."));
 
-        // ✅ 6. Validate co-hosts
+        // ✅ 6. Validate co-host clubs
         List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
 
-        // ✅ 7. Validate ngân sách
+        // ✅ 7. Validate budget
         if (req.budgetPoints() == null || req.budgetPoints() <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ngân sách phải lớn hơn 0.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Budget must be greater than 0.");
 
-        // ✅ 8. Validate điểm cam kết
+        // ✅ 8. Validate commitment points
         if (req.commitPointCost() != null && req.commitPointCost() < 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Điểm cam kết không hợp lệ.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid commitment points value.");
 
-        // ✅ 9. Tạo sự kiện
+    // ✅ 9. Tạo sự kiện
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -177,55 +177,55 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted) {
-        // 🔹 1. Lấy event
+        // 🔹 1. Retrieve the event
         Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event could not be found."));
 
-        // 🔹 DEBUG log đầu tiên
+        // 🔹 DEBUG: Initial log
         log.info("DEBUG >>> userId={}, role=LEADER, state=ACTIVE", principal.getUser().getUserId());
 
         Long userId = principal.getUser().getUserId();
 
-        // 🔹 2. Tìm membership của user có vai trò LEADER và đang ACTIVE
+        // 🔹 2. Find the membership where user is an ACTIVE LEADER
         Membership leaderMembership = membershipRepo
                 .findByUser_UserIdAndClubRoleAndState(
                         userId,
                         ClubRoleEnum.LEADER,
                         MembershipStateEnum.ACTIVE
                 )
-                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "Bạn không phải là Leader hợp lệ của CLB nào."));
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a valid leader of any club."));
 
-        // 🔹 DEBUG log: xác nhận membership
+        // 🔹 DEBUG: Confirm membership
         log.info("DEBUG >>> LeaderMembership found: clubId={}", leaderMembership.getClub().getClubId());
 
         Club coClub = leaderMembership.getClub();
 
-        // 🔹 DEBUG log: danh sách CLB đồng tổ chức trong event
+        // 🔹 DEBUG: List of co-host clubs in this event
         log.info("DEBUG >>> Event {} coHostRelations: {}", eventId,
                 event.getCoHostRelations().stream().map(r -> r.getClub().getClubId()).toList());
 
-        // 🔹 3. Kiểm tra CLB này có thật sự là Co-host của event hay không
+        // 🔹 3. Check if this club is actually a co-host of the event
         boolean isCoHost = event.getCoHostRelations().stream()
                 .anyMatch(r -> Objects.equals(r.getClub().getClubId(), coClub.getClubId()));
 
         if (!isCoHost) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Bạn không phải là Co-host của sự kiện này.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "You are not a co-host of this event.");
         }
 
-        // 🔹 4. Lấy quan hệ EventCoClub cụ thể
+        // 🔹 4. Retrieve the specific EventCoClub relation
         EventCoClub relation = event.getCoHostRelations().stream()
                 .filter(r -> Objects.equals(r.getClub().getClubId(), coClub.getClubId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Không tìm thấy quan hệ Co-host."));
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Co-host relationship not found."));
 
-        // 🔹 5. Cập nhật trạng thái phản hồi
+        // 🔹 5. Update response status
         relation.setStatus(accepted ? EventCoHostStatusEnum.APPROVED : EventCoHostStatusEnum.REJECTED);
         relation.setRespondedAt(LocalDateTime.now());
 
-        // 🔹 6. Log debug kết quả phản hồi
+        // 🔹 6. Log debug response result
         log.info("CoHostRespond >>> eventId={}, coClub={}, accepted={}", eventId, coClub.getName(), accepted);
 
-        // 🔹 7. Xử lý trạng thái sự kiện
+        // 🔹 7. Handle event status after response
         long approved = event.getCoHostRelations().stream()
                 .filter(r -> r.getStatus() == EventCoHostStatusEnum.APPROVED).count();
         long rejected = event.getCoHostRelations().stream()
@@ -236,34 +236,35 @@ public class EventServiceImpl implements EventService {
             event.setStatus(EventStatusEnum.REJECTED);
             eventRepo.save(event);
             notificationService.notifyHostEventRejectedByCoHost(event, coClub);
-            return "❌ Co-host duy nhất '" + coClub.getName() + "' đã từ chối. Sự kiện bị hủy.";
+            return "The only co-host '" + coClub.getName() + "' has rejected. The event has been cancelled.";
         }
 
         if (approved > 0 && (approved + rejected == total)) {
             event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
 
-            // ✅ Giữ orphanRemoval, chỉ loại bỏ những cohost chưa approved thay vì replace list
+            // ✅ Keep orphanRemoval; only remove unapproved co-hosts instead of replacing the list
             event.getCoHostRelations().removeIf(r -> r.getStatus() != EventCoHostStatusEnum.APPROVED);
 
             eventRepo.save(event);
             notificationService.notifyUniStaffReadyForReview(event);
-            return "✅ Một số Co-host đã đồng ý. Sự kiện được gửi lên UniStaff duyệt.";
+            return "Some co-hosts have approved. The event has been submitted for UniStaff review.";
         }
 
         if (approved + rejected < total)
             return accepted
-                    ? "✅ Co-host '" + coClub.getName() + "' đã đồng ý. Chờ các Co-host khác phản hồi."
-                    : "❌ Co-host '" + coClub.getName() + "' đã từ chối. Chờ các Co-host khác phản hồi.";
+                    ? "Co-host '" + coClub.getName() + "' has approved. Waiting for other co-hosts to respond."
+                    : "Co-host '" + coClub.getName() + "' has rejected. Waiting for other co-hosts to respond.";
 
         if (approved == total) {
             event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
             eventRepo.save(event);
             notificationService.notifyUniStaffReadyForReview(event);
-            return "✅ Tất cả Co-host đã đồng ý. Sự kiện chuyển sang chờ UniStaff duyệt.";
+            return "All co-hosts have approved. The event is now pending UniStaff review.";
         }
 
-        return "Phản hồi Co-host đã được ghi nhận.";
+        return "Co-host response has been recorded.";
     }
+
 
 
     // =================================================================
@@ -273,7 +274,7 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public String finishEvent(Long eventId, CustomUserDetails principal) {
         Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
         var user = principal.getUser();
         boolean isUniStaff = user.getRole().getRoleName().equals("UNIVERSITY_STAFF");
@@ -284,25 +285,26 @@ public class EventServiceImpl implements EventService {
         );
 
         if (!isUniStaff && !isLeader)
-            throw new ApiException(HttpStatus.FORBIDDEN, "Bạn không có quyền kết thúc sự kiện này.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to finish this event.");
 
         if (!List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING).contains(event.getStatus()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Chỉ có thể kết thúc sự kiện đã duyệt hoặc đang diễn ra.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only approved or ongoing events can be finished.");
 
         event.setStatus(EventStatusEnum.COMPLETED);
         eventRepo.save(event);
-        return "🟣 Sự kiện '" + event.getName() + "' đã được đánh dấu là hoàn thành.";
+        return "🟣 The event '" + event.getName() + "' has been marked as completed.";
     }
 
     // =================================================================
-    // 🔹 TRA CỨU & LỌC
-    // =================================================================
+// 🔹 LOOKUP & FILTER
+// =================================================================
     @Override
     public EventResponse get(Long id) {
         return eventRepo.findById(id)
                 .map(this::mapToResponse)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
     }
+
 
     @Override
     public Page<EventResponse> list(Pageable pageable) {
@@ -326,7 +328,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse findByCheckInCode(String code) {
         Event event = eventRepo.findByCheckInCode(code)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Mã check-in không hợp lệ."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Invalid check-in code."));
         return mapToResponse(event);
     }
 
@@ -375,23 +377,23 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public EventResponse assignStaff(CustomUserDetails principal, Long eventId, Long membershipId, String duty) {
         Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
         Membership actor = membershipRepo.findByUser_UserIdAndClub_ClubId(
                 principal.getUser().getUserId(),
                 event.getHostClub().getClubId()
-        ).orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "Bạn không phải thành viên CLB này."));
+        ).orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
 
         if (!List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER).contains(actor.getClubRole()))
-            throw new ApiException(HttpStatus.FORBIDDEN, "Chỉ Leader hoặc Vice Leader có quyền gán Staff.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Leader or Vice Leader can assign staff members.");
 
         Membership target = membershipRepo.findById(membershipId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy thành viên."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Member not found."));
         if (!target.getClub().equals(event.getHostClub()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Thành viên không thuộc CLB tổ chức.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "The member does not belong to the hosting club.");
 
         if (eventStaffRepo.existsByEvent_EventIdAndMembership_MembershipId(eventId, membershipId))
-            throw new ApiException(HttpStatus.CONFLICT, "Thành viên đã được gán vào sự kiện.");
+            throw new ApiException(HttpStatus.CONFLICT, "The member has already been assigned to this event.");
 
         EventStaff staff = EventStaff.builder()
                 .event(event)
@@ -403,10 +405,11 @@ public class EventServiceImpl implements EventService {
         return mapToResponse(event);
     }
 
+
     @Override
     public List<EventStaffResponse> getEventStaffList(Long eventId) {
         Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
         return eventStaffRepo.findByEvent_EventId(eventId).stream()
                 .map(s -> EventStaffResponse.builder()
                         .id(s.getId())
@@ -426,8 +429,9 @@ public class EventServiceImpl implements EventService {
     @Override
     public Event getEntity(Long id) {
         return eventRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Không tìm thấy sự kiện."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
     }
+
 
     @Override
     @Transactional

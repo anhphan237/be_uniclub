@@ -65,6 +65,6 @@ public class MemberLevelScheduler {
         }
 
         membershipRepo.saveAll(members);
-        System.out.println("✅ Updated member levels & multipliers successfully!");
+        System.out.println("Updated member levels & multipliers successfully!");
     }
 }

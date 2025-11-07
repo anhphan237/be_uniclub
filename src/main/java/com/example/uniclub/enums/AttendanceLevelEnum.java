@@ -4,10 +4,11 @@ import lombok.Getter;
 
 @Getter
 public enum AttendanceLevelEnum {
-    NONE(0, "Chưa tham dự"),
-    HALF(1, "Tham dự 50% (Check-in + Check-mid)"),
-    FULL(2, "Tham dự 100% (Check-in + Check-mid + Check-out)"),
-    SUSPICIOUS(-1, "Nghi vấn gian lận (Check-in + Check-out, thiếu Check-mid)");
+    NONE(0, "Not attended"),
+    HALF(1, "Attended 50% (Check-in + Mid-check)"),
+    FULL(2, "Attended 100% (Check-in + Mid-check + Check-out)"),
+    SUSPICIOUS(-1, "Suspicious activity (Check-in + Check-out, missing Mid-check)");
+
 
     private final int factor;
     private final String description;

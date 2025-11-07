@@ -42,7 +42,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             String picture = oauthUser.getAttribute("picture");
 
             if (email == null) {
-                log.error("❌ OAuth2 login failed: missing email from Google profile");
+                log.error("OAuth2 login failed: missing email from Google profile");
                 response.sendRedirect(redirectFailUrl + "?error=missing_email");
                 return;
             }

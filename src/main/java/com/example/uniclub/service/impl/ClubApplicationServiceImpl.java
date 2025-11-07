@@ -91,13 +91,16 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
             app.setStatus(ClubApplicationStatusEnum.REJECTED);
             appRepo.save(app);
 
-            emailService.sendEmail(app.getProposer().getEmail(),
-                    "Đơn xin tạo CLB bị từ chối",
+            emailService.sendEmail(
+                    app.getProposer().getEmail(),
+                    "Club creation request rejected",
                     String.format("""
-                            Đơn xin thành lập CLB <b>%s</b> đã bị từ chối.<br>
-                            <b>Lý do:</b> %s<br><br>
-                            Vui lòng chỉnh sửa và nộp lại nếu cần thiết.
-                            """, app.getClubName(), req.rejectReason()));
+            The request to establish the club <b>%s</b> has been rejected.<br>
+            <b>Reason:</b> %s<br><br>
+            Please review and resubmit if necessary.
+            """, app.getClubName(), req.rejectReason())
+            );
+
 
             return ClubApplicationResponse.fromEntity(app);
         }
@@ -132,18 +135,21 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         appRepo.save(app);
 
         // 📧 Thông báo cho người nộp đơn
-        emailService.sendEmail(app.getProposer().getEmail(),
-                "Đơn xin tạo CLB đã được phê duyệt",
+        emailService.sendEmail(
+                app.getProposer().getEmail(),
+                "Club creation request approved",
                 String.format("""
-                        Xin chào <b>%s</b>,<br><br>
-                        Đơn xin tạo CLB <b>%s</b> của bạn đã được phê duyệt thành công 🎉<br><br>
-                        CLB đã được khởi tạo trong hệ thống UniClub.<br><br>
-                        <b>Lưu ý:</b><br>
-                        - Nhà trường sẽ tạo thủ công 2 tài khoản (Chủ nhiệm & Phó chủ nhiệm).<br>
-                        - Hai tài khoản này có domain <b>@uniclub.edu.vn</b> và sẽ được gửi cho bạn qua email khi sẵn sàng.<br><br>
-                        Trân trọng,<br>
-                        <b>UniClub System</b>
-                        """, app.getProposer().getFullName(), app.getClubName()));
+            Hello <b>%s</b>,<br><br>
+            Your club creation request for <b>%s</b> has been successfully approved <br><br>
+            The club has now been created in the UniClub system.<br><br>
+            <b>Note:</b><br>
+            - The school will manually create 2 accounts (President & Vice President).<br>
+            - These accounts will use the domain <b>@uniclub.edu.vn</b> and will be sent to you via email once ready.<br><br>
+            Best regards,<br>
+            <b>UniClub System</b>
+            """, app.getProposer().getFullName(), app.getClubName())
+        );
+
 
         return ClubApplicationResponse.fromEntity(app);
     }
@@ -212,25 +218,25 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         if (app != null && app.getProposer() != null) {
             User proposer = app.getProposer();
             try {
-                String subject = "[UniClub] CLB " + club.getName() + " của bạn đã được tạo hoàn tất 🎉";
+                String subject = "[UniClub] Your club " + club.getName() + " has been successfully created";
 
                 String content = String.format("""
-                        Xin chào %s,<br><br>
-                        CLB <b>%s</b> mà bạn đã đề xuất đã được UniStaff phê duyệt và hoàn tất việc tạo thành công! 🎉<br><br>
-                        Dưới đây là thông tin 2 tài khoản chính của CLB:<br><br>
-                        🔹 <b>Chủ nhiệm (Leader)</b><br>
-                        Họ tên: %s<br>
-                        Email: %s<br><br>
-                        🔹 <b>Phó chủ nhiệm (Vice Leader)</b><br>
-                        Họ tên: %s<br>
-                        Email: %s<br><br>
-                        Mật khẩu mặc định cho cả hai tài khoản: <b>%s</b><br><br>
-                        Hai người phụ trách CLB có thể đăng nhập tại:<br>
-                        <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a><br><br>
-                        Trạng thái đơn xin CLB của bạn hiện là: <b>COMPLETE ✅</b><br><br>
-                        Trân trọng,<br>
-                        <b>UniClub System</b> 💌
-                        """,
+                Hello %s,<br><br>
+                The club <b>%s</b> that you proposed has been approved by UniStaff and successfully created! 🎉<br><br>
+                Below are the details of your club’s two main accounts:<br><br>
+                🔹 <b>President (Leader)</b><br>
+                Full name: %s<br>
+                Email: %s<br><br>
+                🔹 <b>Vice President (Vice Leader)</b><br>
+                Full name: %s<br>
+                Email: %s<br><br>
+                Default password for both accounts: <b>%s</b><br><br>
+                Both accounts can log in at:<br>
+                <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a><br><br>
+                The status of your club creation request is now: <b>COMPLETE </b><br><br>
+                Best regards,<br>
+                <b>UniClub System</b> 
+                """,
                         proposer.getFullName(),
                         club.getName(),
                         req.getLeaderFullName(), req.getLeaderEmail(),
@@ -238,10 +244,11 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                         req.getDefaultPassword()
                 );
 
+
                 emailService.sendEmail(proposer.getEmail(), subject, content);
-                System.out.println("✅ Sent COMPLETE email to proposer: " + proposer.getEmail());
+                System.out.println("Sent COMPLETE email to proposer: " + proposer.getEmail());
             } catch (Exception e) {
-                System.err.println("❌ Failed to send COMPLETE email: " + e.getMessage());
+                System.err.println("Failed to send COMPLETE email: " + e.getMessage());
             }
         }
 

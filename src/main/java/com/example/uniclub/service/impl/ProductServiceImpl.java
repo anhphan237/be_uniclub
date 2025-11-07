@@ -100,12 +100,12 @@ public class ProductServiceImpl implements ProductService {
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
             if (!Objects.equals(event.getHostClub().getClubId(), club.getClubId())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Event không thuộc CLB này");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Event does not belong to this club");
             }
 
             LocalDate today = LocalDate.now();
             if (event.getDate() != null && event.getDate().isBefore(today)) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Event đã kết thúc, không thể tạo sản phẩm EVENT_ITEM");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Event has already ended. Cannot create EVENT_ITEM product.");
             }
         }
 
@@ -144,32 +144,28 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void syncTags(Product product, List<Long> tagIds) {
-        // Nếu null thì coi như empty list
         List<Long> inputTagIds = (tagIds == null) ? List.of() : tagIds;
 
-        // Lấy danh sách liên kết hiện tại
         Set<Long> currentTagIds = product.getProductTags()
                 .stream()
                 .map(pt -> pt.getTag().getTagId())
                 .collect(Collectors.toSet());
 
-        // Tag cần xóa = tag hiện tại mà không nằm trong request
         Set<Long> tagsToRemove = currentTagIds.stream()
                 .filter(id -> !inputTagIds.contains(id))
                 .collect(Collectors.toSet());
 
-        // Tag cần thêm = tag trong request nhưng chưa có
         Set<Long> tagsToAdd = inputTagIds.stream()
                 .filter(id -> !currentTagIds.contains(id))
                 .collect(Collectors.toSet());
 
-        // 1️⃣ Xóa
+        // 1️⃣ Remove tags
         if (!tagsToRemove.isEmpty()) {
             product.getProductTags().removeIf(pt -> tagsToRemove.contains(pt.getTag().getTagId()));
             productTagRepository.deleteByProductIdAndTagIds(product.getProductId(), tagsToRemove);
         }
 
-        // 2️⃣ Thêm
+        // 2️⃣ Add tags
         if (!tagsToAdd.isEmpty()) {
             List<Tag> newTags = tagRepository.findAllById(tagsToAdd);
             List<ProductTag> newProductTags = newTags.stream()
@@ -191,13 +187,13 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductResponse get(Long id) {
         Product p = productRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
         archiveIfExpiredEventItem(p);
         return toResp(p);
     }
 
     // =========================
-    // ADMIN FILTER LIST (NEW)
+    // ADMIN FILTER LIST
     // =========================
     @Override
     @Transactional(readOnly = true)
@@ -240,6 +236,7 @@ public class ProductServiceImpl implements ProductService {
 
         return new PageImpl<>(filtered, pageable, filtered.size());
     }
+
     @Override
     @Transactional(readOnly = true)
     public Page<ProductResponse> listByClub(Long clubId, Pageable pageable, Boolean includeInactive, Boolean includeArchived) {
@@ -257,12 +254,9 @@ public class ProductServiceImpl implements ProductService {
                 .map(this::toResp)
                 .toList();
 
-        return new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
+        return new PageImpl<>(filtered, pageable, filtered.size());
     }
 
-    // =========================
-    // LIST BY CLUB (KHÔNG PHÂN TRANG)
-    // =========================
     @Override
     @Transactional(readOnly = true)
     public List<ProductResponse> listByClub(Long clubId, boolean includeInactive, boolean includeArchived) {
@@ -288,11 +282,10 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse update(Long id, ProductUpdateRequest req) {
         Product p = productRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
-        // ❌ Chỉ chặn khi ARCHIVED (INACTIVE vẫn cho phép sửa)
         if (p.getStatus() == ProductStatusEnum.ARCHIVED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa sản phẩm đã ARCHIVED");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot edit archived product");
         }
 
         if (req.name() != null && !req.name().isBlank()) p.setName(req.name());
@@ -300,34 +293,28 @@ public class ProductServiceImpl implements ProductService {
         if (req.pointCost() != null && req.pointCost() >= 0) p.setPointCost(req.pointCost());
         if (req.stockQuantity() != null && req.stockQuantity() >= 0) p.setStockQuantity(req.stockQuantity());
 
-        // Đổi type (CLUB_ITEM <-> EVENT_ITEM)
         if (req.type() != null) {
             p.setType(req.type());
             if (req.type() == ProductTypeEnum.EVENT_ITEM) {
                 if (req.eventId() == null)
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "EVENT_ITEM cần eventId");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event ID is required for EVENT_ITEM");
                 Event ev = eventRepo.findById(req.eventId())
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-                // Event phải thuộc CLB của product
                 if (!Objects.equals(ev.getHostClub().getClubId(), p.getClub().getClubId()))
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event không thuộc CLB của sản phẩm");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event does not belong to this club");
 
-                // Không gán event đã qua
                 if (ev.getDate() != null && ev.getDate().isBefore(LocalDate.now()))
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event đã kết thúc, không thể gán");
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event has already ended and cannot be assigned");
 
                 p.setEvent(ev);
             } else {
-                // CLUB_ITEM -> bỏ event
                 p.setEvent(null);
             }
         }
 
-        // Cập nhật status (và đồng bộ isActive theo rule mới)
         if (req.status() != null) {
             p.setStatus(req.status());
-            // ✅ isActive = true khi ACTIVE hoặc INACTIVE; false khi ARCHIVED
             p.setIsActive(p.getStatus() != ProductStatusEnum.ARCHIVED);
         }
 
@@ -337,9 +324,7 @@ public class ProductServiceImpl implements ProductService {
             syncTags(p, req.tagIds());
         }
 
-        // Nếu là EVENT_ITEM, tự check hết hạn để ARCHIVE nếu cần
         archiveIfExpiredEventItem(p);
-
         return toResp(p);
     }
 
@@ -350,14 +335,14 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponse updateStock(Long id, Integer delta, String note) {
         if (delta == null || delta == 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Số lượng cập nhật không hợp lệ");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid stock adjustment amount");
 
         Product p = productRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
         int old = p.getStockQuantity();
         int newStock = old + delta;
-        if (newStock < 0) throw new ApiException(HttpStatus.BAD_REQUEST, "Stock không thể âm");
+        if (newStock < 0) throw new ApiException(HttpStatus.BAD_REQUEST, "Stock cannot be negative");
 
         p.setStockQuantity(newStock);
         productRepo.save(p);
@@ -376,7 +361,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductStockHistory> getStockHistory(Long productId) {
         Product p = productRepo.findById(productId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
         return stockHistoryRepo.findByProductOrderByChangedAtDesc(p);
     }
 
@@ -387,7 +372,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public void delete(Long id) {
         Product p = productRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product không tồn tại"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
         p.setStatus(ProductStatusEnum.INACTIVE);
         p.setIsActive(false);
         productRepo.save(p);
@@ -415,6 +400,7 @@ public class ProductServiceImpl implements ProductService {
                 .map(this::toResp)
                 .toList();
     }
+
     @Override
     @Transactional(readOnly = true)
     public Page<ProductResponse> list(Pageable pageable) {
@@ -424,6 +410,7 @@ public class ProductServiceImpl implements ProductService {
                     return toResp(p);
                 });
     }
+
     @Override
     @Transactional
     public ProductResponse updateProduct(Long clubId, Long productId, ProductUpdateRequest req) {
@@ -434,14 +421,12 @@ public class ProductServiceImpl implements ProductService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Product does not belong to this club");
         }
 
-        // 🧩 Cập nhật cơ bản
         if (req.name() != null && !req.name().isBlank()) product.setName(req.name());
         if (req.description() != null) product.setDescription(req.description());
         if (req.pointCost() != null && req.pointCost() >= 0) product.setPointCost(req.pointCost());
         if (req.stockQuantity() != null && req.stockQuantity() >= 0) product.setStockQuantity(req.stockQuantity());
         if (req.status() != null) product.setStatus(req.status());
 
-        // 🧩 Nếu có type mới — chỉ cho phép đổi nếu là CLUB_ITEM ↔ EVENT_ITEM hợp lệ
         if (req.type() != null && req.type() != product.getType()) {
             if (req.type() == ProductTypeEnum.EVENT_ITEM) {
                 if (req.eventId() == null)
@@ -455,7 +440,6 @@ public class ProductServiceImpl implements ProductService {
             product.setType(req.type());
         }
 
-        // 🏷️ Nếu có tagIds mới thì cập nhật lại (xoá hết tag cũ trước)
         if (req.tagIds() != null) {
             product.getProductTags().clear();
             List<ProductTag> newTags = req.tagIds().stream()
@@ -467,33 +451,28 @@ public class ProductServiceImpl implements ProductService {
             product.getProductTags().addAll(newTags);
         }
 
-        // 🔁 Lưu lại
         productRepo.save(product);
-
         return toResp(product);
     }
+
     @Override
     @Transactional
     public ProductResponse activateProduct(Long productId) {
         Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
-        // Không cho bật lại ARCHIVED
         if (product.getStatus() == ProductStatusEnum.ARCHIVED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Archived products cannot be reactivated");
         }
 
-        // Nếu đã ACTIVE thì bỏ qua
         if (product.getStatus() == ProductStatusEnum.ACTIVE) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product is already active");
         }
 
-        // Cập nhật trạng thái
         product.setStatus(ProductStatusEnum.ACTIVE);
         product.setIsActive(true);
         productRepo.save(product);
 
-        // Trả về DTO đầy đủ
         return new ProductResponse(
                 product.getProductId(),
                 product.getProductCode(),
@@ -520,6 +499,4 @@ public class ProductServiceImpl implements ProductService {
                         : List.of()
         );
     }
-
-
 }

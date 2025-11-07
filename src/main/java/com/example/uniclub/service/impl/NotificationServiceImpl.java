@@ -22,7 +22,7 @@ public class NotificationServiceImpl implements NotificationService {
                         "Thank you for applying to join the club \"%s\".\n" +
                         "Your application has been successfully submitted and is now waiting for the club leader's review.\n\n" +
                         "You will receive an update once your application is processed.\n\n" +
-                        "Best regards,\nUniClub Team 💌",
+                        "Best regards,\nUniClub Team ",
                 clubName
         );
         emailService.sendEmail(studentEmail, subject, content);
@@ -32,11 +32,11 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void sendApplicationResult(String studentEmail, String clubName, boolean accepted) {
         String subject = accepted ?
-                "Your application to " + clubName + " has been approved ✅" :
-                "Your application to " + clubName + " has been declined ❌";
+                "Your application to " + clubName + " has been approved " :
+                "Your application to " + clubName + " has been declined ";
 
         String content = accepted ?
-                String.format("Hi,\n\nCongratulations! 🎉\nYour application to join %s has been approved.\nYou are now an official member of the club!\n\nWelcome aboard!\n\n— UniClub Team 💌", clubName)
+                String.format("Hi,\n\nCongratulations! \nYour application to join %s has been approved.\nYou are now an official member of the club!\n\nWelcome aboard!\n\n— UniClub Team 💌", clubName)
                 :
                 String.format("Hi,\n\nUnfortunately, your application to join %s has been declined.\nYou can apply again later or explore other clubs on UniClub.\n\n— UniClub Team 💌", clubName);
 
@@ -61,8 +61,8 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void sendEventApprovalResult(String leaderEmail, String eventName, boolean approved) {
         String subject = approved ?
-                "Your event \"" + eventName + "\" has been approved ✅" :
-                "Your event \"" + eventName + "\" has been rejected ❌";
+                "Your event \"" + eventName + "\" has been approved " :
+                "Your event \"" + eventName + "\" has been rejected ";
 
         String content = approved ?
                 String.format("Hi Leader,\n\nYour event \"%s\" has been successfully approved by University Staff.\nYou can now start promoting it to your members!\n\n— UniClub Team 🎪", eventName)
@@ -73,37 +73,37 @@ public class NotificationServiceImpl implements NotificationService {
     }
     @Override
     public void notifyCoHostInvite(Club coHost, Event event) {
-        System.out.printf("📩 Notify Co-Host [%s] about new event [%s]%n",
+        System.out.printf("Notify Co-Host [%s] about new event [%s]%n",
                 coHost.getName(), event.getName());
     }
 
     @Override
     public void notifyUniStaffWaiting(Event event) {
-        System.out.printf("📩 Notify UniStaff: Event [%s] waiting for co-host confirmation%n",
+        System.out.printf("Notify UniStaff: Event [%s] waiting for co-host confirmation%n",
                 event.getName());
     }
 
     @Override
     public void notifyHostEventRejectedByCoHost(Event event, Club coClub) {
-        System.out.printf("❌ Notify Host [%s]: Co-Host [%s] rejected event [%s]%n",
+        System.out.printf(" Notify Host [%s]: Co-Host [%s] rejected event [%s]%n",
                 event.getHostClub().getName(), coClub.getName(), event.getName());
     }
 
     @Override
     public void notifyUniStaffReadyForReview(Event event) {
-        System.out.printf("✅ Notify UniStaff: All co-hosts accepted event [%s], ready for review%n",
+        System.out.printf(" Notify UniStaff: All co-hosts accepted event [%s], ready for review%n",
                 event.getName());
     }
 
     @Override
     public void notifyEventRejected(Event event) {
-        System.out.printf("❌ Notify Host [%s]: Event [%s] rejected by UniStaff%n",
+        System.out.printf(" Notify Host [%s]: Event [%s] rejected by UniStaff%n",
                 event.getHostClub().getName(), event.getName());
     }
 
     @Override
     public void notifyEventApproved(Event event) {
-        System.out.printf("🎉 Notify Host [%s]: Event [%s] approved by UniStaff%n",
+        System.out.printf(" Notify Host [%s]: Event [%s] approved by UniStaff%n",
                 event.getHostClub().getName(), event.getName());
     }
 

@@ -146,18 +146,19 @@ public class RedeemServiceImpl implements RedeemService {
         // 📧 Email xác nhận
         String memberEmail = membership.getUser().getEmail();
         String content = """
-        <h3>🎉 Bạn đã đổi hàng thành công!</h3>
-        <p><b>Sản phẩm:</b> %s</p>
-        <p><b>Số lượng:</b> %d</p>
-        <p><b>Điểm đã trừ:</b> %d</p>
-        <p><b>Mã đơn hàng:</b> %s</p>
-        <div style='text-align:center;margin:20px 0'>
-            <img src="data:image/png;base64,%s" alt="QR Code" style="width:150px"/>
-        </div>
-        """.formatted(product.getName(), req.quantity(), totalPoints, orderCode, qrBase64);
+<h3>You have successfully redeemed your product!</h3>
+<p><b>Product:</b> %s</p>
+<p><b>Quantity:</b> %d</p>
+<p><b>Points deducted:</b> %d</p>
+<p><b>Order code:</b> %s</p>
+<div style='text-align:center;margin:20px 0'>
+    <img src="data:image/png;base64,%s" alt="QR Code" style="width:150px"/>
+</div>
+""".formatted(product.getName(), req.quantity(), totalPoints, orderCode, qrBase64);
 
-        emailService.sendEmail(memberEmail, "[UniClub] Xác nhận đổi hàng #" + orderCode, content);
+        emailService.sendEmail(memberEmail, "[UniClub] Redemption Confirmation #" + orderCode, content);
         return toResponse(order);
+
     }
 
 
@@ -258,15 +259,16 @@ public class RedeemServiceImpl implements RedeemService {
 
         String memberEmail = membership.getUser().getEmail();
         String content = """
-        <h3>🎉 Đổi quà tại sự kiện thành công!</h3>
-        <p><b>Sản phẩm:</b> %s</p>
-        <p><b>Số lượng:</b> %d</p>
-        <p><b>Điểm đã trừ:</b> %d</p>
-        <p><b>Mã đơn hàng:</b> %s</p>
-        """.formatted(product.getName(), req.quantity(), totalPoints, orderCode);
+<h3>Gift redemption at the event was successful!</h3>
+<p><b>Product:</b> %s</p>
+<p><b>Quantity:</b> %d</p>
+<p><b>Points deducted:</b> %d</p>
+<p><b>Order code:</b> %s</p>
+""".formatted(product.getName(), req.quantity(), totalPoints, orderCode);
 
-        emailService.sendEmail(memberEmail, "[UniClub] Đổi quà tại sự kiện " + event.getName(), content);
+        emailService.sendEmail(memberEmail, "[UniClub] Gift Redemption at Event " + event.getName(), content);
         return toResponse(order);
+
     }
 
 
@@ -341,26 +343,26 @@ public class RedeemServiceImpl implements RedeemService {
 
         String memberEmail = order.getMembership().getUser().getEmail();
         String content = """
-    <h3>💸 Hoàn điểm thành công!</h3>
-    <p><b>Sản phẩm:</b> %s</p>
-    <p><b>Số lượng hoàn:</b> %d</p>
-    <p><b>Điểm được hoàn:</b> %d</p>
-    <p><b>Lý do hoàn hàng:</b> %s</p>
+<h3>Points refund successful!</h3>
+<p><b>Product:</b> %s</p>
+<p><b>Quantity refunded:</b> %d</p>
+<p><b>Points refunded:</b> %d</p>
+<p><b>Reason for refund:</b> %s</p>
 """.formatted(
                 product.getName(),
                 order.getQuantity(),
                 refundPoints,
-                order.getReasonRefund() != null ? order.getReasonRefund() : "Không có lý do cụ thể"
+                order.getReasonRefund() != null ? order.getReasonRefund() : "No specific reason provided"
         );
 
         emailService.sendEmail(
                 memberEmail,
-                "[UniClub] Hoàn điểm thành công cho đơn #" + order.getOrderCode(),
+                "[UniClub] Points Refund Successful for Order #" + order.getOrderCode(),
                 content
         );
 
-
         return toResponse(order);
+
     }
 
 
@@ -445,25 +447,26 @@ public class RedeemServiceImpl implements RedeemService {
         // 📧 Gửi email thông báo hoàn điểm một phần
         String memberEmail = order.getMembership().getUser().getEmail();
         String content = """
-    <h3>💸 Hoàn điểm một phần!</h3>
-    <p><b>Sản phẩm:</b> %s</p>
-    <p><b>Số lượng hoàn:</b> %d</p>
-    <p><b>Điểm được hoàn:</b> %d</p>
-    <p><b>Lý do hoàn hàng:</b> %s</p>
+<h3>Partial points refund!</h3>
+<p><b>Product:</b> %s</p>
+<p><b>Quantity refunded:</b> %d</p>
+<p><b>Points refunded:</b> %d</p>
+<p><b>Reason for refund:</b> %s</p>
 """.formatted(
                 product.getName(),
                 quantityToRefund,
                 refundPoints,
-                order.getReasonRefund() != null ? order.getReasonRefund() : "Không có lý do cụ thể"
+                order.getReasonRefund() != null ? order.getReasonRefund() : "No specific reason provided"
         );
 
         emailService.sendEmail(
                 memberEmail,
-                "[UniClub] Hoàn điểm một phần cho đơn #" + order.getOrderCode(),
+                "[UniClub] Partial Points Refund for Order #" + order.getOrderCode(),
                 content
         );
 
         return toResponse(order);
+
     }
 
 

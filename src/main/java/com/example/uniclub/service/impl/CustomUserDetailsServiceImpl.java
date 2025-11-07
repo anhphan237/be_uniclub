@@ -20,7 +20,7 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepo.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy người dùng với email: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with the provided email: " + email));
 
         // ✅ Thêm tiền tố ROLE_ để Spring nhận diện đúng quyền
         String roleName = user.getRole().getRoleName();

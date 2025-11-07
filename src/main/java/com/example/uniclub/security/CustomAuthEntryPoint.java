@@ -30,6 +30,6 @@ public class CustomAuthEntryPoint implements AuthenticationEntryPoint {
 
         new ObjectMapper().writeValue(response.getOutputStream(), body);
 
-        System.out.println("⚠️ Unauthorized access attempt to: " + request.getServletPath());
+        System.out.println("Unauthorized access attempt to: " + request.getServletPath());
     }
 }

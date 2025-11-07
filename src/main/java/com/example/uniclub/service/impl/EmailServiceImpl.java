@@ -54,12 +54,12 @@ public class EmailServiceImpl implements EmailService {
             helper.addInline("uniclub-logo", new ClassPathResource("static/images/Logo.png"));
 
             mailSender.send(message);
-            System.out.println("✅ Email sent successfully to " + to);
+            System.out.println(" Email sent successfully to " + to);
 
         } catch (MessagingException e) {
-            System.err.println("❌ Messaging error: " + e.getMessage());
+            System.err.println(" Messaging error: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("❌ Email send failed: " + e.getMessage());
+            System.err.println(" Email send failed: " + e.getMessage());
             e.printStackTrace();
         }
     }

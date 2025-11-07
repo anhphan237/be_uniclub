@@ -312,6 +312,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
         reg.setUpdatedAt(LocalDateTime.now());
         regRepo.save(reg);
-        return "✅ Verified full attendance (100%) for user ID " + userId;
+        return "Verified full attendance (100%) for user ID " + userId;
     }
 }

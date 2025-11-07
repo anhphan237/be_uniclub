@@ -30,7 +30,7 @@ public class ProductTagAutoServiceImpl implements ProductTagAutoService {
         Tag tagLimited = tagRepo.findByNameIgnoreCase("limited").orElse(null);
 
         if (tagNew == null || tagHot == null || tagLimited == null) {
-            log.warn("⚠️ Missing required tags (new/hot/limited). Auto-tagging skipped.");
+            log.warn(" Missing required tags (new/hot/limited). Auto-tagging skipped.");
             return;
         }
 
@@ -47,7 +47,7 @@ public class ProductTagAutoServiceImpl implements ProductTagAutoService {
             handleTag(p, tagLimited, isLimited);
         }
 
-        log.info("✅ Auto-tagging completed successfully at {}", now);
+        log.info(" Auto-tagging completed successfully at {}", now);
     }
 
     private void handleTag(Product p, Tag tag, boolean shouldHaveTag) {

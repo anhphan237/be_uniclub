@@ -32,7 +32,7 @@ public class EventStatusScheduler {
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now();
 
-        log.info("⏰ [Scheduler] Checking events at {} {}", today, now);
+        log.info("[Scheduler] Checking events at {} {}", today, now);
 
         // 1️⃣ APPROVED → ONGOING
         List<Event> approvedEvents = eventRepo.findAllByStatus(EventStatusEnum.APPROVED);
@@ -43,7 +43,7 @@ public class EventStatusScheduler {
 
             if (shouldStart) {
                 e.setStatus(EventStatusEnum.ONGOING);
-                log.info("🔵 Event {} - '{}' switched to ONGOING", e.getEventId(), e.getName());
+                log.info("Event {} - '{}' switched to ONGOING", e.getEventId(), e.getName());
             }
         }
 
@@ -56,14 +56,14 @@ public class EventStatusScheduler {
 
             if (shouldEnd) {
                 e.setStatus(EventStatusEnum.COMPLETED);
-                log.info("🟣 Event {} - '{}' switched to COMPLETED", e.getEventId(), e.getName());
+                log.info("Event {} - '{}' switched to COMPLETED", e.getEventId(), e.getName());
             }
         }
 
         eventRepo.saveAll(approvedEvents);
         eventRepo.saveAll(ongoingEvents);
 
-        log.info("✅ Scheduler done: {} approved, {} ongoing processed",
+        log.info("Scheduler done: {} approved, {} ongoing processed",
                 approvedEvents.size(), ongoingEvents.size());
     }
 }

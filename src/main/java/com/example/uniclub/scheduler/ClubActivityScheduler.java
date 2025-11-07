@@ -73,6 +73,6 @@ public class ClubActivityScheduler {
         }
 
         clubRepo.saveAll(clubs);
-        System.out.println("✅ Updated club activity & multiplier for " + lastMonth);
+        System.out.println("Updated club activity & multiplier for " + lastMonth);
     }
 }
