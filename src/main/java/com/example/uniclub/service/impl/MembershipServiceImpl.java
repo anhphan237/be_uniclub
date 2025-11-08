@@ -15,16 +15,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.example.uniclub.enums.MembershipStateEnum;
+import com.example.uniclub.enums.EventRegistrationStatusEnum;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MembershipServiceImpl implements MembershipService {
+    private final ClubLeaveRequestEntityRepository leaveRequestRepo;
+    private final EventRegistrationRepository eventRegistrationRepo;
+
     private final EventLogService eventLogService;
     private final MembershipRepository membershipRepo;
     private final UserRepository userRepo;
@@ -338,4 +340,136 @@ public class MembershipServiceImpl implements MembershipService {
         );
         return "Member " + receiverName + " has been removed from " + clubName + " by " + kickerName;
     }
+
+    @Override
+    @Transactional
+    public String requestLeave(Long userId, Long clubId, String reason) {
+        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubIdAndState(
+                userId, clubId, MembershipStateEnum.ACTIVE
+        ).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You are not an active member of this club."));
+
+        if (membership.getClubRole() == ClubRoleEnum.LEADER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Leader cannot leave the club. Please transfer your role first.");
+        }
+
+        if (leaveRequestRepo.existsByMembershipAndStatus(membership, LeaveRequestStatusEnum.PENDING)) {
+            throw new ApiException(HttpStatus.CONFLICT, "You already have a pending leave request.");
+        }
+
+        var req = ClubLeaveRequestEntity.builder()
+                .membership(membership)
+                .status(LeaveRequestStatusEnum.PENDING)
+                .reason(reason)
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
+        leaveRequestRepo.save(req);
+
+        // 📧 Send email to Club Leader
+        User leader = membership.getClub().getLeader();
+        if (leader != null) {
+            String subject = "[UniClub] Member submitted a club leave request";
+            String body = """
+                <p>Dear %s,</p>
+                <p>Member <b>%s</b> has submitted a request to leave the club <b>%s</b>.</p>
+                <p><b>Reason:</b> %s</p>
+                <p>Please log in to the UniClub platform to review this request.</p>
+                <br>
+                <p>Regards,<br><b>UniClub System</b></p>
+                """.formatted(
+                    leader.getFullName(),
+                    membership.getUser().getFullName(),
+                    membership.getClub().getName(),
+                    (reason == null || reason.isBlank()) ? "No reason provided." : reason
+            );
+            emailService.sendEmail(leader.getEmail(), subject, body);
+        }
+
+        return "Leave request submitted successfully. Please wait for Leader approval.";
+    }
+
+    @Override
+    @Transactional
+    public String reviewLeaveRequest(Long requestId, Long approverId, String action) {
+        var req = leaveRequestRepo.findById(requestId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Leave request not found."));
+
+        Membership membership = req.getMembership();
+        Club club = membership.getClub();
+
+        // ✅ Verify approver is club leader
+        Membership approver = membershipRepo.findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+        if (approver.getClubRole() != ClubRoleEnum.LEADER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Club Leader can review leave requests.");
+        }
+
+        // ✅ Convert action safely (Swagger Enum → string → Enum)
+        LeaveRequestStatusEnum newStatus;
+        try {
+            newStatus = LeaveRequestStatusEnum.valueOf(action.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid action. Must be APPROVED or REJECTED.");
+        }
+
+        req.setStatus(newStatus);
+        req.setProcessedAt(java.time.LocalDateTime.now());
+        leaveRequestRepo.save(req);
+
+        if (newStatus == LeaveRequestStatusEnum.APPROVED) {
+            membership.setState(MembershipStateEnum.INACTIVE);
+            membership.setEndDate(java.time.LocalDate.now());
+            membershipRepo.save(membership);
+            clubService.updateMemberCount(club.getClubId());
+        }
+
+        // ✅ Email notify member
+        User member = membership.getUser();
+        String subject;
+        String body;
+
+        if (newStatus == LeaveRequestStatusEnum.APPROVED) {
+            subject = "[UniClub] Your club leave request has been approved";
+            body = """
+            <p>Dear %s,</p>
+            <p>Your request to leave the club <b>%s</b> has been <b>approved</b>.</p>
+            <p>You are no longer a member of this club.</p>
+            <br>
+            <p>Thank you for being part of UniClub,<br><b>UniClub Team</b></p>
+            """.formatted(member.getFullName(), club.getName());
+        } else {
+            subject = "[UniClub] Your club leave request has been rejected";
+            body = """
+            <p>Dear %s,</p>
+            <p>Your request to leave the club <b>%s</b> has been <b>rejected</b> by Leader <b>%s</b>.</p>
+            <p>Please contact your Club Leader directly if you need further clarification.</p>
+            <br>
+            <p>Regards,<br><b>UniClub Team</b></p>
+            """.formatted(member.getFullName(), club.getName(), approver.getUser().getFullName());
+        }
+
+        try {
+            emailService.sendEmail(member.getEmail(), subject, body);
+        } catch (Exception e) {
+            log.warn("Failed to send leave request email to {}", member.getEmail(), e);
+        }
+
+        return "Leave request " + newStatus.name().toLowerCase() + " successfully.";
+    }
+    @Override
+    public Map<String, Object> getMemberOverview(Long userId) {
+        Map<String, Object> result = new HashMap<>();
+
+        long clubCount = membershipRepo.countByUser_UserIdAndState(
+                userId, MembershipStateEnum.ACTIVE);
+
+        long eventCount = eventRegistrationRepo.countByUser_UserIdAndStatus(
+                userId, RegistrationStatusEnum.CONFIRMED);
+
+        result.put("clubsJoined", clubCount);
+        result.put("eventsJoined", eventCount);
+        return result;
+    }
+
+
+
 }

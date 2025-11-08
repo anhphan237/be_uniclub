@@ -6,6 +6,7 @@ import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.security.CustomUserDetails;
 
 import java.util.List;
+import java.util.Map;
 
 public interface MembershipService {
 
@@ -35,6 +36,11 @@ public interface MembershipService {
     MembershipResponse updateRole(Long membershipId, Long approverId, String newRole);
     String kickMember(CustomUserDetails principal, Long membershipId);
 
+    String requestLeave(Long userId, Long clubId, String reason);
+
+    String reviewLeaveRequest(Long requestId, Long approverId, String action);
+
+    Map<String, Object> getMemberOverview(Long userId);
 
 
 

@@ -1,10 +1,13 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.ClubLeaveRequest;
 import com.example.uniclub.dto.response.MembershipResponse;
+import com.example.uniclub.enums.LeaveRequestStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MembershipService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -207,4 +210,51 @@ public class MembershipController {
             @AuthenticationPrincipal CustomUserDetails user) {
         return ResponseEntity.ok(ApiResponse.ok(membershipService.getMyMemberships(user.getId())));
     }
+    @Operation(summary = "Member gửi yêu cầu rời CLB (chờ Leader duyệt)")
+    @PostMapping("/clubs/{clubId}/leave-request")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<String>> requestLeave(
+            @PathVariable Long clubId,
+            @RequestBody(required = false) ClubLeaveRequest body,
+            @AuthenticationPrincipal CustomUserDetails user) {
+        String reason = (body == null) ? null : body.getReason();
+        return ResponseEntity.ok(ApiResponse.ok(
+                membershipService.requestLeave(user.getId(), clubId, reason)
+        ));
+    }
+
+    @Operation(summary = "Leader approves/rejects a member's leave request")
+    @PutMapping("/clubs/leave-request/{requestId}")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<String>> reviewLeaveRequest(
+            @PathVariable Long requestId,
+            @Parameter(
+                    description = "Action type (choose APPROVED or REJECTED)",
+                    required = true,
+                    example = "APPROVED"
+            )
+            @RequestParam LeaveRequestStatusEnum action,
+            @AuthenticationPrincipal CustomUserDetails user) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                membershipService.reviewLeaveRequest(requestId, user.getId(), action.name())
+        ));
+    }
+
+
+    @Operation(
+            summary = "Thống kê nhanh – Số CLB & Sự kiện đã tham gia",
+            description = """
+            Dành cho **STUDENT** hoặc **CLUB_LEADER**.<br>
+            Trả về tổng số CLB đang tham gia và số sự kiện đã tham gia (được duyệt).
+            """
+    )
+    @GetMapping("/member/overview")
+    @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getMemberOverview(
+            @AuthenticationPrincipal CustomUserDetails user) {
+        Map<String, Object> data = membershipService.getMemberOverview(user.getId());
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
+
 }

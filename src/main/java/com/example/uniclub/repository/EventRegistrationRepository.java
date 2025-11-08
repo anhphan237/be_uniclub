@@ -2,6 +2,7 @@ package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.EventRegistration;
 import com.example.uniclub.entity.User;
+import com.example.uniclub.enums.EventRegistrationStatusEnum;
 import com.example.uniclub.enums.RegistrationStatusEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -46,5 +47,8 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     @Query("SELECT r.user FROM EventRegistration r WHERE r.event.eventId = :eventId")
     List<User> findUsersByEventId(@Param("eventId") Long eventId);
     int countByEvent_EventId(Long eventId);
+
+    long countByUser_UserIdAndStatus(Long userId, RegistrationStatusEnum status);
+
 
 }

@@ -90,4 +90,5 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     int countByUser_UserId(Long userId);
     int countByClub_ClubId(Long clubId);
 
+
 }
