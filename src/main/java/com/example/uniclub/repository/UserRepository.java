@@ -29,4 +29,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // 📊 Thống kê user theo role (phục vụ cho /stats)
     @Query("SELECT u.role.roleName, COUNT(u) FROM User u GROUP BY u.role.roleName")
     List<Object[]> countGroupByRole();
+
+    Page<User> findByFullNameContainingIgnoreCase(String keyword, Pageable pageable);
+
 }

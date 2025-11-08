@@ -23,8 +23,6 @@ public class MultiplierPolicy {
     @Column(nullable = false)
     private PolicyTargetTypeEnum targetType;
 
-
-
     // 📊 Số sự kiện tối thiểu để đạt mức này
     @Column(nullable = false)
     private Integer minEvents = 0;
@@ -44,6 +42,11 @@ public class MultiplierPolicy {
     private LocalDateTime updatedAt;
     private LocalDateTime effectiveFrom;
 
+    @Column(name = "policy_name")
+    private String policyName;
+
+    @Column(name = "policy_description")
+    private String policyDescription;
 
 
 
