@@ -11,17 +11,20 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ProductService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.uniclub.repository.TagRepository;
+import com.example.uniclub.repository.ProductTagRepository;
 
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
@@ -29,6 +32,8 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+    private final TagRepository tagRepo;
+    private final ProductTagRepository productTagRepo;
 
     private final TagRepository tagRepository;
     private final ProductTagRepository productTagRepository;
@@ -96,6 +101,7 @@ public class ProductServiceImpl implements ProductService {
         if (req.type() == ProductTypeEnum.EVENT_ITEM) {
             if (req.eventId() == null)
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Event ID is required for EVENT_ITEM");
+
             event = eventRepo.findById(req.eventId())
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
@@ -109,6 +115,7 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
+        // ✅ Kiểm tra trùng tên
         Optional<Product> opt = productRepo.findByClubAndNameIgnoreCase(club, req.name());
         if (opt.isPresent()) {
             Product existing = opt.get();
@@ -126,6 +133,7 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
+        // ✅ Tạo mới sản phẩm
         Product p = Product.builder()
                 .club(club)
                 .event(event)
@@ -139,9 +147,53 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         p = productRepo.save(p);
+
+        // ✅ Gắn tag "new" và "limited" ngay khi tạo
+        try {
+            final Product product = p;
+
+            // 🆕 Tag NEW (sản phẩm mới)
+            tagRepo.findByNameIgnoreCase("new").ifPresent(tagNew -> {
+                boolean alreadyTagged = product.getProductTags().stream()
+                        .anyMatch(pt -> pt.getTag().getName().equalsIgnoreCase("new"));
+                if (!alreadyTagged) {
+                    ProductTag newTag = ProductTag.builder()
+                            .product(product)
+                            .tag(tagNew)
+                            .build();
+                    productTagRepo.save(newTag);
+                    log.info("🆕 Added tag [new] for product {}", product.getName());
+                }
+            });
+
+            // ⚠️ Tag LIMITED (khi số lượng < 10)
+            if (product.getStockQuantity() != null && product.getStockQuantity() < 10) {
+                tagRepo.findByNameIgnoreCase("limited").ifPresent(tagLimited -> {
+                    boolean alreadyTagged = product.getProductTags().stream()
+                            .anyMatch(pt -> pt.getTag().getName().equalsIgnoreCase("limited"));
+                    if (!alreadyTagged) {
+                        ProductTag limitedTag = ProductTag.builder()
+                                .product(product)
+                                .tag(tagLimited)
+                                .build();
+                        productTagRepo.save(limitedTag);
+                        log.info("⚠️ Added tag [limited] for product {}", product.getName());
+                    }
+                });
+            }
+
+        } catch (Exception e) {
+            log.error("⚠️ Failed to auto-tag product {}: {}", p.getName(), e.getMessage());
+        }
+
+        // ✅ Gắn thêm tag người dùng chọn thủ công (nếu có)
         if (req.tagIds() != null) syncTags(p, req.tagIds());
+
         return toResp(p);
     }
+
+
+
 
     private void syncTags(Product product, List<Long> tagIds) {
         List<Long> inputTagIds = (tagIds == null) ? List.of() : tagIds;

@@ -11,7 +11,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -25,12 +27,15 @@ public class ProductTagAutoServiceImpl implements ProductTagAutoService {
     @Override
     @Transactional
     public void updateDynamicTags() {
+        // 🔹 Load tag động
         Tag tagNew = tagRepo.findByNameIgnoreCase("new").orElse(null);
         Tag tagHot = tagRepo.findByNameIgnoreCase("hot").orElse(null);
         Tag tagLimited = tagRepo.findByNameIgnoreCase("limited").orElse(null);
+        Tag tagBestSeller = tagRepo.findByNameIgnoreCase("best_seller").orElse(null);
+        Tag tagExclusive = tagRepo.findByNameIgnoreCase("exclusive").orElse(null);
 
         if (tagNew == null || tagHot == null || tagLimited == null) {
-            log.warn(" Missing required tags (new/hot/limited). Auto-tagging skipped.");
+            log.warn("⚠️ Missing required tags (new/hot/limited). Skipping auto-tagging...");
             return;
         }
 
@@ -41,23 +46,40 @@ public class ProductTagAutoServiceImpl implements ProductTagAutoService {
             boolean isNew = p.getCreatedAt() != null && p.getCreatedAt().isAfter(now.minusDays(7));
             boolean isHot = p.getRedeemCount() != null && p.getRedeemCount() >= 50;
             boolean isLimited = p.getStockQuantity() != null && p.getStockQuantity() < 10;
+            boolean isBestSeller = p.getRedeemCount() != null && p.getRedeemCount() >= 200;
+            boolean isExclusive = p.getPointCost() != null && p.getPointCost() >= 1000; // tùy theo mức điểm cao
 
             handleTag(p, tagNew, isNew);
             handleTag(p, tagHot, isHot);
             handleTag(p, tagLimited, isLimited);
+            handleTag(p, tagBestSeller, isBestSeller);
+            handleTag(p, tagExclusive, isExclusive);
         }
 
-        log.info(" Auto-tagging completed successfully at {}", now);
+        log.info("✅ Auto-tagging completed successfully for {} products.", products.size());
     }
+
 
     private void handleTag(Product p, Tag tag, boolean shouldHaveTag) {
         boolean hasTag = p.getProductTags().stream()
                 .anyMatch(pt -> pt.getTag().getName().equalsIgnoreCase(tag.getName()));
 
         if (shouldHaveTag && !hasTag) {
-            productTagRepo.save(ProductTag.builder().product(p).tag(tag).build());
+            productTagRepo.save(ProductTag.builder()
+                    .product(p)
+                    .tag(tag)
+                    .build());
+            log.info("➕ Added tag [{}] to product {}", tag.getName(), p.getName());
+
         } else if (!shouldHaveTag && hasTag) {
-            productTagRepo.deleteByProductAndTag(p, tag);
+            // ⚙️ Cách xóa linh hoạt tuỳ repo bạn có
+            try {
+                productTagRepo.deleteByProductAndTag(p, tag);
+            } catch (Exception e) {
+                // Nếu repo bạn chỉ có deleteByProductIdAndTagIds(...)
+                productTagRepo.deleteByProductIdAndTagIds(p.getProductId(), Set.of(tag.getTagId()));
+            }
+            log.info("❌ Removed tag [{}] from product {}", tag.getName(), p.getName());
         }
     }
 }

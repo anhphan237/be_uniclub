@@ -98,7 +98,27 @@ public class Product {
 
     public void increaseRedeemCount(int count) {
         this.redeemCount = (this.redeemCount == null ? 0 : this.redeemCount) + count;
+
+        // 🔥 Auto tag HOT khi đạt mốc redeem cao
+        if (this.redeemCount >= 50 && this.getProductTags() != null) {
+            boolean hasHot = this.productTags.stream()
+                    .anyMatch(pt -> pt.getTag().getName().equalsIgnoreCase("hot"));
+            if (!hasHot) {
+                try {
+                    Tag hotTag = Tag.builder().tagId(9L).name("hot").build(); // tag_id=9 từ DB bạn
+                    ProductTag pt = ProductTag.builder()
+                            .product(this)
+                            .tag(hotTag)
+                            .build();
+                    this.productTags.add(pt);
+                    System.out.println("🔥 Auto-tagged [hot] for product: " + this.getName());
+                } catch (Exception e) {
+                    System.err.println("⚠️ Failed to auto-tag HOT for product " + this.getName() + ": " + e.getMessage());
+                }
+            }
+        }
     }
+
 
     public void decreaseRedeemCount(int count) {
         if (this.redeemCount == null) this.redeemCount = 0;

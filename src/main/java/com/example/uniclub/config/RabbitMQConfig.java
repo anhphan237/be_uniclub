@@ -14,25 +14,53 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
+
+    // ========= 🏛 Club Application =========
     public static final String CLUB_APP_EXCHANGE = "clubApplicationExchange";
     public static final String CLUB_APP_QUEUE = "clubApplicationQueue";
     public static final String CLUB_APP_ROUTING_KEY = "club.application.status";
 
+    // ========= 🔔 Notification System =========
+    public static final String NOTIFICATION_EXCHANGE = "notificationExchange";
+    public static final String NOTIFICATION_QUEUE = "notificationQueue";
+    public static final String NOTIFICATION_ROUTING_KEY = "notification.event";
+
     @Bean
-    public TopicExchange exchange() {
+    public TopicExchange clubExchange() {
         return new TopicExchange(CLUB_APP_EXCHANGE);
     }
 
     @Bean
-    public Queue queue() {
+    public Queue clubQueue() {
         return new Queue(CLUB_APP_QUEUE, true);
     }
 
     @Bean
-    public Binding binding(Queue queue, TopicExchange exchange) {
-        return BindingBuilder.bind(queue).to(exchange).with(CLUB_APP_ROUTING_KEY);
+    public Binding clubBinding(Queue clubQueue, TopicExchange clubExchange) {
+        return BindingBuilder.bind(clubQueue)
+                .to(clubExchange)
+                .with(CLUB_APP_ROUTING_KEY);
     }
 
+    // 🧩 NEW: Exchange, Queue, Binding cho Notification
+    @Bean
+    public TopicExchange notificationExchange() {
+        return new TopicExchange(NOTIFICATION_EXCHANGE);
+    }
+
+    @Bean
+    public Queue notificationQueue() {
+        return new Queue(NOTIFICATION_QUEUE, true);
+    }
+
+    @Bean
+    public Binding notificationBinding(Queue notificationQueue, TopicExchange notificationExchange) {
+        return BindingBuilder.bind(notificationQueue)
+                .to(notificationExchange)
+                .with(NOTIFICATION_ROUTING_KEY);
+    }
+
+    // ⚙️ Converter và template bạn đã có, giữ nguyên
     @Bean
     public Jackson2JsonMessageConverter jackson2JsonMessageConverter() {
         return new Jackson2JsonMessageConverter();
@@ -56,4 +84,3 @@ public class RabbitMQConfig {
         return factory;
     }
 }
-
