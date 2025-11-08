@@ -84,6 +84,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .majorName(user.getMajor() != null ? user.getMajor().getName() : null)
                 .active(isActive)
                 .joinedClubs(joined)
+                .studentCode(user.getStudentCode())
                 .build();
     }
     @Override

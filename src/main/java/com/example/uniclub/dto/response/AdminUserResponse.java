@@ -15,5 +15,6 @@ public class AdminUserResponse {
     private String role;
     private String majorName;
     private boolean active;
-    private int joinedClubs; // số CLB đã tham gia
+    private int joinedClubs;
+    private String studentCode; // số CLB đã tham gia
 }
