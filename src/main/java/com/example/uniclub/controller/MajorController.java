@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(
         name = "Major Management",
@@ -150,4 +151,32 @@ public class MajorController {
         majorService.delete(id);
         return ResponseEntity.noContent().build();
     }
+    // =========================================================
+// 🎨 7. UPDATE COLOR - ADMIN/STAFF
+// =========================================================
+    @Operation(
+            summary = "Cập nhật mã màu cho ngành học",
+            description = """
+            Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
+            Cho phép thay đổi mã màu (colorHex) của ngành học mà không cần sửa các thông tin khác.<br>
+            Ví dụ: {"colorHex": "#FF6600"}.
+            """,
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đổi màu ngành học thành công"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy ngành học")
+            }
+    )
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PatchMapping("/{id}/color")
+    public ResponseEntity<Major> updateColor(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+
+        String newColor = body.get("colorHex");
+        Major existing = majorService.getById(id);
+        existing.setColorHex(newColor);
+
+        return ResponseEntity.ok(majorService.update(id, existing));
+    }
+
 }

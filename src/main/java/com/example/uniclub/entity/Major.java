@@ -31,6 +31,8 @@ public class Major {
 
     @Column(nullable = false)
     private boolean active = true;
+    @Column(length = 10)
+    private String colorHex;
 
     // 🔁 Một Major có thể có nhiều Policy
     @OneToMany(mappedBy = "major", cascade = CascadeType.ALL, orphanRemoval = true)

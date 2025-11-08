@@ -42,6 +42,12 @@ public class MajorServiceImpl implements MajorService {
             throw new ApiException(HttpStatus.CONFLICT, "Major code already exists");
         }
         major.setActive(true);
+
+        // ✅ Mặc định nếu chưa có colorHex, gán màu ngẫu nhiên hoặc giá trị mặc định
+        if (major.getColorHex() == null || major.getColorHex().isBlank()) {
+            major.setColorHex("#" + Integer.toHexString((int)(Math.random() * 0xFFFFFF)).toUpperCase());
+        }
+
         return majorRepo.save(major);
     }
 
@@ -52,6 +58,12 @@ public class MajorServiceImpl implements MajorService {
         existing.setDescription(updatedMajor.getDescription());
         existing.setMajorCode(updatedMajor.getMajorCode());
         existing.setActive(updatedMajor.isActive());
+
+        // ✅ Cập nhật màu hex nếu có
+        if (updatedMajor.getColorHex() != null && !updatedMajor.getColorHex().isBlank()) {
+            existing.setColorHex(updatedMajor.getColorHex());
+        }
+
         return majorRepo.save(existing);
     }
 
