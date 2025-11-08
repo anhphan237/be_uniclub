@@ -119,39 +119,39 @@ public class ClubAttendanceController {
         attendanceService.markAll(sessionId, status);
         return ApiResponse.msg("All attendance updated successfully");
     }
-
     // ==========================================================
-// 👤 5A. THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CỦA CHÍNH MÌNH (TỰ LẤY TỪ JWT)
+// 👤 5A. THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CỦA CHÍNH MÌNH (THEO CLB CỤ THỂ)
 // ==========================================================
     @Operation(
-            summary = "Xem lịch sử điểm danh cá nhân (tự động lấy từ JWT)",
+            summary = "Xem lịch sử điểm danh cá nhân theo CLB (JWT tự động)",
             description = """
-            Dành cho **STUDENT** hoặc **CLUB_LEADER**.<br>
-            Không cần truyền membershipId.<br>
-            Backend tự xác định thành viên từ JWT token và trả về lịch sử điểm danh.
-            """,
+        Dành cho **STUDENT** hoặc **CLUB_LEADER**.<br>
+        Hệ thống tự động lấy thông tin người dùng từ JWT.<br>
+        Truyền `clubId` để xác định membership đúng CLB cần xem lịch sử điểm danh.
+        """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Lấy lịch sử thành công")
     )
     @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
-    @GetMapping("/member/history")
+    @GetMapping("/clubs/{clubId}/member/history")
     public ApiResponse<Map<String, Object>> getPersonalMemberHistory(
+            @PathVariable Long clubId,
             @AuthenticationPrincipal CustomUserDetails user) {
 
-        // ✅ Lấy userId từ JWT
+        // ✅ Lấy userId từ JWT (Spring tự động decode token → inject vào `user`)
         Long userId = user.getUserId();
 
-        // ✅ Tìm Membership đang hoạt động của user
-        var membership = membershipRepo.findActiveMembershipsByUserId(userId).stream()
-                .findFirst()
+        // ✅ Tìm membership đúng của user trong CLB được chọn
+        var membership = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId)
                 .orElseThrow(() -> new com.example.uniclub.exception.ApiException(
                         org.springframework.http.HttpStatus.NOT_FOUND,
-                        "Không tìm thấy membership đang hoạt động của bạn."
+                        "Không tìm thấy membership của bạn trong CLB này."
                 ));
 
-        // ✅ Gọi service cũ để lấy lịch sử theo membershipId
+        // ✅ Gọi service để lấy lịch sử điểm danh theo membershipId
         return ApiResponse.ok(attendanceService.getMemberAttendanceHistory(membership.getMembershipId()));
     }
+
 
 
 
