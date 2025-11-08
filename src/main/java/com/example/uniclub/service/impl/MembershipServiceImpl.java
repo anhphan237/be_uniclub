@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.response.ClubLeaveRequestResponse;
 import com.example.uniclub.dto.response.MembershipResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
@@ -487,6 +488,64 @@ public class MembershipServiceImpl implements MembershipService {
         return result;
     }
 
+    @Override
+    public List<ClubLeaveRequestResponse> getLeaveRequestsByClub(Long clubId, Long leaderId) {
+        // ✅ Check permission
+        Membership leaderMembership = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(leaderId, clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
+        if (leaderMembership.getClubRole() != ClubRoleEnum.LEADER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Club Leader can view leave requests.");
+        }
+
+        // ✅ Fetch all leave requests
+        var requests = leaveRequestRepo.findByMembership_Club_ClubIdOrderByCreatedAtDesc(clubId);
+
+        // ✅ Map to DTO
+        return requests.stream()
+                .map(req -> ClubLeaveRequestResponse.builder()
+                        .requestId(req.getId())
+                        .membershipId(req.getMembership().getMembershipId())
+                        .memberName(req.getMembership().getUser().getFullName())
+                        .memberEmail(req.getMembership().getUser().getEmail())
+                        .memberRole(req.getMembership().getClubRole().name())
+                        .reason(req.getReason())
+                        .status(req.getStatus())
+                        .createdAt(req.getCreatedAt())
+                        .processedAt(req.getProcessedAt())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<ClubLeaveRequestResponse> getLeaveRequestsByClubAndStatus(Long clubId, Long leaderId, LeaveRequestStatusEnum status) {
+        // ✅ Kiểm tra quyền xem
+        Membership leaderMembership = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(leaderId, clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
+        if (leaderMembership.getClubRole() != ClubRoleEnum.LEADER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Club Leader can view leave requests.");
+        }
+
+        // ✅ Lấy danh sách theo status
+        var requests = leaveRequestRepo.findByMembership_Club_ClubIdAndStatusOrderByCreatedAtDesc(clubId, status);
+
+        return requests.stream()
+                .map(req -> ClubLeaveRequestResponse.builder()
+                        .requestId(req.getId())
+                        .membershipId(req.getMembership().getMembershipId())
+                        .memberName(req.getMembership().getUser().getFullName())
+                        .memberEmail(req.getMembership().getUser().getEmail())
+                        .memberRole(req.getMembership().getClubRole().name())
+                        .reason(req.getReason())
+                        .status(req.getStatus())
+                        .createdAt(req.getCreatedAt())
+                        .processedAt(req.getProcessedAt())
+                        .build())
+                .toList();
+    }
 
 
 }
