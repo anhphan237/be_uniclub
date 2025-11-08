@@ -4,6 +4,7 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.BulkAttendanceRequest;
 import com.example.uniclub.dto.request.ClubAttendanceSessionRequest;
 import com.example.uniclub.enums.AttendanceStatusEnum;
+import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubAttendanceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +35,7 @@ import java.util.Map;
 public class ClubAttendanceController {
 
     private final ClubAttendanceService attendanceService;
+    private final MembershipRepository membershipRepo;
 
     // ==========================================================
     // 📅 1. LẤY DANH SÁCH ĐIỂM DANH HÔM NAY (TỰ TẠO SESSION NẾU CHƯA CÓ)
@@ -119,22 +121,39 @@ public class ClubAttendanceController {
     }
 
     // ==========================================================
-    // 👤 5. THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CÁ NHÂN
-    // ==========================================================
+// 👤 5A. THÀNH VIÊN XEM LỊCH SỬ ĐIỂM DANH CỦA CHÍNH MÌNH (TỰ LẤY TỪ JWT)
+// ==========================================================
     @Operation(
-            summary = "Xem lịch sử điểm danh cá nhân",
+            summary = "Xem lịch sử điểm danh cá nhân (tự động lấy từ JWT)",
             description = """
-                Dành cho **STUDENT** hoặc **CLUB_LEADER**.<br>
-                Trả về toàn bộ lịch sử điểm danh của 1 thành viên theo membershipId.
-                """,
+            Dành cho **STUDENT** hoặc **CLUB_LEADER**.<br>
+            Không cần truyền membershipId.<br>
+            Backend tự xác định thành viên từ JWT token và trả về lịch sử điểm danh.
+            """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Lấy lịch sử thành công")
     )
     @PreAuthorize("hasAnyRole('STUDENT','CLUB_LEADER')")
-    @GetMapping("/member/{membershipId}/history")
-    public ApiResponse<Map<String, Object>> getMemberHistory(@PathVariable Long membershipId) {
-        return ApiResponse.ok(attendanceService.getMemberAttendanceHistory(membershipId));
+    @GetMapping("/member/history")
+    public ApiResponse<Map<String, Object>> getPersonalMemberHistory(
+            @AuthenticationPrincipal CustomUserDetails user) {
+
+        // ✅ Lấy userId từ JWT
+        Long userId = user.getUserId();
+
+        // ✅ Tìm Membership đang hoạt động của user
+        var membership = membershipRepo.findActiveMembershipsByUserId(userId).stream()
+                .findFirst()
+                .orElseThrow(() -> new com.example.uniclub.exception.ApiException(
+                        org.springframework.http.HttpStatus.NOT_FOUND,
+                        "Không tìm thấy membership đang hoạt động của bạn."
+                ));
+
+        // ✅ Gọi service cũ để lấy lịch sử theo membershipId
+        return ApiResponse.ok(attendanceService.getMemberAttendanceHistory(membership.getMembershipId()));
     }
+
+
 
     // ==========================================================
     // 🏫 6. UNI STAFF XEM TỔNG QUAN ĐIỂM DANH TOÀN TRƯỜNG
