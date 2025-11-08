@@ -1,7 +1,10 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.response.ClubLeaveRequestResponse;
 import com.example.uniclub.dto.response.MembershipResponse;
+import com.example.uniclub.entity.ClubLeaveRequestEntity;
 import com.example.uniclub.enums.ClubRoleEnum;
+import com.example.uniclub.enums.LeaveRequestStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.security.CustomUserDetails;
 
@@ -44,6 +47,9 @@ public interface MembershipService {
 
     boolean isActiveMember(Long userId, Long clubId);
 
+
+    List<ClubLeaveRequestResponse> getLeaveRequestsByClub(Long clubId, Long leaderId);
+    List<ClubLeaveRequestResponse> getLeaveRequestsByClubAndStatus(Long clubId, Long leaderId, LeaveRequestStatusEnum status);
 
 
 }

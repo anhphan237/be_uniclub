@@ -2,7 +2,9 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubLeaveRequest;
+import com.example.uniclub.dto.response.ClubLeaveRequestResponse;
 import com.example.uniclub.dto.response.MembershipResponse;
+import com.example.uniclub.entity.ClubLeaveRequestEntity;
 import com.example.uniclub.enums.LeaveRequestStatusEnum;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MembershipService;
@@ -269,6 +271,21 @@ public class MembershipController {
 
         return ResponseEntity.ok(ApiResponse.ok(Map.of("status", status)));
     }
-
+    @Operation(
+            summary = "Leader xem tất cả yêu cầu rời CLB của câu lạc bộ mình.",
+            description = "Trả về toàn bộ danh sách yêu cầu rời CLB (bao gồm các trạng thái: ĐANG CHỜ DUYỆT, ĐÃ DUYỆT, và TỪ CHỐI). Chỉ dành cho Leader."
+    )
+    @PreAuthorize("hasRole('CLUB_LEADER')")
+    @GetMapping("/clubs/{clubId}/leave-requests")
+    public ResponseEntity<ApiResponse<List<ClubLeaveRequestResponse>>> getLeaveRequestsByClub(
+            @PathVariable Long clubId,
+            @RequestParam(required = false) LeaveRequestStatusEnum status,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        var result = (status == null)
+                ? membershipService.getLeaveRequestsByClub(clubId, user.getId())
+                : membershipService.getLeaveRequestsByClubAndStatus(clubId, user.getId(), status);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
 }
