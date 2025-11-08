@@ -100,8 +100,25 @@ public class MembershipServiceImpl implements MembershipService {
 
     @Override
     public boolean isMemberOfClub(Long userId, Long clubId) {
-        return membershipRepo.existsByUser_UserIdAndClub_ClubId(userId, clubId);
+        return membershipRepo.existsByUser_UserIdAndClub_ClubIdAndStateIn(
+                userId,
+                clubId,
+                List.of(
+                        MembershipStateEnum.ACTIVE,
+                        MembershipStateEnum.PENDING,
+                        MembershipStateEnum.APPROVED
+                )
+        );
     }
+    @Override
+    public boolean isActiveMember(Long userId, Long clubId) {
+        return membershipRepo.existsByUser_UserIdAndClub_ClubIdAndState(
+                userId,
+                clubId,
+                MembershipStateEnum.ACTIVE
+        );
+    }
+
 
     @Override
     @Transactional

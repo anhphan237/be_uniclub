@@ -5,6 +5,6 @@ public enum MembershipStateEnum {
     APPROVED,     // Đã được duyệt (đơn)
     ACTIVE,       // Thành viên đang hoạt động
     REJECTED,     // Bị từ chối
-    INACTIVE,
-    KICKED      // Ngưng hoạt động
+    INACTIVE,     // Ngưng hoạt động
+    KICKED
 }

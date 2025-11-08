@@ -42,6 +42,7 @@ public interface MembershipService {
 
     Map<String, Object> getMemberOverview(Long userId);
 
+    boolean isActiveMember(Long userId, Long clubId);
 
 
 

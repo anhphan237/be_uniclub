@@ -255,6 +255,20 @@ public class MembershipController {
         Map<String, Object> data = membershipService.getMemberOverview(user.getId());
         return ResponseEntity.ok(ApiResponse.ok(data));
     }
+    @Operation(summary = "Kiểm tra trạng thái thành viên của user trong CLB")
+    @GetMapping("/clubs/{clubId}/membership/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getMembershipStatus(
+            @PathVariable Long clubId,
+            @AuthenticationPrincipal CustomUserDetails user) {
+
+        boolean active = membershipService.isActiveMember(user.getId(), clubId);
+        boolean joined = membershipService.isMemberOfClub(user.getId(), clubId);
+
+        String status = active ? "ACTIVE" : (joined ? "PENDING_OR_APPROVED" : "NOT_JOINED");
+
+        return ResponseEntity.ok(ApiResponse.ok(Map.of("status", status)));
+    }
 
 
 }
