@@ -543,40 +543,66 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED && event.getStatus() != EventStatusEnum.COMPLETED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Only approved or completed events can receive budget grant");
+        // ✅ 1️⃣ Kiểm tra trạng thái: chỉ cho phép duyệt nếu đang chờ UniStaff
+        if (event.getStatus() == EventStatusEnum.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already been rejected.");
+        }
+        if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF && event.getStatus() != EventStatusEnum.APPROVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only events pending UniStaff review or approved can be granted budget.");
         }
 
-        Wallet eventWallet = event.getWallet();
-        if (eventWallet == null) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Event wallet not found");
-        }
+        // ✅ 2️⃣ Ghi nhận người và thời gian duyệt
+        event.setApprovedBy(staff.getUser());
+        event.setApprovedAt(LocalDateTime.now());
+        event.setStatus(EventStatusEnum.APPROVED);
 
-        // ✅ Ghi nhận ngân sách được duyệt
-        long approvedPoints = req.getApprovedBudgetPoints().longValue();
+        // ✅ 3️⃣ Cập nhật ngân sách (từ request)
+        long approvedPoints = (req.getApprovedBudgetPoints() != null && req.getApprovedBudgetPoints() > 0)
+                ? req.getApprovedBudgetPoints()
+                : 0L;
         event.setBudgetPoints(approvedPoints);
 
-        // ✅ Cập nhật ví
-        eventWallet.setBalancePoints(eventWallet.getBalancePoints() + approvedPoints);
+        // ✅ 4️⃣ Tạo ví sự kiện nếu chưa có
+        Wallet eventWallet = event.getWallet();
+        if (eventWallet == null) {
+            eventWallet = Wallet.builder()
+                    .ownerType(WalletOwnerTypeEnum.EVENT)
+                    .event(event)
+                    .balancePoints(approvedPoints)
+                    .build();
+            walletRepo.save(eventWallet);
+            event.setWallet(eventWallet);
+        } else {
+            // nếu đã có ví thì cộng thêm điểm
+            eventWallet.setBalancePoints(eventWallet.getBalancePoints() + approvedPoints);
+        }
 
-        // ✅ Giao dịch nạp điểm
-        WalletTransaction transaction = WalletTransaction.builder()
-                .wallet(eventWallet)
-                .amount(approvedPoints)
-                .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
-                .description("UniStaff granted " + approvedPoints + " points to event " + event.getName())
-                .senderName(staff.getUser().getFullName())
-                .receiverName(event.getName())
-                .build();
+        // ✅ 5️⃣ Ghi giao dịch cấp điểm
+        if (approvedPoints > 0) {
+            WalletTransaction tx = WalletTransaction.builder()
+                    .wallet(eventWallet)
+                    .amount(approvedPoints)
+                    .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
+                    .description("UniStaff approved and granted " + approvedPoints + " points for event: " + event.getName())
+                    .senderName(staff.getUser().getFullName())
+                    .receiverName(event.getName())
+                    .build();
+            walletTransactionRepo.save(tx);
+        }
 
-        walletTransactionRepo.save(transaction);
+        // ✅ 6️⃣ Lưu lại thay đổi
         walletRepo.save(eventWallet);
+        eventRepo.save(event);
 
-        // ⚠️ BỔ SUNG DÒNG NÀY
-        eventRepo.save(event); // Lưu lại giá trị budgetPoints mới
+        // ✅ 7️⃣ Gửi thông báo cho CLB chủ trì
+        notificationService.notifyEventApproved(event);
+
+        log.info("✅ Event '{}' approved by {} with {} points", event.getName(), staff.getUser().getEmail(), approvedPoints);
 
         return mapToResponse(event);
     }
+
+
 
 
 
@@ -670,5 +696,26 @@ public class EventServiceImpl implements EventService {
             return ExcelExportUtil.exportToExcel(list);
         }
     }
+    @Transactional
+    public String rejectEvent(Long eventId, String reason, CustomUserDetails staff) {
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF &&
+                event.getStatus() != EventStatusEnum.PENDING_COCLUB) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event cannot be rejected at this stage");
+        }
+
+        event.setStatus(EventStatusEnum.REJECTED);
+        event.setRejectReason(reason);
+        event.setApprovedBy(staff.getUser());
+        eventRepo.save(event);
+
+        // Gửi thông báo cho CLB chủ trì
+        notificationService.notifyEventRejected(event, staff.getUser());
+
+        return "Event has been rejected successfully";
+    }
+
 
 }

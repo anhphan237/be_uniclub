@@ -60,7 +60,7 @@ public interface EventService {
     // 🔹 EVENT LIFECYCLE
     // =========================================================
     String finishEvent(Long eventId, CustomUserDetails principal);
-
+    String rejectEvent(Long eventId, String reason, CustomUserDetails staff);
     // =========================================================
     // 🔹 STAFF MANAGEMENT
     // =========================================================

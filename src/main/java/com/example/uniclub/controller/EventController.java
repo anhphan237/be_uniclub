@@ -433,6 +433,17 @@ public class EventController {
                 .body(file);
     }
 
+    @Operation(summary = "Từ chối sự kiện (University Staff hoặc Admin)")
+    @PutMapping("/{eventId}/reject")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<String>> rejectEvent(
+            @PathVariable Long eventId,
+            @RequestParam(required = false) String reason,
+            @AuthenticationPrincipal CustomUserDetails staff
+    ) {
+        String msg = eventService.rejectEvent(eventId, reason, staff);
+        return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
 
 
 

@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -96,10 +97,20 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public void notifyEventRejected(Event event) {
-        System.out.printf(" Notify Host [%s]: Event [%s] rejected by UniStaff%n",
-                event.getHostClub().getName(), event.getName());
+    public void notifyEventRejected(Event event, User creator) {
+        String subject = "Event Rejected: " + event.getName();
+        String content = String.format(
+                "Hi %s,\n\nYour event \"%s\" has been rejected by University Staff.\n" +
+                        "Please review the feedback on your UniClub dashboard.\n\n" +
+                        "— UniClub Team",
+                creator.getFullName(), event.getName()
+        );
+        emailService.sendEmail(creator.getEmail(), subject, content);
+
+        System.out.printf("Notify [%s]: Event [%s] rejected by UniStaff%n",
+                creator.getFullName(), event.getName());
     }
+
 
     @Override
     public void notifyEventApproved(Event event) {

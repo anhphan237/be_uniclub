@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.User;
 
 public interface NotificationService {
 
@@ -25,7 +26,7 @@ public interface NotificationService {
 
     void notifyUniStaffReadyForReview(Event event);
 
-    void notifyEventRejected(Event event);
+    void notifyEventRejected(Event event, User creator);
 
     void notifyEventApproved(Event event);
 

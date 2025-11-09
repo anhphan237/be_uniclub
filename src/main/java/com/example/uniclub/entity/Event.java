@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -78,7 +79,16 @@ public class Event {
     // 💰 Ngân sách điểm (UniStaff cấp sau khi duyệt)
     @Column(name = "budget_points", nullable = false)
     private Long budgetPoints = 0L;
+    // ❌ Lý do bị từ chối (nếu sự kiện bị reject bởi UniStaff hoặc Co-Club)
+    @Column(columnDefinition = "TEXT")
+    private String rejectReason;
 
+    // 👤 Người duyệt (staff hoặc admin)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by_id")
+    private User approvedBy;
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
 
     // 💼 Ví của sự kiện
     @OneToOne
