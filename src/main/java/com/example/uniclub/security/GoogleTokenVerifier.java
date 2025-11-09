@@ -28,8 +28,15 @@ public class GoogleTokenVerifier {
     public GoogleIdToken.Payload verify(String idTokenString) {
         try {
             GoogleIdToken idToken = verifier.verify(idTokenString);
+            if (idToken == null) {
+                System.out.println("❌ Token verification failed");
+            } else {
+                System.out.println("✅ Token verified: " + idToken.getPayload().getEmail());
+                System.out.println("Audience: " + idToken.getPayload().getAudience());
+            }
             return idToken != null ? idToken.getPayload() : null;
         } catch (Exception e) {
+            e.printStackTrace();
             return null;
         }
     }
