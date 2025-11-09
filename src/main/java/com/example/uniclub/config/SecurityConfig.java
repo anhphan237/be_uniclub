@@ -147,7 +147,8 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
                 "http://localhost:4200",
-                "https://uniclub-fpt.vercel.app"
+                "https://uniclub-fpt.vercel.app",
+                "https://uniclub.id.vn"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
