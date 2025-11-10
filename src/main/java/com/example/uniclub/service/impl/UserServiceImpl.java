@@ -253,7 +253,6 @@ public class UserServiceImpl implements UserService {
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {
         User user = getByEmail(email);
 
-
         if (req.getFullName() != null && !req.getFullName().isBlank())
             user.setFullName(req.getFullName());
 
@@ -274,6 +273,17 @@ public class UserServiceImpl implements UserService {
 
         if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
             user.setBackgroundUrl(req.getBackgroundUrl());
+
+        // ✅ NEW: Cập nhật studentCode (và kiểm tra trùng)
+        if (req.getStudentCode() != null && !req.getStudentCode().isBlank()) {
+            // chỉ check nếu khác với hiện tại
+            if (!req.getStudentCode().equals(user.getStudentCode())) {
+                if (userRepo.existsByStudentCode(req.getStudentCode())) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "Student code already in use");
+                }
+                user.setStudentCode(req.getStudentCode());
+            }
+        }
 
         userRepo.save(user);
 
