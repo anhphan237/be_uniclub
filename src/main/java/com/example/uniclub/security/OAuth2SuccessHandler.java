@@ -2,7 +2,9 @@ package com.example.uniclub.security;
 
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
+import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.UserStatusEnum;
+import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,7 +17,11 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -24,7 +30,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepo;
-
+    private final MembershipRepository membershipRepo;
     @Value("${app.oauth2.redirect-success}")
     private String redirectSuccessUrl;
 
@@ -47,17 +53,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 return;
             }
 
-            // ✅ Tất cả user Google đều là STUDENT (roleId = 5)
             long studentRoleId = 5L;
-
             Optional<User> userOpt = userRepo.findByEmail(email);
             User user;
 
             if (userOpt.isEmpty()) {
-                // 🧩 Tạo user mới
+                // 🧩 Tạo user mới nếu chưa có
                 user = User.builder()
                         .email(email)
-                        .passwordHash("{noop}-") // Không cần password
+                        .passwordHash("{noop}-")
                         .fullName(name)
                         .avatarUrl(picture)
                         .status(UserStatusEnum.ACTIVE.name())
@@ -69,7 +73,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             } else {
                 user = userOpt.get();
                 boolean updated = false;
-
                 if (name != null && !name.equals(user.getFullName())) {
                     user.setFullName(name);
                     updated = true;
@@ -81,9 +84,37 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 if (updated) userRepo.save(user);
             }
 
-            // 🔐 Sinh JWT token để FE nhận
+            // 🔐 Sinh JWT token
             String token = jwtUtil.generateToken(user.getEmail());
-            String redirect = redirectSuccessUrl + "?token=" + token + "&role=" + user.getRole().getRoleName();
+
+            // ✅ Lấy danh sách CLB mà user đang tham gia (ACTIVE hoặc APPROVED)
+            List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
+                    .stream()
+                    .map(m -> m.getClub().getClubId())
+                    .collect(Collectors.toList());
+
+            // ✅ Kiểm tra user có phải staff (LEADER / VICE_LEADER / STAFF)
+            boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId()).stream()
+                    .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER
+                            || m.getClubRole() == ClubRoleEnum.VICE_LEADER
+                            || m.getClubRole() == ClubRoleEnum.STAFF);
+
+            // ✅ Encode danh sách CLB để truyền qua FE
+            String clubIdsParam = clubIds.isEmpty()
+                    ? ""
+                    : URLEncoder.encode(clubIds.stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(",")), StandardCharsets.UTF_8);
+
+            // ✅ Redirect URL trả luôn thông tin cần thiết cho FE
+            String redirect = String.format("%s?token=%s&role=%s&clubIds=%s&staff=%s",
+                    redirectSuccessUrl,
+                    token,
+                    user.getRole().getRoleName(),
+                    clubIdsParam,
+                    isStaff
+            );
+
             response.sendRedirect(redirect);
 
         } catch (Exception e) {
@@ -91,6 +122,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.sendRedirect(redirectFailUrl + "?error=server_error");
         }
     }
+
 
     // 🧮 Sinh student code ngẫu nhiên hoặc từ email
     private String generateStudentCode(String email) {
