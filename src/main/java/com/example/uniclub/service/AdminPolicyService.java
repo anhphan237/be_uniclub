@@ -5,6 +5,8 @@ import java.util.List;
 
 public interface AdminPolicyService {
     List<AdminPolicyResponse> getAllPolicies();
+    AdminPolicyResponse getPolicyById(Long id);
     AdminPolicyResponse savePolicy(AdminPolicyResponse req);
+    AdminPolicyResponse updateMultiplier(Long id, Double newMultiplier, String updatedBy);
     void deletePolicy(Long id);
 }
