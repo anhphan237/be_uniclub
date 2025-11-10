@@ -10,6 +10,7 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,20 +19,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EventPointsServiceImpl implements EventPointsService {
-    private final EventLogService eventLogService;
 
+    private final EventLogService eventLogService;
     private final EventRepository eventRepo;
     private final EventRegistrationRepository regRepo;
     private final UserRepository userRepo;
     private final WalletRepository walletRepo;
     private final WalletService walletService;
     private final MembershipRepository membershipRepo;
-    private final EventStaffRepository eventStaffRepo;
     private final JwtEventTokenService jwtEventTokenService;
     private final AttendanceService attendanceService;
+    private final NotificationService notificationService;
 
     // =========================================================
     // 🔹 REGISTER
@@ -44,42 +46,61 @@ public class EventPointsServiceImpl implements EventPointsService {
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getStatus() != EventStatusEnum.APPROVED && event.getStatus() != EventStatusEnum.ONGOING)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration");
+        if (event.getType() == EventTypeEnum.PUBLIC)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Public events do not require registration.");
+
+        if (!List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING).contains(event.getStatus()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration.");
 
         if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId()))
-            throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event");
+            throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event.");
 
         if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended.");
 
-        Club hostClub = event.getHostClub();
-        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), hostClub.getClubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You must be a member of the host club to join this event"));
+        // ⚙️ Check membership rules by event type
+        if (event.getType() == EventTypeEnum.PRIVATE) {
+            boolean isHostMember = membershipRepo.existsByUser_UserIdAndClub_ClubId(
+                    user.getUserId(), event.getHostClub().getClubId());
+            if (!isHostMember)
+                throw new ApiException(HttpStatus.FORBIDDEN, "Private event: only host club members can register.");
+        }
+        else if (event.getType() == EventTypeEnum.SPECIAL) {
+            boolean isMember = membershipRepo.existsByUser_UserIdAndClub_ClubId(
+                    user.getUserId(), event.getHostClub().getClubId()
+            ) || event.getCoHostedClubs().stream().anyMatch(
+                    c -> membershipRepo.existsByUser_UserIdAndClub_ClubId(user.getUserId(), c.getClubId())
+            );
+            if (!isMember)
+                throw new ApiException(HttpStatus.FORBIDDEN, "You must be a member of host or cohost club to join this event.");
+        }
 
+        // ✅ Commit points logic giữ nguyên
         Wallet memberWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
-        long commitPoints = event.getCommitPointCost() == null ? 0L : event.getCommitPointCost().longValue();
+        long commitPoints = Optional.ofNullable(event.getCommitPointCost()).orElse(0);
         if (memberWallet.getBalancePoints() < commitPoints)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points to register");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points to register.");
 
-        // 💰 Chuyển điểm cam kết member → event wallet
-        walletService.transferPoints(memberWallet, eventWallet, (int) commitPoints,
-                WalletTransactionTypeEnum.COMMIT_LOCK + ": Register event " + event.getName());
+        walletService.transferPointsWithType(
+                memberWallet, eventWallet, commitPoints,
+                "Register event " + event.getName(),
+                WalletTransactionTypeEnum.COMMIT_LOCK
+        );
 
-        EventRegistration reg = EventRegistration.builder()
+        regRepo.save(EventRegistration.builder()
                 .event(event)
                 .user(user)
                 .status(RegistrationStatusEnum.CONFIRMED)
                 .registeredAt(LocalDateTime.now())
                 .committedPoints((int) commitPoints)
                 .attendanceLevel(AttendanceLevelEnum.NONE)
-                .build();
-        regRepo.save(reg);
+                .build());
 
         return "Registered successfully. " + commitPoints + " points locked for commitment.";
     }
+
 
     // =========================================================
     // 🔹 CHECK-IN
@@ -88,38 +109,39 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Transactional
     public String checkin(CustomUserDetails principal, EventCheckinRequest req) {
         String token = req.getEventJwtToken();
-        if (token == null || token.isBlank()) {
+        if (token == null || token.isBlank())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Missing eventJwtToken.");
-        }
 
         Long eventId = jwtEventTokenService.parseEventId(token);
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
-
         User user = principal.getUser();
 
+        // ⚠️ PUBLIC: chỉ check-in 1 lần
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            attendanceService.handlePublicCheckin(user, event);
+            eventLogService.logAction(user.getUserId(), user.getFullName(),
+                    event.getEventId(), event.getName(),
+                    UserActionEnum.CHECKIN_EVENT,
+                    "User performed PUBLIC check-in for event " + event.getName());
+            return "✅ Checked in successfully for PUBLIC event: " + event.getName();
+        }
+
+        // SPECIAL / PRIVATE: 3 phase
         switch (req.getLevel().toUpperCase()) {
             case "START" -> attendanceService.handleStartCheckin(user, event);
-            case "MID"   -> attendanceService.handleMidCheckin(user, event);
-            case "END"   -> attendanceService.handleEndCheckout(user, event);
+            case "MID" -> attendanceService.handleMidCheckin(user, event);
+            case "END" -> attendanceService.handleEndCheckout(user, event);
             default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid check-in phase: " + req.getLevel());
         }
-        UserActionEnum actionType = req.getLevel().equalsIgnoreCase("END")
-                ? UserActionEnum.CHECKOUT_EVENT
-                : UserActionEnum.CHECKIN_EVENT;
 
-        eventLogService.logAction(
-                user.getUserId(),
-                user.getFullName(),
-                event.getEventId(),
-                event.getName(),
-                actionType,
-                "User performed " + req.getLevel().toUpperCase() + " phase for event " + event.getName()
-        );
+        eventLogService.logAction(user.getUserId(), user.getFullName(),
+                event.getEventId(), event.getName(),
+                req.getLevel().equalsIgnoreCase("END") ? UserActionEnum.CHECKOUT_EVENT : UserActionEnum.CHECKIN_EVENT,
+                "User performed " + req.getLevel().toUpperCase() + " check-in for event " + event.getName());
 
         return "✅ " + req.getLevel() + " check-in successful for event: " + event.getName();
     }
-
 
 
     // =========================================================
@@ -136,28 +158,27 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not registered for this event"));
 
         if (reg.getStatus() == RegistrationStatusEnum.CANCELED)
-            return " Already canceled.";
-
-        Membership membership = membershipRepo
-                .findByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+            return "Already canceled.";
 
         Wallet memberWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
-        long refund = reg.getCommittedPoints() == null ? 0L : reg.getCommittedPoints().longValue();
-        walletService.transferPoints(eventWallet, memberWallet, (int) refund,
-                WalletTransactionTypeEnum.REFUND_COMMIT + ": Cancel event registration");
+        long refund = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
+        walletService.transferPointsWithType(
+                eventWallet, memberWallet, refund,
+                "Cancel event registration " + event.getName(),
+                WalletTransactionTypeEnum.REFUND_COMMIT
+        );
 
         reg.setStatus(RegistrationStatusEnum.CANCELED);
         reg.setCanceledAt(LocalDateTime.now());
         regRepo.save(reg);
 
-        return " Registration canceled. " + refund + " points refunded.";
+        return "Registration canceled. " + refund + " points refunded.";
     }
 
     // =========================================================
-    // 🔹 END EVENT → REWARD + RETURN SURPLUS
+    // 🔹 END EVENT
     // =========================================================
     @Override
     @Transactional
@@ -170,43 +191,44 @@ public class EventPointsServiceImpl implements EventPointsService {
         long totalReward = 0L;
 
         for (EventRegistration reg : regs) {
-            AttendanceLevelEnum level = reg.getAttendanceLevel() == null ? AttendanceLevelEnum.NONE : reg.getAttendanceLevel();
+            AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel()).orElse(AttendanceLevelEnum.NONE);
             if (level == AttendanceLevelEnum.NONE || level == AttendanceLevelEnum.SUSPICIOUS) continue;
 
-            long commit = reg.getCommittedPoints() == null ? 0L : reg.getCommittedPoints().longValue();
+            long commit = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
+            if (commit <= 0) continue;
+
             long baseReward = switch (level) {
-                case HALF -> commit;      // hoàn x1
-                case FULL -> 2L * commit; // hoàn + thưởng x2
+                case HALF -> commit;
+                case FULL -> 2L * commit;
                 default -> 0L;
             };
-            if (baseReward <= 0) continue;
 
             Membership membership = membershipRepo
                     .findByUser_UserIdAndClub_ClubId(reg.getUser().getUserId(), event.getHostClub().getClubId())
                     .orElse(null);
-            if (membership == null || walletService.getOrCreateUserWallet(membership.getUser())
-                    == null) continue;
+            if (membership == null) continue;
 
-            double clubMultiplier   = event.getHostClub().getClubMultiplier() == null ? 1.0 : event.getHostClub().getClubMultiplier();
-            double memberMultiplier = membership.getMemberMultiplier() == null ? 1.0 : membership.getMemberMultiplier();
-            double eventMultiplier  = (event.getType() == EventTypeEnum.SPECIAL) ? 1.5 : 1.0;
+            double clubMultiplier = Optional.ofNullable(event.getHostClub().getClubMultiplier()).orElse(1.0);
+            double memberMultiplier = Optional.ofNullable(membership.getMemberMultiplier()).orElse(1.0);
+            double eventMultiplier = (event.getType() == EventTypeEnum.SPECIAL) ? 1.5 : 1.0;
 
             long finalReward = Math.round(baseReward * clubMultiplier * memberMultiplier * eventMultiplier);
+            if (finalReward <= 0) continue;
 
-            walletService.transferPoints(eventWallet, walletService.getOrCreateUserWallet(membership.getUser()), (int) finalReward,
-                    WalletTransactionTypeEnum.BONUS_REWARD.name() + " (multiplied)");
+            Wallet memberWallet = walletService.getOrCreateUserWallet(membership.getUser());
+            walletService.transferPointsWithType(
+                    eventWallet, memberWallet, finalReward,
+                    "Reward for " + event.getName(),
+                    WalletTransactionTypeEnum.BONUS_REWARD
+            );
 
             totalReward += finalReward;
-
             reg.setStatus(RegistrationStatusEnum.REFUNDED);
             regRepo.save(reg);
         }
 
-        event.setStatus(EventStatusEnum.COMPLETED);
-        eventRepo.save(event);
-
-        long leftover = eventWallet.getBalancePoints() == null ? 0L : eventWallet.getBalancePoints();
-        if (leftover > 0) {
+        long leftover = Optional.ofNullable(eventWallet.getBalancePoints()).orElse(0L);
+        if (eventWallet.isActive() && leftover > 0) {
             List<Club> clubs = new ArrayList<>(event.getCoHostedClubs());
             if (!clubs.contains(event.getHostClub())) clubs.add(event.getHostClub());
 
@@ -218,8 +240,11 @@ public class EventPointsServiceImpl implements EventPointsService {
                 Wallet clubWallet = walletService.getOrCreateClubWallet(c);
                 long add = share + (c.equals(event.getHostClub()) ? remainder : 0L);
                 if (add > 0) {
-                    walletService.transferPoints(eventWallet, clubWallet, (int) add,
-                            WalletTransactionTypeEnum.RETURN_SURPLUS + ": distribute remaining");
+                    walletService.transferPointsWithType(
+                            eventWallet, clubWallet, add,
+                            "Return remaining points from event " + event.getName(),
+                            WalletTransactionTypeEnum.RETURN_SURPLUS
+                    );
                 }
             }
         }
@@ -227,87 +252,20 @@ public class EventPointsServiceImpl implements EventPointsService {
         eventWallet.setActive(false);
         walletRepo.save(eventWallet);
 
-        return "Event completed. Total reward " + totalReward + " pts (multiplied); leftover returned.";
+        event.setCompletedAt(LocalDateTime.now());
+        eventRepo.save(event);
+
+        notificationService.notifyEventCompleted(event);
+        log.info("✅ Event '{}' ended by {}. TotalReward={} pts, leftover={} pts.",
+                event.getName(), principal.getUsername(), totalReward, leftover);
+
+        return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
 
-    // =========================================================
-    // 🔹 UTIL
-    // =========================================================
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
         if (w == null)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet not found. Please approve the event first.");
         return w;
-    }
-
-    // =========================================================
-    // 🔹 SUPPORT GETTERS
-    // =========================================================
-    @Override
-    @Transactional(readOnly = true)
-    public List<EventRegistration> getEventRegistrations(Long eventId) {
-        eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-        return regRepo.findByEvent_EventId(eventId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<String, Object> getEventSummary(Long eventId) {
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-        List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
-
-        long totalCommit = regs.stream().mapToLong(r -> r.getCommittedPoints() == null ? 0L : r.getCommittedPoints()).sum();
-        long refunded = regs.stream().filter(r -> r.getStatus() == RegistrationStatusEnum.REFUNDED).count();
-        long checkedIn = regs.stream().filter(r -> r.getStatus() == RegistrationStatusEnum.CHECKED_IN).count();
-
-        return Map.of(
-                "eventName", event.getName(),
-                "totalCommitPoints", totalCommit,
-                "checkedInCount", checkedIn,
-                "refundedCount", refunded,
-                "registrationsCount", regs.size()
-        );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> getMyRegisteredEvents(CustomUserDetails principal) {
-        Long userId = principal.getUser().getUserId();
-        List<EventRegistration> regs = regRepo.findByUser_UserIdOrderByRegisteredAtDesc(userId);
-
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (EventRegistration r : regs) {
-            Event e = r.getEvent();
-            result.add(Map.of(
-                    "eventId", e.getEventId(),
-                    "eventName", e.getName(),
-                    "date", e.getDate(),
-                    "status", e.getStatus().name(),
-                    "attendanceLevel", r.getAttendanceLevel() == null ? AttendanceLevelEnum.NONE.name() : r.getAttendanceLevel().name(),
-                    "committedPoints", r.getCommittedPoints(),
-                    "clubName", e.getHostClub().getName(),
-                    "registeredAt", r.getRegisteredAt()
-            ));
-        }
-        return result;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<String, Object> getEventWallet(Long eventId) {
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-        Wallet wallet = ensureEventWallet(event);
-
-        return Map.of(
-                "eventId", event.getEventId(),
-                "eventName", event.getName(),
-                "walletBalance", wallet.getBalancePoints(),
-                "ownerType", wallet.getOwnerType().name(),
-                "hostClubId", event.getHostClub().getClubId(),
-                "active", wallet.isActive()
-        );
     }
 }

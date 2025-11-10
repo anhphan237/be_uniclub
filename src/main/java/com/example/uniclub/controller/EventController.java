@@ -52,10 +52,8 @@ public class EventController {
     private final EventPointsService eventPointsService;
     private final EventStaffService eventStaffService;
     private final EventWalletService eventWalletService;
-    private final EventSettlementService eventSettlementService;
     private final AttendanceService attendanceService;
     private final EventFeedbackService eventFeedbackService;
-    private final EventFeedbackService feedbackService;
     // =========================================================
     // 🔹 1. CRUD
     // =========================================================
@@ -130,15 +128,26 @@ public class EventController {
             @PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.cancelRegistration(principal, eventId)));
     }
-    @Operation(summary = "Hoàn thành sự kiện (Leader/Staff xác nhận)")
+    @Operation(
+            summary = "Hoàn thành sự kiện (Leader/Staff xác nhận)",
+            description = """
+        Khi Leader hoặc University Staff xác nhận sự kiện đã kết thúc:
+        - Hệ thống sẽ tự động **settle điểm thưởng và hoàn điểm cam kết** cho thành viên.
+        - **Điểm dư** trong ví sự kiện sẽ được hoàn lại cho CLB chủ trì và các CLB đồng tổ chức.
+        - Gửi thông báo hoàn tất tới các bên liên quan.
+        """)
     @PostMapping("/{eventId}/complete")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> completeEvent(
             @AuthenticationPrincipal CustomUserDetails principal,
-            @PathVariable Long eventId) {
+            @PathVariable Long eventId
+    ) {
+        // ✅ Gọi service trung tâm đã chuẩn hóa logic finish
         String msg = eventService.finishEvent(eventId, principal);
+
         return ResponseEntity.ok(ApiResponse.msg(msg));
     }
+
 
 
     // =========================================================
@@ -230,15 +239,6 @@ public class EventController {
     }
 
 
-    @Operation(summary = "Kết toán sự kiện (hoàn điểm dư về CLB)")
-    @PostMapping("/{eventId}/settle")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> settleEvent(@PathVariable Long eventId) {
-        Event event = eventService.getEntity(eventId);
-        eventSettlementService.settleEvent(event);
-        eventWalletService.returnSurplusToClubs(event);
-        return ResponseEntity.ok(ApiResponse.msg("Event settled successfully"));
-    }
     @Operation(summary = "Xem chi tiết ví sự kiện")
     @GetMapping("/{eventId}/wallet/detail")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','ADMIN')")
@@ -272,8 +272,9 @@ public class EventController {
     @GetMapping("/{eventId}/summary")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<?>> getEventSummary(@PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.ok(eventPointsService.getEventSummary(eventId)));
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getEventAttendanceSummary(eventId)));
     }
+
     @Operation(summary = "Sinh viên gửi feedback cho sự kiện")
     @GetMapping("/my-registrations")
     @PreAuthorize("hasRole('STUDENT')")
@@ -311,7 +312,7 @@ public class EventController {
             @RequestBody EventFeedbackRequest req,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        EventFeedbackResponse response = feedbackService.createFeedback(eventId, req, userDetails);
+        EventFeedbackResponse response = eventFeedbackService.createFeedback(eventId, req, userDetails);
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Feedback created successfully",
@@ -380,7 +381,7 @@ public class EventController {
     @GetMapping("/api/clubs/{clubId}/feedbacks")
     @PreAuthorize("hasAnyRole('CLUB_LEADER', 'STAFF', 'UNIVERSITY_STAFF')")
     public ResponseEntity<?> getFeedbacksByClub(@PathVariable Long clubId) {
-        List<EventFeedbackResponse> res = feedbackService.getFeedbacksByClub(clubId);
+        List<EventFeedbackResponse> res = eventFeedbackService.getFeedbacksByClub(clubId);
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "success",

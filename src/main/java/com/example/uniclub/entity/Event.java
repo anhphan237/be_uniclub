@@ -66,7 +66,9 @@ public class Event {
     @Column(nullable = false)
     private Integer currentCheckInCount = 0;
 
-    private Integer maxCheckInCount;
+    @Column(name = "max_checkin_count")
+    private Integer maxCheckInCount; // = sức chứa tối đa của sự kiện (theo location)
+
 
     // 🪙 Điểm cam kết
     @Column(nullable = false)
@@ -82,6 +84,10 @@ public class Event {
     // ❌ Lý do bị từ chối (nếu sự kiện bị reject bởi UniStaff hoặc Co-Club)
     @Column(columnDefinition = "TEXT")
     private String rejectReason;
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+    @Column(name = "registration_deadline")
+    private LocalDate registrationDeadline;
 
     // 👤 Người duyệt (staff hoặc admin)
     @ManyToOne(fetch = FetchType.LAZY)

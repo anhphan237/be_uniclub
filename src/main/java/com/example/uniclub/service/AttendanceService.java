@@ -20,5 +20,6 @@ public interface AttendanceService {
     void handleStartCheckin(User user, Event event);
     void handleMidCheckin(User user, Event event);
     void handleEndCheckout(User user, Event event);
+    void handlePublicCheckin(User user, Event event);
 
 }

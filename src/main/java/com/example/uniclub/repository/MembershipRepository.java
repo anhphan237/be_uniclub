@@ -103,6 +103,6 @@ WHERE m.user.userId = :userId
             Long clubId,
             MembershipStateEnum state
     );
-
+    List<Membership> findByClub_ClubIdAndClubRoleIn(Long clubId, List<ClubRoleEnum> roles);
 
 }

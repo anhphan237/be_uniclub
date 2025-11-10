@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 public class EventBudgetApproveRequest {
 
-    @NotNull
-    @Min(0)
-    private Integer approvedBudgetPoints;
+    @NotNull(message = "Approved budget points is required")
+    @Min(value = 0, message = "Approved budget points must be non-negative")
+    private Long approvedBudgetPoints;
 }

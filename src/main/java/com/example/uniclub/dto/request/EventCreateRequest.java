@@ -2,11 +2,12 @@ package com.example.uniclub.dto.request;
 
 import com.example.uniclub.enums.EventTypeEnum;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
-import io.swagger.v3.oas.annotations.media.Schema;
 
 public record EventCreateRequest(
 
@@ -21,7 +22,7 @@ public record EventCreateRequest(
         String description,
 
         @NotNull(message = "Event type is required")
-        EventTypeEnum type,
+        EventTypeEnum type, // ✅ PUBLIC / SPECIAL / PRIVATE
 
         @NotNull(message = "Event date is required")
         LocalDate date,
@@ -34,19 +35,18 @@ public record EventCreateRequest(
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
         LocalTime endTime,
 
-
         @NotNull(message = "Location ID is required")
         Long locationId,
 
+        // ✅ PUBLIC event: số người check-in tối đa (limit theo location)
         @Positive(message = "maxCheckInCount must be > 0")
         Integer maxCheckInCount,
 
+        // ✅ SPECIAL / PRIVATE: điểm cam kết (PUBLIC = 0)
         @PositiveOrZero(message = "commitPointCost must be >= 0")
         Integer commitPointCost,
 
-
-                // 🆕 Leader nhập luôn ngân sách mong muốn khi tạo event
-        @NotNull(message = "Budget point is required")
-        @Min(value = 0, message = "Budget point must be non-negative")
-        Long budgetPoints
+        // 🔥 Thêm field deadline cho SPECIAL/PRIVATE
+        @Schema(description = "Registration deadline (only for SPECIAL/PRIVATE events)")
+        LocalDate registrationDeadline
 ) {}

@@ -29,5 +29,7 @@ public interface NotificationService {
     void notifyEventRejected(Event event, User creator);
 
     void notifyEventApproved(Event event);
+    void notifyEventCompleted(Event event);
+    void notifyEventPublicCheckin(Event event, User user);
 
 }

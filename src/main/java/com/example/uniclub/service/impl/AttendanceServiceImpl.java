@@ -10,6 +10,7 @@ import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AttendanceServiceImpl implements AttendanceService {
@@ -34,11 +36,11 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceRecordRepository attendanceRepo;
     private final QRTokenRepository qrTokenRepo;
     private final JwtEventTokenService jwtEventTokenService;
-
+    private final NotificationService notificationService;
     private static final int QR_EXP_SECONDS = 120;
 
     // =========================================================
-    // 1) Leader tạo QR token
+    // 1️⃣ Leader tạo QR token
     // =========================================================
     @Override
     public Map<String, Object> getQrTokenForEvent(Long eventId, String phaseStr) {
@@ -66,7 +68,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // =========================================================
-    // 2) Member scan QR
+    // 2️⃣ Member scan QR
     // =========================================================
     @Override
     @Transactional
@@ -85,7 +87,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // =========================================================
-    // 3) Staff xác nhận thủ công
+    // 3️⃣ Staff xác nhận thủ công
     // =========================================================
     @Override
     @Transactional
@@ -127,10 +129,15 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked out (END)");
                 if (record.getStartCheckInTime() == null)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Must START before END");
+
                 record.setEndCheckOutTime(now);
                 reg.setCheckoutAt(now);
                 updateAttendanceLevel(record, reg);
-                applyReward(user, event);
+
+                // ❌ Không tính thưởng tại đây nữa — phần thưởng được xử lý trong endEvent()
+                // applyReward(user, event);
+
+                log.info("User {} completed END check-out for event '{}'", user.getEmail(), event.getName());
             }
         }
 
@@ -140,12 +147,10 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // =========================================================
-    // 🔹 Logic tính điểm thưởng
+    // 🔹 Logic tính điểm thưởng (tạm giữ, không gọi trực tiếp)
     // =========================================================
     private void applyReward(User user, Event event) {
         Club club = event.getHostClub();
-
-        // ✅ Không cần Optional, tránh boxing/unboxing lỗi
         long commitPoints = event.getCommitPointCost() != null ? event.getCommitPointCost() : 0L;
 
         int attendedEvents = membershipRepo.countByUser_UserIdAndState(user.getUserId(), MembershipStateEnum.ACTIVE);
@@ -185,16 +190,15 @@ public class AttendanceServiceImpl implements AttendanceService {
         );
     }
 
-
     // =========================================================
-    // 4) Handlers phụ (START / MID / END)
+    // 4️⃣ Handlers phụ (START / MID / END)
     // =========================================================
     @Override @Transactional public void handleStartCheckin(User u, Event e) { processAttendancePhase(u, e, QRPhase.START); }
     @Override @Transactional public void handleMidCheckin(User u, Event e) { processAttendancePhase(u, e, QRPhase.MID); }
     @Override @Transactional public void handleEndCheckout(User u, Event e) { processAttendancePhase(u, e, QRPhase.END); }
 
     // =========================================================
-    // 5) Event stats + Fraud list
+    // 5️⃣ Event stats + Fraud list
     // =========================================================
     @Override
     public EventStatsResponse getEventStats(Long eventId) {
@@ -264,7 +268,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         return out;
     }
 
-    // ================== Helpers ==================
+    // =========================================================
+    // ⚙️ Helpers
+    // =========================================================
     private void validateTokenWindow(QRToken token) {
         LocalDateTime now = LocalDateTime.now();
         if (token.getValidFrom() != null && now.isBefore(token.getValidFrom()))
@@ -314,4 +320,48 @@ public class AttendanceServiceImpl implements AttendanceService {
         regRepo.save(reg);
         return "Verified full attendance (100%) for user ID " + userId;
     }
+    @Override
+    @Transactional
+    public void handlePublicCheckin(User user, Event event) {
+        // (Tuỳ chọn) đảm bảo đúng loại
+        if (event.getType() != EventTypeEnum.PUBLIC) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Public check-in only for PUBLIC events.");
+        }
+
+        int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+        int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(Integer.MAX_VALUE);
+        if (current >= max) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event has reached its maximum check-in capacity.");
+        }
+
+        Optional<EventRegistration> existing =
+                regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId());
+
+        if (existing.isPresent()) {
+            EventRegistration reg = existing.get();
+            if (reg.getAttendanceLevel() != null && reg.getAttendanceLevel() != AttendanceLevelEnum.NONE) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in for this event.");
+            }
+            reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
+            reg.setCheckinAt(LocalDateTime.now());
+            reg.setStatus(RegistrationStatusEnum.CHECKED_IN); // ✅ thay vì REFUNDED
+            regRepo.save(reg);
+        } else {
+            regRepo.save(EventRegistration.builder()
+                    .event(event)
+                    .user(user)
+                    .status(RegistrationStatusEnum.CHECKED_IN) // ✅
+                    .attendanceLevel(AttendanceLevelEnum.FULL)
+                    .checkinAt(LocalDateTime.now())
+                    .committedPoints(0)
+                    .build());
+        }
+
+        event.setCurrentCheckInCount(current + 1);
+        eventRepo.save(event);
+
+        notificationService.notifyEventPublicCheckin(event, user);
+    }
+
+
 }
