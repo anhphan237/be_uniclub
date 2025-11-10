@@ -76,8 +76,17 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
             Long clubId,
             List<MembershipStateEnum> states
     );
-    @Query("SELECT m FROM Membership m WHERE m.user.userId = :userId AND m.state IN ('ACTIVE', 'APPROVED')")
+    // SAU (đúng: dùng enum literal fully-qualified)
+    @Query("""
+SELECT m FROM Membership m
+WHERE m.user.userId = :userId
+  AND m.state IN (
+    com.example.uniclub.enums.MembershipStateEnum.ACTIVE,
+    com.example.uniclub.enums.MembershipStateEnum.APPROVED
+  )
+""")
     List<Membership> findActiveMembershipsByUserId(@Param("userId") Long userId);
+
 
     @Query("""
     SELECT m.club.clubId

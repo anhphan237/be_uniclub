@@ -25,8 +25,6 @@ import org.springframework.web.bind.annotation.*;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.enums.ClubRoleEnum;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -178,11 +176,6 @@ public class AuthController {
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
-
-
-
-
-
 
     // ==========================================================
     // 🟠 4. QUÊN MẬT KHẨU (PUBLIC)
