@@ -22,6 +22,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.enums.ClubRoleEnum;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,6 +51,7 @@ public class AuthController {
     private final RoleRepository roleRepo;
     private final JwtUtil jwtUtil;
     private final UserService userService;
+    private final MembershipRepository membershipRepo;
 
     // ==========================================================
     // 🟢 1. ĐĂNG NHẬP
@@ -120,12 +123,9 @@ public class AuthController {
         if (picture == null) {
             picture = "https://res.cloudinary.com/uniclub/image/upload/v1/defaults/default-avatar.png";
         }
-
-        // ✅ Fix: make variables effectively final for lambda
         final String finalEmail = email;
         final String finalName = name;
         final String finalPicture = picture;
-
         // ✅ Find existing user or create new
         var user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
             Role studentRole = roleRepo.findByRoleName("STUDENT")
@@ -144,14 +144,27 @@ public class AuthController {
         });
 
         boolean updated = false;
-        if (user.getFullName() == null) { user.setFullName(finalName); updated = true; }
-        if (user.getAvatarUrl() == null) { user.setAvatarUrl(finalPicture); updated = true; }
+        if (user.getFullName() == null) { user.setFullName(name); updated = true; }
+        if (user.getAvatarUrl() == null) { user.setAvatarUrl(picture); updated = true; }
         if (updated) userRepo.save(user);
 
         // ✅ Generate JWT
         String jwt = jwtUtil.generateToken(user.getEmail());
 
-        // ✅ Build DTO for response
+        // ✅ Lấy danh sách CLB mà user đang tham gia
+        List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
+                .stream()
+                .map(m -> m.getClub().getClubId())
+                .toList();
+
+        // ✅ Kiểm tra user có phải staff CLB nào không
+        boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId())
+                .stream()
+                .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER
+                        || m.getClubRole() == ClubRoleEnum.VICE_LEADER
+                        || m.getClubRole() == ClubRoleEnum.STAFF);
+
+        // ✅ Build DTO cho response
         GoogleLoginResponse response = GoogleLoginResponse.builder()
                 .token(jwt)
                 .email(user.getEmail())
@@ -159,12 +172,14 @@ public class AuthController {
                 .avatar(user.getAvatarUrl())
                 .userId(user.getUserId())
                 .role(user.getRole().getRoleName())
-                .staff(user.getRole().getRoleName().equalsIgnoreCase("UNIVERSITY_STAFF"))
-                .clubIds(List.of()) // can fill later when club module ready
+                .clubIds(clubIds)
+                .staff(isStaff)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+
 
 
 
