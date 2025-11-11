@@ -12,6 +12,7 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.WalletRewardService;
 import com.example.uniclub.service.WalletService;
+import com.example.uniclub.service.WalletTransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,6 +43,7 @@ import java.util.List;
 public class WalletController {
 
     private final WalletRewardService walletRewardService;
+    private final WalletTransactionService walletTransactionService;
     private final WalletService walletService;
     private final WalletRepository walletRepo;
     private final UserRepository userRepo;
@@ -216,6 +218,15 @@ public class WalletController {
     @GetMapping("/transactions/club-to-member")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getClubToMemberTransactions() {
         return ResponseEntity.ok(ApiResponse.ok(walletService.getAllMemberRewards()));
+    }
+
+    @Operation(summary = "Danh sách giao dịch Uni → Event",
+            description = "Lấy danh sách các giao dịch Uni tài trợ điểm cho các sự kiện.")
+    @GetMapping("/transactions/uni-to-event")
+    public ResponseEntity<ApiResponse<List<WalletTransaction>>> getUniToEventTransactions() {
+        return ResponseEntity.ok(ApiResponse.ok(
+                walletTransactionService.getUniToEventTransactions()
+        ));
     }
 
     // ================================================================

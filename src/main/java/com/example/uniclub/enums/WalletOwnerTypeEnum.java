@@ -12,7 +12,9 @@ public enum WalletOwnerTypeEnum {
     USER("USER", "Wallet owned by a user within a club"),
 
     // 🎉 Ví của sự kiện
-    EVENT("EVENT", "Wallet owned by an event");
+    EVENT("EVENT", "Wallet owned by an event"),
+
+    UNIVERSITY("UNIVERSITY", "Wallet owned by an university"),;
 
     private final String code;
     private final String description;

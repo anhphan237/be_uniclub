@@ -24,22 +24,34 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     // 🔹 Lịch sử thưởng điểm từ Club → Member (FETCH JOIN để lấy luôn User name)
     @Query("""
-    SELECT tx FROM WalletTransaction tx
-    LEFT JOIN FETCH tx.wallet w
-    LEFT JOIN FETCH w.club c
-    LEFT JOIN FETCH tx.receiverUser u
-    WHERE tx.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
-    ORDER BY tx.createdAt DESC
-""")
+        SELECT tx FROM WalletTransaction tx
+        LEFT JOIN FETCH tx.wallet w
+        LEFT JOIN FETCH w.club c
+        LEFT JOIN FETCH tx.receiverUser u
+        WHERE tx.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
+        ORDER BY tx.createdAt DESC
+    """)
     List<WalletTransaction> findRewardToMembers();
 
 
     @Query("""
-    SELECT COALESCE(SUM(wt.amount), 0)
-    FROM WalletTransaction wt
-    WHERE wt.wallet.user.id = :userId
-""")
+        SELECT COALESCE(SUM(wt.amount), 0)
+        FROM WalletTransaction wt
+        WHERE wt.wallet.user.id = :userId
+    """)
     long sumRewardPointsByUserId(@Param("userId") Long userId);
+
+
+    @Query("""
+        SELECT t FROM WalletTransaction t
+        JOIN t.wallet w
+        WHERE w.ownerType = com.example.uniclub.enums.WalletOwnerTypeEnum.UNIVERSITY
+          AND t.receiverClub IS NULL
+          AND t.receiverUser IS NULL
+          AND t.receiverMembership IS NULL
+        ORDER BY t.createdAt DESC
+    """)
+    List<WalletTransaction> findAllUniToEventTransactions();
 
 
 
