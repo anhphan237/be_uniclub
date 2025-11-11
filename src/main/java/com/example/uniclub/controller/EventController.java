@@ -305,7 +305,7 @@ public class EventController {
 // 🔹 8. EVENT FEEDBACK
 // =========================================================
     @Operation(summary = "Lấy tất cả feedback của sự kiện")
-    @PostMapping("/api/events/{eventId}/feedback")
+    @PostMapping("/{eventId}/feedback")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<?> createFeedback(
             @PathVariable Long eventId,
@@ -378,7 +378,7 @@ public class EventController {
     }
 
     @Operation(summary = "Lấy danh sách feedback liên quan tới CLB")
-    @GetMapping("/api/clubs/{clubId}/feedbacks")
+    @GetMapping("/clubs/{clubId}/feedbacks")
     @PreAuthorize("hasAnyRole('CLUB_LEADER', 'STAFF', 'UNIVERSITY_STAFF')")
     public ResponseEntity<?> getFeedbacksByClub(@PathVariable Long clubId) {
         List<EventFeedbackResponse> res = eventFeedbackService.getFeedbacksByClub(clubId);
