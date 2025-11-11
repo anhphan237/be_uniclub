@@ -36,8 +36,6 @@ public interface WalletService {
     List<WalletTransactionResponse> getWalletTransactions(Long walletId);
     List<WalletTransactionResponse> getAllClubTopups();
     List<WalletTransactionResponse> getAllMemberRewards();
-    List<WalletTransactionResponse> findAllUniToEventTransactions();
-
 
     WalletTransaction topupPointsFromUniversity(Wallet clubWallet, long points, String reason);
 

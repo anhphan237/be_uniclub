@@ -45,7 +45,7 @@ public class MajorPolicyController {
                     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
             }
     )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF','ADMIN')")
     @GetMapping
     public ResponseEntity<List<MajorPolicyResponse>> getAll() {
         return ResponseEntity.ok(majorPolicyService.getAll());
