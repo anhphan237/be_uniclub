@@ -323,12 +323,6 @@ public class EventServiceImpl implements EventService {
         return result;
     }
 
-// ❌ Xóa hàm markEventCompleted()
-// vì trùng logic và bỏ qua EventPointsService
-
-
-
-
 
 
     // =================================================================
@@ -375,8 +369,6 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
-
-
 
     @Override
     public List<EventResponse> getUpcomingEvents() {

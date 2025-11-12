@@ -10,7 +10,10 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ClubApplicationService;
 import com.example.uniclub.service.EmailService;
 import jakarta.transaction.Transactional;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +37,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final MembershipRepository membershipRepo;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
-
+    private static final Map<String, OtpInfo> otpCache = new ConcurrentHashMap<>();
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn xin tạo CLB
     // ============================================================
@@ -311,4 +315,36 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .map(ClubApplicationResponse::fromEntity)
                 .toList();
     }
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    private static class OtpInfo {
+        private String otp;
+        private LocalDateTime expiresAt;
+    }
+
+    @Override
+    public void saveOtp(String email, String otp) {
+        otpCache.put(email, new OtpInfo(otp, LocalDateTime.now().plusHours(48)));
+    }
+
+    @Override
+    public void verifyOtp(String email, String otp) {
+        OtpInfo info = otpCache.get(email);
+        if (info == null)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You have not been issued an OTP.");
+        if (info.getExpiresAt().isBefore(LocalDateTime.now()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Your OTP has expired.");
+        if (!info.getOtp().equals(otp))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid OTP code.");
+
+        otpCache.remove(email);
+    }
+
+    @Override
+    public User findStudentByEmail(String email) {
+        return userRepo.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found."));
+    }
+
 }
