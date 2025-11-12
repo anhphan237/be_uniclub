@@ -35,13 +35,14 @@ public class ClubActivityScheduler {
         LocalDate start = lastMonth.atDay(1);
         LocalDate end = lastMonth.atEndOfMonth();
 
-        // 🔹 Lấy danh sách chính sách multiplier của CLUB
+        // 🔹 Lấy danh sách chính sách multiplier của CLUB (sắp xếp theo minEventsForClub giảm dần)
         List<MultiplierPolicy> clubPolicies =
-                policyRepo.findByTargetTypeOrderByMinEventsDesc(PolicyTargetTypeEnum.CLUB);
+                policyRepo.findByTargetTypeOrderByMinEventsForClubDesc(PolicyTargetTypeEnum.CLUB);
 
         List<Club> clubs = clubRepo.findAll();
 
         for (Club club : clubs) {
+            // 🔹 Đếm số sự kiện CLB tổ chức trong tháng trước
             long eventCount = eventRepo.findByHostClub_ClubId(club.getClubId()).stream()
                     .filter(e -> e.getDate() != null &&
                             !e.getDate().isBefore(start) &&
@@ -50,23 +51,24 @@ public class ClubActivityScheduler {
 
             // 🔹 Tìm chính sách phù hợp nhất
             MultiplierPolicy matchedPolicy = clubPolicies.stream()
-                    .filter(p -> eventCount >= p.getMinEvents() && p.isActive())
+                    .filter(p -> eventCount >= (p.getMinEventsForClub() != null ? p.getMinEventsForClub() : 0)
+                            && p.isActive())
                     .findFirst()
                     .orElse(null);
 
             if (matchedPolicy != null) {
                 try {
-                    // ⚙️ Chuyển từ String levelOrStatus sang Enum tương ứng
+                    // ⚙️ Gán trạng thái hoạt động tương ứng
                     club.setActivityStatus(
                             ClubActivityStatusEnum.valueOf(matchedPolicy.getLevelOrStatus())
                     );
                 } catch (IllegalArgumentException ex) {
-                    // Nếu policy DB có giá trị không trùng enum
+                    // Nếu DB chứa giá trị không khớp enum
                     club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 }
                 club.setClubMultiplier(matchedPolicy.getMultiplier());
             } else {
-                // ❌ Nếu không có policy nào phù hợp → coi như CLB inactivate
+                // ❌ Nếu không có policy nào phù hợp → INACTIVE
                 club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 club.setClubMultiplier(1.0);
             }

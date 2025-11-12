@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
     private final MultiplierPolicyRepository multiplierPolicyRepository;
+    private final MultiplierPolicyRepository multiplierRepo;
 
     // ================================================================
     // 🧾 Lấy tất cả
@@ -48,7 +50,6 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     @Override
     public MultiplierPolicyResponse create(MultiplierPolicyRequest req) {
 
-        // ⚙️ Kiểm tra trùng targetType + levelOrStatus
         boolean exists = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
                 req.getTargetType(), req.getLevelOrStatus());
         if (exists) {
@@ -59,7 +60,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         MultiplierPolicy policy = MultiplierPolicy.builder()
                 .targetType(req.getTargetType())
                 .levelOrStatus(req.getLevelOrStatus())
-                .minEvents(req.getMinEvents())
+                .minEventsForClub(req.getMinEvents()) // ✅ đổi tên field
                 .multiplier(req.getMultiplier())
                 .updatedBy(req.getUpdatedBy())
                 .updatedAt(LocalDateTime.now())
@@ -79,7 +80,6 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         MultiplierPolicy existing = multiplierPolicyRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
 
-        // 🔒 Nếu update sang levelOrStatus khác → kiểm tra trùng
         boolean duplicate = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
                 req.getTargetType(), req.getLevelOrStatus());
         if (duplicate && !req.getLevelOrStatus().equals(existing.getLevelOrStatus())) {
@@ -89,7 +89,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
         existing.setTargetType(req.getTargetType());
         existing.setLevelOrStatus(req.getLevelOrStatus());
-        existing.setMinEvents(req.getMinEvents());
+        existing.setMinEventsForClub(req.getMinEvents()); // ✅ đổi tên setter
         existing.setMultiplier(req.getMultiplier());
         existing.setUpdatedBy(req.getUpdatedBy());
         existing.setUpdatedAt(LocalDateTime.now());
@@ -116,11 +116,12 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     @Override
     public List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType) {
         return multiplierPolicyRepository
-                .findByTargetTypeAndActiveTrueOrderByMinEventsDesc(targetType)
+                .findByTargetTypeAndActiveTrueOrderByMinEventsForClubDesc(targetType)
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
+
 
     // ================================================================
     // 🧮 Tìm multiplier theo cấp độ
@@ -141,7 +142,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                 .id(entity.getId())
                 .targetType(entity.getTargetType())
                 .levelOrStatus(entity.getLevelOrStatus())
-                .minEvents(entity.getMinEvents())
+                .minEvents(entity.getMinEventsForClub()) // ✅ sửa ở đây
                 .multiplier(entity.getMultiplier())
                 .active(entity.isActive())
                 .updatedBy(entity.getUpdatedBy())
@@ -153,6 +154,24 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     // ================================================================
     @Override
     public List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type) {
-        return multiplierPolicyRepository.findByTargetTypeOrderByMinEventsDesc(type);
+        return multiplierPolicyRepository.findByTargetTypeOrderByMinEventsForClubDesc(type); // ✅ sửa field
     }
+
+    @Override
+    public Optional<MultiplierPolicy> findByTargetTypeAndLevelOrStatus(
+            PolicyTargetTypeEnum targetType,
+            String levelOrStatus
+    ) {
+        return multiplierRepo.findByTargetTypeAndLevelOrStatusAndActiveTrue(
+                targetType,
+                levelOrStatus
+        );
+    }
+
+    @Override
+    public List<MultiplierPolicy> getActiveEntityByTargetType(PolicyTargetTypeEnum targetType) {
+        return multiplierPolicyRepository.findByTargetTypeAndActiveTrueOrderByMinEventsForClubDesc(targetType);
+    }
+
+
 }

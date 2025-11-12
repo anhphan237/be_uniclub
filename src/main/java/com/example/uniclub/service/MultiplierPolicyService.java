@@ -6,6 +6,7 @@ import com.example.uniclub.entity.MultiplierPolicy;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MultiplierPolicyService {
 
@@ -30,5 +31,10 @@ public interface MultiplierPolicyService {
     // 🔹 Lấy multiplier cho 1 cấp độ cụ thể (dùng khi thưởng điểm)
     Double getMultiplierForLevel(PolicyTargetTypeEnum targetType, String level);
     List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type);
+    Optional<MultiplierPolicy> findByTargetTypeAndLevelOrStatus(
+            PolicyTargetTypeEnum targetType,
+            String levelOrStatus
+    );
+    List<MultiplierPolicy> getActiveEntityByTargetType(PolicyTargetTypeEnum targetType);
 
 }

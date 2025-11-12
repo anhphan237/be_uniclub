@@ -11,12 +11,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AdminPolicyResponse {
+
     private Long id;
-    private String name;               // policyName
-    private String description;        // policyDescription
+    private String name;               // Tên chính sách
+    private String description;        // Mô tả chính sách
     private String targetType;         // CLUB / MEMBER
     private String levelOrStatus;      // EXCELLENT, LEGEND, ...
-    private Integer minEvents;         // Số sự kiện tối thiểu
+    private Integer minEventsForClub;  // Số sự kiện tối thiểu
     private Double multiplier;         // Hệ số nhân
     private boolean active;
     private String updatedBy;
@@ -29,9 +30,9 @@ public class AdminPolicyResponse {
                 .id(mp.getId())
                 .name(mp.getPolicyName())
                 .description(mp.getPolicyDescription())
-                .targetType(mp.getTargetType().name())
+                .targetType(mp.getTargetType() != null ? mp.getTargetType().name() : null)
                 .levelOrStatus(mp.getLevelOrStatus())
-                .minEvents(mp.getMinEvents())
+                .minEventsForClub(mp.getMinEventsForClub())
                 .multiplier(mp.getMultiplier())
                 .active(mp.isActive())
                 .updatedBy(mp.getUpdatedBy())
@@ -46,9 +47,11 @@ public class AdminPolicyResponse {
                 .id(id)
                 .policyName(name)
                 .policyDescription(description)
-                .targetType(Enum.valueOf(PolicyTargetTypeEnum.class, targetType))
+                .targetType(targetType != null
+                        ? Enum.valueOf(PolicyTargetTypeEnum.class, targetType)
+                        : null)
                 .levelOrStatus(levelOrStatus)
-                .minEvents(minEvents)
+                .minEventsForClub(minEventsForClub)
                 .multiplier(multiplier)
                 .active(active)
                 .updatedBy(updatedBy)

@@ -24,8 +24,9 @@ public class MultiplierPolicy {
     private PolicyTargetTypeEnum targetType;
 
     // 📊 Số sự kiện tối thiểu để đạt mức này
-    @Column(nullable = false)
-    private Integer minEvents = 0;
+    @Column(name = "min_events_for_club")
+    private Integer minEventsForClub;
+
 
     // 💰 Hệ số nhân điểm thưởng (VD: 1.0 = bình thường, 1.2 = +20%)
     @Column(nullable = false)

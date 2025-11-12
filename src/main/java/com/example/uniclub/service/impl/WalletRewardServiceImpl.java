@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -26,29 +27,128 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final MultiplierPolicyService multiplierPolicyService;
+    private final ClubAttendanceRecordRepository clubAttendanceRecordRepo;
+    private final EventRepository eventRepo;
 
     // ================================================================
     // ⚙️ Helper: Lấy multiplier theo policy
     // ================================================================
-    private double getMemberMultiplier(int attendedEvents) {
-        List<MultiplierPolicy> policies = multiplierPolicyService.getPolicies(PolicyTargetTypeEnum.MEMBER);
-        for (MultiplierPolicy p : policies) {
-            if (attendedEvents >= p.getMinEvents() && p.isActive()) {
-                return p.getMultiplier();
+    private double getMemberMultiplier(User member) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime threeMonthsAgo = now.minusMonths(3);
+
+        // 🧮 1️⃣ Lấy tất cả attendance trong 3 tháng gần nhất
+        List<ClubAttendanceRecord> attendanceList = clubAttendanceRecordRepo
+                .findByMembership_User_UserIdAndSession_CreatedAtBetween(
+                        member.getUserId(),
+                        threeMonthsAgo,
+                        now
+                );
+
+        int totalEvents = attendanceList.size();
+        if (totalEvents == 0) return 1.0;
+
+        long attended = attendanceList.stream()
+                .filter(a -> a.getStatus() == AttendanceStatusEnum.PRESENT || a.getStatus() == AttendanceStatusEnum.LATE)
+                .count();
+
+        double attendanceRate = (double) attended / totalEvents * 100; // % chuyên cần
+
+        // 🧩 2️⃣ Lấy danh sách chính sách multiplier cho MEMBER từ DB (sắp xếp giảm dần)
+        List<MultiplierPolicy> policies = multiplierPolicyService
+                .getActiveEntityByTargetType(PolicyTargetTypeEnum.MEMBER);
+
+
+        // 🔍 3️⃣ Chọn policy phù hợp nhất (ngưỡng attendanceRate ≥ minEventsForClub)
+        MultiplierPolicy matchedPolicy = policies.stream()
+                .filter(p -> attendanceRate >= (p.getMinEventsForClub() != null ? p.getMinEventsForClub() : 0))
+                .findFirst()
+                .orElse(null);
+
+        // ⚙️ 4️⃣ Kiểm tra xem member có duy trì ≥80% attendance 3 tháng liên tục (ELITE)
+        boolean sustainedHighAttendance = true;
+        for (int i = 0; i < 3; i++) {
+            LocalDateTime start = now.minusMonths(i + 1);
+            LocalDateTime end = now.minusMonths(i);
+
+            int monthTotal = clubAttendanceRecordRepo.countByMembership_User_UserIdAndSession_CreatedAtBetween(
+                    member.getUserId(), start, end);
+            int monthPresent = clubAttendanceRecordRepo.countByMembership_User_UserIdAndStatusInAndSession_CreatedAtBetween(
+                    member.getUserId(),
+                    List.of(AttendanceStatusEnum.PRESENT, AttendanceStatusEnum.LATE),
+                    start, end);
+
+            double monthRate = monthTotal == 0 ? 0 : (double) monthPresent / monthTotal;
+            if (monthRate < 0.8) {
+                sustainedHighAttendance = false;
+                break;
             }
         }
-        return 1.0;
+
+        // 🎯 5️⃣ Xác định cấp độ tương ứng
+        MemberLevelEnum level = MemberLevelEnum.BASIC;
+        if (matchedPolicy != null) {
+            try {
+                level = MemberLevelEnum.valueOf(matchedPolicy.getLevelOrStatus());
+            } catch (IllegalArgumentException ignored) {
+                level = MemberLevelEnum.BASIC;
+            }
+        }
+
+        // Nếu chuyên cần 3 tháng liên tiếp ≥80% → ép thành ELITE (nếu có chính sách)
+        if (sustainedHighAttendance) {
+            MultiplierPolicy elitePolicy = policies.stream()
+                    .filter(p -> "ELITE".equalsIgnoreCase(p.getLevelOrStatus()))
+                    .findFirst()
+                    .orElse(null);
+            if (elitePolicy != null) {
+                matchedPolicy = elitePolicy;
+                level = MemberLevelEnum.ELITE;
+            }
+        }
+
+        // 💰 6️⃣ Trả multiplier tương ứng
+        double multiplier = matchedPolicy != null ? matchedPolicy.getMultiplier() : 1.0;
+
+        // (tuỳ chọn) Cập nhật lại memberLevel vào Membership
+        final MemberLevelEnum finalLevel = level;
+        final double finalMultiplier = multiplier;
+        membershipRepo.findByUser_UserId(member.getUserId())
+                .stream()
+                .findFirst()
+                .ifPresent(m -> {
+                    m.setMemberLevel(finalLevel);
+                    m.setMemberMultiplier(finalMultiplier);
+                    membershipRepo.save(m);
+                });
+
+        return multiplier;
     }
 
-    private double getClubMultiplier(int hostedEvents) {
-        List<MultiplierPolicy> policies = multiplierPolicyService.getPolicies(PolicyTargetTypeEnum.CLUB);
-        for (MultiplierPolicy p : policies) {
-            if (hostedEvents >= p.getMinEvents() && p.isActive()) {
-                return p.getMultiplier();
-            }
-        }
-        return 1.0;
+
+
+
+    private double getClubMultiplier(Club club) {
+        // 📅 Đếm số sự kiện đã hoàn thành của CLB
+        long completedEvents = (long) eventRepo.countByHostClub_ClubIdAndStatus(
+                club.getClubId(),
+                EventStatusEnum.COMPLETED
+        );
+
+
+        // 🧠 Xác định trạng thái hoạt động dựa trên số sự kiện
+        ClubActivityStatusEnum status;
+        if (completedEvents < 2) status = ClubActivityStatusEnum.INACTIVE;
+        else if (completedEvents < 5) status = ClubActivityStatusEnum.ACTIVE;
+        else status = ClubActivityStatusEnum.EXCELLENT;
+
+        // 💰 Tìm multiplier tương ứng trong bảng policy
+        return multiplierPolicyService
+                .findByTargetTypeAndLevelOrStatus(PolicyTargetTypeEnum.CLUB, status.name())
+                .map(MultiplierPolicy::getMultiplier)
+                .orElse(1.0);
     }
+
 
     // ================================================================
     // 🎁 THƯỞNG ĐIỂM CHO 1 USER (có multiplier)
@@ -68,8 +168,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         User targetUser = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        int attendedEvents = membershipRepo.countByUser_UserIdAndState(userId, MembershipStateEnum.ACTIVE);
-        double memberMultiplier = getMemberMultiplier(attendedEvents);
+        double memberMultiplier = getMemberMultiplier(targetUser);
         double totalPoints = points * memberMultiplier;
         String finalReason = reason == null ? "Manual reward (with multiplier)" : reason;
 
@@ -160,18 +259,24 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             Club club = clubRepo.findById(clubId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found: " + clubId));
 
+            // 🧮 Tính multiplier của CLB dựa trên số sự kiện đã hoàn thành
+            double clubMultiplier = getClubMultiplier(club);
+
+            // 💰 Tính số điểm cuối cùng sau khi nhân hệ số
+            long finalPoints = Math.round(req.getPoints() * clubMultiplier);
+
             Wallet clubWallet = walletService.getOrCreateClubWallet(club);
             WalletTransaction tx = walletService.topupPointsFromUniversity(
                     clubWallet,
-                    req.getPoints(),
-                    req.getReason()
+                    finalPoints,
+                    req.getReason() + " (x" + clubMultiplier + ")"
             );
 
             responses.add(WalletTransactionResponse.builder()
                     .id(tx.getId())
                     .type(tx.getType().name())
                     .amount(tx.getAmount())
-                    .signedAmount("+" + tx.getAmount())  // ✅ thêm hiển thị dấu +
+                    .signedAmount("+" + tx.getAmount())
                     .description(tx.getDescription())
                     .senderName(tx.getSenderName())
                     .receiverName(club.getName())
@@ -181,6 +286,7 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         return responses;
     }
+
 
     // ================================================================
     // 👥 THƯỞNG HÀNG LOẠT CHO NHIỀU THÀNH VIÊN (chỉ MEMBER thật)
@@ -194,33 +300,39 @@ public class WalletRewardServiceImpl implements WalletRewardService {
         boolean isAdminOrStaff = role.equalsIgnoreCase("ADMIN") || role.equalsIgnoreCase("UNIVERSITY_STAFF");
         boolean isLeaderOrVice = role.equalsIgnoreCase("CLUB_LEADER") || role.equalsIgnoreCase("VICE_LEADER");
 
-        // 🎓 Admin / Staff → thưởng trực tiếp
+        // ================================================================
+        // 🎓 1️⃣ Admin / Staff → thưởng trực tiếp (dựa theo memberMultiplier)
+        // ================================================================
         if (isAdminOrStaff) {
             for (Long userId : req.getTargetIds()) {
                 User targetUser = userRepo.findById(userId)
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found: " + userId));
 
+                // 🧮 Tính multiplier của member
+                double memberMultiplier = getMemberMultiplier(targetUser);
+                long totalPoints = Math.round(req.getPoints() * memberMultiplier);
+
                 Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
-                walletService.increase(userWallet, req.getPoints());
+                walletService.increase(userWallet, totalPoints);
                 walletService.logTransactionFromSystem(
                         userWallet,
-                        req.getPoints(),
+                        totalPoints,
                         WalletTransactionTypeEnum.ADD,
-                        req.getReason()
+                        req.getReason() + String.format(" (x%.2f)", memberMultiplier)
                 );
 
                 rewardService.sendManualBonusEmail(
                         targetUser.getUserId(),
-                        req.getPoints(),
+                        totalPoints,
                         req.getReason(),
                         userWallet.getBalancePoints()
                 );
 
                 responses.add(WalletTransactionResponse.builder()
                         .type("UNI_TO_MEMBER")
-                        .amount(req.getPoints())
-                        .signedAmount("+" + req.getPoints()) // ✅ thêm dấu +
-                        .description(req.getReason())
+                        .amount(totalPoints)
+                        .signedAmount("+" + totalPoints)
+                        .description(req.getReason() + String.format(" (x%.2f)", memberMultiplier))
                         .senderName("University System")
                         .receiverName(targetUser.getFullName())
                         .createdAt(LocalDateTime.now())
@@ -229,7 +341,9 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             return responses;
         }
 
-        // 🏫 Leader / Vice → thưởng cho member (loại bỏ leader/vice)
+        // ================================================================
+        // 🏫 2️⃣ Leader / Vice → thưởng cho member CLB (loại bỏ leader/vice)
+        // ================================================================
         if (isLeaderOrVice) {
             Club club = clubRepo.findByLeader_UserId(operator.getUserId())
                     .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a leader of any club."));
@@ -245,35 +359,43 @@ public class WalletRewardServiceImpl implements WalletRewardService {
             if (memberIds.isEmpty())
                 throw new ApiException(HttpStatus.BAD_REQUEST, "No valid members to reward.");
 
+            // 🔹 Lấy multiplier của CLB (dựa trên số event hoàn thành)
+            double clubMultiplier = getClubMultiplier(club);
+
             for (Long userId : memberIds) {
                 User targetUser = userRepo.findById(userId)
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found: " + userId));
 
-                Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
+                // 🧮 Lấy multiplier của member (dựa theo chuyên cần 3 tháng)
+                double memberMultiplier = getMemberMultiplier(targetUser);
 
-                if (clubWallet.getBalancePoints() < req.getPoints())
+                // 💰 Tổng hệ số thưởng = club × member
+                long totalPoints = Math.round(req.getPoints() * memberMultiplier * clubMultiplier);
+
+                if (clubWallet.getBalancePoints() < totalPoints)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient club wallet balance.");
 
+                Wallet userWallet = walletService.getOrCreateUserWallet(targetUser);
                 walletService.transferPointsWithType(
                         clubWallet,
                         userWallet,
-                        req.getPoints(),
-                        req.getReason(),
+                        totalPoints,
+                        req.getReason() + String.format(" (x%.2f×%.2f)", memberMultiplier, clubMultiplier),
                         WalletTransactionTypeEnum.CLUB_TO_MEMBER
                 );
 
                 rewardService.sendManualBonusEmail(
                         targetUser.getUserId(),
-                        req.getPoints(),
+                        totalPoints,
                         req.getReason(),
                         userWallet.getBalancePoints()
                 );
 
                 responses.add(WalletTransactionResponse.builder()
                         .type("CLUB_TO_MEMBER")
-                        .amount(req.getPoints())
-                        .signedAmount("+" + req.getPoints()) // ✅ thêm dấu +
-                        .description(req.getReason())
+                        .amount(totalPoints)
+                        .signedAmount("+" + totalPoints)
+                        .description(req.getReason() + String.format(" (x%.2f×%.2f)", memberMultiplier, clubMultiplier))
                         .senderName(club.getName())
                         .receiverName(targetUser.getFullName())
                         .createdAt(LocalDateTime.now())
@@ -283,4 +405,5 @@ public class WalletRewardServiceImpl implements WalletRewardService {
 
         return responses;
     }
+
 }

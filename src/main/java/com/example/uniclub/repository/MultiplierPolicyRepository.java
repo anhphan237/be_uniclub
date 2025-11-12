@@ -13,11 +13,13 @@ import java.util.Optional;
 @Repository
 public interface MultiplierPolicyRepository extends JpaRepository<MultiplierPolicy, Long> {
 
-    // ✅ Lấy tất cả theo loại chính sách
-    List<MultiplierPolicy> findByTargetTypeOrderByMinEventsDesc(PolicyTargetTypeEnum targetType);
+    // ✅ Lấy tất cả theo loại chính sách (theo field mới)
+    List<MultiplierPolicy> findByTargetTypeOrderByMinEventsForClubDesc(PolicyTargetTypeEnum targetType);
 
     // ✅ Lấy tất cả active theo loại
-    List<MultiplierPolicy> findByTargetTypeAndActiveTrueOrderByMinEventsDesc(PolicyTargetTypeEnum targetType);
+    List<MultiplierPolicy> findByTargetTypeAndActiveTrueOrderByMinEventsForClubDesc(
+            PolicyTargetTypeEnum targetType
+    );
 
     // ✅ Lấy 1 policy cụ thể theo loại và levelOrStatus
     @Query("""
@@ -31,7 +33,7 @@ public interface MultiplierPolicyRepository extends JpaRepository<MultiplierPoli
             @Param("levelOrStatus") String levelOrStatus
     );
 
-    // ✅ FIX: dùng @Query để JPA không tách sai tên field
+    // ✅ Kiểm tra trùng lặp policy
     @Query("""
            SELECT CASE WHEN COUNT(p) > 0 THEN TRUE ELSE FALSE END 
            FROM MultiplierPolicy p 

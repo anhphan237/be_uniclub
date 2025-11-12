@@ -149,46 +149,71 @@ public class AttendanceServiceImpl implements AttendanceService {
     // =========================================================
     // 🔹 Logic tính điểm thưởng (tạm giữ, không gọi trực tiếp)
     // =========================================================
+    // =========================================================
+// 🔹 Logic tính điểm thưởng (cập nhật chuẩn với multiplier mới)
+// =========================================================
     private void applyReward(User user, Event event) {
         Club club = event.getHostClub();
         long commitPoints = event.getCommitPointCost() != null ? event.getCommitPointCost() : 0L;
 
-        int attendedEvents = membershipRepo.countByUser_UserIdAndState(user.getUserId(), MembershipStateEnum.ACTIVE);
-        long hostedEvents = eventRepo.countByHostClub_ClubIdAndStatus(club.getClubId(), EventStatusEnum.COMPLETED);
+        // 🔹 1️⃣ Lấy attendance record của user trong event này
+        AttendanceRecord record = attendanceRepo.findByUser_UserIdAndEvent_EventId(
+                user.getUserId(),
+                event.getEventId()
+        ).orElse(null);
 
-        double memberMultiplier = multiplierPolicyService.getPolicies(PolicyTargetTypeEnum.MEMBER)
-                .stream()
-                .filter(p -> attendedEvents >= p.getMinEvents() && p.isActive())
-                .findFirst()
-                .map(MultiplierPolicy::getMultiplier)
-                .orElse(1.0);
+        if (record == null || record.getAttendanceLevel() == null) {
+            log.warn("⚠️ No attendance record found for user {} in event '{}'", user.getEmail(), event.getName());
+            return; // Không cộng điểm
+        }
 
-        double clubMultiplier = multiplierPolicyService.getPolicies(PolicyTargetTypeEnum.CLUB)
-                .stream()
-                .filter(p -> hostedEvents >= p.getMinEvents() && p.isActive())
-                .findFirst()
-                .map(MultiplierPolicy::getMultiplier)
-                .orElse(1.0);
+        AttendanceLevelEnum level = record.getAttendanceLevel();
+        long rewardPoints = 0L;
 
-        long totalPoints = Math.round(commitPoints * memberMultiplier * clubMultiplier);
+        // 🔹 2️⃣ Tính điểm dựa theo level
+        switch (level) {
+            case FULL -> rewardPoints = commitPoints * 2; // Hoàn tất đủ 3 phase
+            case HALF -> rewardPoints = commitPoints;     // Hoàn lại commit (x1)
+            case SUSPICIOUS, NONE -> rewardPoints = 0;    // Không được thưởng
+        }
 
+        // 🔹 3️⃣ Nếu không có điểm thì bỏ qua
+        if (rewardPoints <= 0) {
+            log.info("User {} did not qualify for rewards (level = {}).", user.getEmail(), level);
+            return;
+        }
+
+        // 🔹 4️⃣ Cộng điểm vào ví user
         Wallet wallet = walletService.getOrCreateUserWallet(user);
-        walletService.increase(wallet, totalPoints);
+        walletService.increase(wallet, rewardPoints);
 
+        // 🔹 5️⃣ Ghi log giao dịch
         walletService.logClubToMemberReward(
                 wallet,
-                totalPoints,
-                String.format("Reward from '%s' (Commit %d × %.2fx = %d points)",
-                        event.getName(), commitPoints, memberMultiplier * clubMultiplier, totalPoints)
+                rewardPoints,
+                String.format(
+                        "Reward from '%s' [%s participation] (Commit %d × Multiplier %.1fx = %d points)",
+                        event.getName(),
+                        level.name(),
+                        commitPoints,
+                        (level == AttendanceLevelEnum.FULL ? 2.0 : 1.0),
+                        rewardPoints
+                )
         );
 
+        // 🔹 6️⃣ Gửi email thông báo
         rewardService.sendCheckInRewardEmail(
                 user.getUserId(),
                 event.getName(),
-                totalPoints,
+                rewardPoints,
                 wallet.getBalancePoints()
         );
+
+        log.info("Reward applied: {} got {} points for event '{}' [{}]",
+                user.getEmail(), rewardPoints, event.getName(), level.name());
     }
+
+
 
     // =========================================================
     // 4️⃣ Handlers phụ (START / MID / END)
