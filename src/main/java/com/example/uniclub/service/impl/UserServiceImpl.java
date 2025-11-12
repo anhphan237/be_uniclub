@@ -228,16 +228,21 @@ public class UserServiceImpl implements UserService {
                 ))
                 .toList();
 
-
-
         WalletResponse wallet = mapWallet(user);
+
+        // ✅ NEW: Tính xem user có cần hoàn tất hồ sơ không
+        boolean needComplete = false;
+        String roleName = user.getRole() != null ? user.getRole().getRoleName() : null;
+        if ("STUDENT".equalsIgnoreCase(roleName)) {
+            needComplete = (user.getStudentCode() == null || user.getMajor() == null);
+        }
 
         return UserResponse.builder()
                 .id(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phone(user.getPhone())
-                .roleName(user.getRole() != null ? user.getRole().getRoleName() : null)
+                .roleName(roleName)
                 .status(user.getStatus())
                 .studentCode(user.getStudentCode())
                 .majorName(user.getMajor() != null ? user.getMajor().getName() : null)
@@ -246,8 +251,10 @@ public class UserServiceImpl implements UserService {
                 .backgroundUrl(user.getBackgroundUrl())
                 .wallet(wallet)
                 .clubs(clubInfos)
+                .needCompleteProfile(needComplete) // 👈 thêm dòng này
                 .build();
     }
+
 
     @Override
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {

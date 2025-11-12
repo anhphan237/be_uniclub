@@ -48,7 +48,7 @@ public class User {
 
     // 🔗 Mối quan hệ với chuyên ngành (vẫn giữ LAZY vì không cần khi login)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "major_id", nullable = false)
+    @JoinColumn(name = "major_id", nullable = true)
     private Major major;
 
     @Column(name = "bio", length = 500)
