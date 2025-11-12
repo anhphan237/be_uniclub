@@ -220,14 +220,13 @@ public class WalletController {
         return ResponseEntity.ok(ApiResponse.ok(walletService.getAllMemberRewards()));
     }
 
+    @GetMapping("/transactions/uni-to-event")
     @Operation(summary = "Danh sách giao dịch Uni → Event",
             description = "Lấy danh sách các giao dịch Uni tài trợ điểm cho các sự kiện.")
-    @GetMapping("/transactions/uni-to-event")
-    public ResponseEntity<ApiResponse<List<WalletTransaction>>> getUniToEventTransactions() {
-        return ResponseEntity.ok(ApiResponse.ok(
-                walletTransactionService.getUniToEventTransactions()
-        ));
+    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getUniToEventTransactions() {
+        return ResponseEntity.ok(ApiResponse.ok(walletTransactionService.getUniToEventTransactions()));
     }
+
 
     // ================================================================
     // 🎯 7️⃣ PHÁT ĐIỂM HÀNG LOẠT (BATCH REWARD)
