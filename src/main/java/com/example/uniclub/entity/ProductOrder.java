@@ -36,7 +36,8 @@ public class ProductOrder {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
-
+    @Version
+    private Long version;
     // 🔗 Thành viên thực hiện đổi quà
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "membership_id", nullable = false)

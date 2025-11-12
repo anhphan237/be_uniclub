@@ -29,7 +29,8 @@ public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long productId;
-
+    @Version
+    private Long version;
     // 🆔 Mã sản phẩm duy nhất
     @Column(length = 20, unique = true, nullable = false)
     private String productCode;

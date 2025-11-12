@@ -68,8 +68,10 @@ public class RedeemServiceImpl implements RedeemService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        Product product = productRepo.findById(req.productId())
+        // ⚠️ Lock product row để tránh 2 member redeem cùng lúc
+        Product product = productRepo.findByIdForUpdate(req.productId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
 
         if (!product.getClub().getClubId().equals(clubId))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Product not belongs to this club");
