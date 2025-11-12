@@ -3,6 +3,7 @@ package com.example.uniclub.entity;
 import com.example.uniclub.enums.ClubActivityStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "clubs")
@@ -45,12 +46,31 @@ public class Club {
     @Builder.Default
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ClubActivityStatusEnum activityStatus = ClubActivityStatusEnum.ACTIVE;
 
     @Column(nullable = false)
     private Double clubMultiplier = 1.0;
+
+    // 🕓 Thời gian tạo và cập nhật
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -64,5 +84,4 @@ public class Club {
     public int hashCode() {
         return 31;
     }
-
 }

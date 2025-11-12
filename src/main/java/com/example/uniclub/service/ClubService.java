@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.ClubCreateRequest;
+import com.example.uniclub.dto.request.ClubRenameRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.entity.Club;
 import org.springframework.data.domain.Page;
@@ -27,5 +28,7 @@ public interface ClubService {
     void updateMemberCount(Long clubId);
 
     Page<ClubResponse> getAvailableForApply(Long userId, String keyword, Pageable pageable);
+    ClubResponse renameClub(Long clubId, ClubRenameRequest req, Long requesterId);
+
 
 }

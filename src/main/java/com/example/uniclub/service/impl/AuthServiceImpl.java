@@ -45,6 +45,16 @@ public class AuthServiceImpl {
     // 🔹 Đăng nhập
     // ==============================================
     public AuthResponse login(LoginRequest req) {
+        // === DEBUG LOGIN ===
+        System.out.println("🟦 Email input: " + req.email());
+        System.out.println("🟦 Password input: " + req.password());
+        userRepository.findByEmail(req.email()).ifPresent(u -> {
+            System.out.println("🟩 Hash in DB: " + u.getPasswordHash());
+            boolean match = passwordEncoder.matches(req.password(), u.getPasswordHash());
+            System.out.println("🟩 Password matches (BCrypt): " + match);
+        });
+// =====================
+
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.email(), req.password()));
 

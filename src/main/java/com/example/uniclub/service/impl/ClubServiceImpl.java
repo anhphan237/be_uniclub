@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.ClubCreateRequest;
+import com.example.uniclub.dto.request.ClubRenameRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
@@ -13,6 +14,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -25,6 +28,7 @@ public class ClubServiceImpl implements ClubService {
     private final WalletRepository walletRepo;
     private final MajorRepository majorRepo;
     private final MembershipRepository membershipRepo;
+    private final UserRepository userRepo;
 
     private ClubResponse toResponse(Club club) {
         var leaderMembership = membershipRepo
@@ -132,5 +136,50 @@ public class ClubServiceImpl implements ClubService {
         return clubRepo.findAvailableForApply(excluded, keyword, pageable)
                 .map(this::toResponse);
     }
+    @Override
+    @Transactional
+    public ClubResponse renameClub(Long clubId, ClubRenameRequest req, Long requesterId) {
+        var club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        var user = userRepo.findById(requesterId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        var roleName = user.getRole().getRoleName(); // ADMIN / UNIVERSITY_STAFF / STUDENT
+        boolean canRename = false;
+
+        // ✅ 1. Kiểm tra quyền hệ thống (ADMIN hoặc UNIVERSITY_STAFF)
+        if ("ADMIN".equalsIgnoreCase(roleName) || "UNIVERSITY_STAFF".equalsIgnoreCase(roleName)) {
+            canRename = true;
+        } else {
+            // ✅ 2. Kiểm tra nếu user là LEADER của CLB
+            var membership = membershipRepo.findByUser_UserIdAndClub_ClubId(requesterId, clubId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
+            if (membership.getClubRole() == ClubRoleEnum.LEADER) {
+                canRename = true;
+            }
+        }
+
+        if (!canRename) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only ADMIN, UNIVERSITY_STAFF or LEADER can rename this club.");
+        }
+
+        // ✅ 3. Kiểm tra trùng tên
+        if (clubRepo.existsByNameIgnoreCase(req.getNewName())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club name already exists.");
+        }
+
+        // ✅ 4. Cập nhật tên + thời gian chỉnh sửa
+        club.setName(req.getNewName());
+        club.setUpdatedAt(LocalDateTime.now()); // Nếu Club có field updatedAt
+        clubRepo.save(club);
+
+        // ✅ 5. Trả về dữ liệu sau khi cập nhật
+        return ClubResponse.fromEntity(club);
+    }
+
+
 
 }

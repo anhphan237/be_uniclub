@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubCreateRequest;
+import com.example.uniclub.dto.request.ClubRenameRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -177,6 +179,27 @@ public class ClubController {
             Pageable pageable
     ) {
         return ResponseEntity.ok(ApiResponse.ok(clubService.getAvailableForApply(userId, keyword, pageable)));
+    }
+    // ==========================================================
+// 🟠 4.1 ĐỔI TÊN CLB (ADMIN / UNIVERSITY_STAFF / CLUB_LEADER)
+// ==========================================================
+    @Operation(
+            summary = "Đổi tên CLB",
+            description = """
+            Cho phép **ADMIN**, **UNIVERSITY_STAFF** hoặc **CLUB_LEADER** đổi tên CLB.<br>
+            Yêu cầu truyền `newName` trong body.
+            """,
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Đổi tên CLB thành công")
+    )
+    @PutMapping("/{clubId}/rename")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ClubResponse>> renameClub(
+            @PathVariable Long clubId,
+            @Valid @RequestBody ClubRenameRequest req,
+            @AuthenticationPrincipal com.example.uniclub.security.CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(clubService.renameClub(clubId, req, user.getUserId())));
     }
 
 }
