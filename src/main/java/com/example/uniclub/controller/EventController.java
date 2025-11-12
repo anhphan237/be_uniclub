@@ -275,7 +275,13 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getEventAttendanceSummary(eventId)));
     }
 
-    @Operation(summary = "Sinh viên gửi feedback cho sự kiện")
+    @Operation(
+            summary = "Lấy danh sách sự kiện tôi đã đăng ký",
+            description = """
+        Dành cho **STUDENT**. 
+        Trả về các sự kiện mà sinh viên đã đăng ký (kể cả đang chờ duyệt / đã duyệt / đã huỷ).
+        """
+    )
     @GetMapping("/my-registrations")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<List<EventRegistrationResponse>>> getMyRegisteredEvents(
@@ -304,7 +310,13 @@ public class EventController {
     // =========================================================
 // 🔹 8. EVENT FEEDBACK
 // =========================================================
-    @Operation(summary = "Lấy tất cả feedback của sự kiện")
+    @Operation(
+            summary = "Sinh viên gửi feedback cho sự kiện",
+            description = """
+        Dành cho **STUDENT** đã tham gia sự kiện. 
+        Gửi đánh giá (rating) và nội dung phản hồi sau khi sự kiện kết thúc.
+        """
+    )
     @PostMapping("/{eventId}/feedback")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<?> createFeedback(
@@ -323,16 +335,12 @@ public class EventController {
 
 
     @Operation(
-            summary = "Lấy danh sách phản hồi (feedback) của sự kiện",
+            summary = "Lấy danh sách feedback của sinh viên tham gia sự kiện",
             description = """
-            Dành cho **CLUB_LEADER**, **VICE_LEADER**, **UNIVERSITY_STAFF** hoặc **STUDENT**.<br>
-            Trả về danh sách phản hồi của sinh viên tham gia sự kiện.<br>
-            Dùng cho trang quản lý phản hồi của CLB hoặc giao diện thống kê sau sự kiện.
-            """,
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách phản hồi thành công"),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy sự kiện hoặc phản hồi")
-            }
+        Dành cho **CLUB_LEADER**, **VICE_LEADER**, **UNIVERSITY_STAFF** hoặc **STUDENT**.<br>
+        Trả về danh sách phản hồi của sinh viên đã tham gia sự kiện.<br>
+        Dùng cho trang quản lý phản hồi của CLB hoặc thống kê đánh giá sau sự kiện.
+        """
     )
     @GetMapping("/{eventId}/feedback")
     public ResponseEntity<ApiResponse<List<EventFeedbackResponse>>> getFeedbacksByEvent(
@@ -368,7 +376,13 @@ public class EventController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getFeedbackSummary(@PathVariable Long eventId) {
         return ResponseEntity.ok(ApiResponse.ok(eventFeedbackService.getFeedbackSummaryByEvent(eventId)));
     }
-    @Operation(summary = "Gia hạn thời gian sự kiện (leader/staff)")
+    @Operation(
+            summary = "Gia hạn hoặc điều chỉnh thời gian sự kiện (Leader/Staff)",
+            description = """
+        Cho phép **CLUB_LEADER** hoặc **UNIVERSITY_STAFF** thay đổi thời gian kết thúc sự kiện 
+        (ví dụ: kéo dài thời gian check-in hoặc hoạt động khi sự kiện diễn ra lâu hơn dự kiến).
+        """
+    )
     @PutMapping("/{eventId}/extend")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<EventResponse> extendEvent(
@@ -377,7 +391,13 @@ public class EventController {
         return ResponseEntity.ok(eventService.extendEvent(eventId, request));
     }
 
-    @Operation(summary = "Lấy danh sách feedback liên quan tới CLB")
+    @Operation(
+            summary = "Lấy tất cả feedback của các sự kiện do CLB tổ chức hoặc đồng tổ chức",
+            description = """
+        Dành cho **CLUB_LEADER**, **UNIVERSITY_STAFF**.<br>
+        Dùng để tổng hợp phản hồi của sinh viên cho các sự kiện có sự tham gia của CLB.
+        """
+    )
     @GetMapping("/clubs/{clubId}/feedbacks")
     @PreAuthorize("hasAnyRole('CLUB_LEADER', 'STAFF', 'UNIVERSITY_STAFF')")
     public ResponseEntity<?> getFeedbacksByClub(@PathVariable Long clubId) {
@@ -388,7 +408,14 @@ public class EventController {
                 "data", res
         ));
     }
-    @Operation(summary = "Duyệt ngân sách sự kiện (University Staff)")
+    @Operation(
+            summary = "Duyệt ngân sách sự kiện (University Staff)",
+            description = """
+        Dành cho **UNIVERSITY_STAFF**.<br>
+        Xác nhận và cấp ngân sách cho sự kiện, chuyển trạng thái từ **DRAFT** sang **APPROVED**.<br>
+        Ghi nhận thông tin người duyệt và thời điểm phê duyệt.
+        """
+    )
     @PutMapping("/{eventId}/approve-budget")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<EventResponse> approveBudget(
@@ -398,7 +425,14 @@ public class EventController {
     ) {
         return ResponseEntity.ok(eventService.approveEventBudget(eventId, req, staff));
     }
-    @Operation(summary = "Hoàn điểm sản phẩm thuộc sự kiện")
+    @Operation(
+            summary = "Hoàn điểm cho sinh viên khi sản phẩm sự kiện bị huỷ hoặc trả lại",
+            description = """
+        Dành cho **UNIVERSITY_STAFF** hoặc **ADMIN**.<br>
+        Khi sinh viên đã đổi sản phẩm trong sự kiện nhưng sản phẩm bị lỗi / không sử dụng,
+        hệ thống sẽ hoàn điểm tương ứng vào ví người dùng.
+        """
+    )
     @PutMapping("/{eventId}/refund-product/{productId}")
     @PreAuthorize("hasRole('UNIVERSITY_STAFF') or hasRole('ADMIN')")
     public ResponseEntity<?> refundEventProduct(
@@ -434,7 +468,14 @@ public class EventController {
                 .body(file);
     }
 
-    @Operation(summary = "Từ chối sự kiện (University Staff hoặc Admin)")
+    @Operation(
+            summary = "Từ chối sự kiện (University Staff hoặc Admin)",
+            description = """
+        Dành cho **UNIVERSITY_STAFF** hoặc **ADMIN**.<br>
+        Từ chối sự kiện không đủ điều kiện phê duyệt và ghi nhận lý do.<br>
+        Nếu sự kiện có sử dụng điểm cam kết, hệ thống sẽ hoàn điểm lại cho CLB hoặc sinh viên.
+        """
+    )
     @PutMapping("/{eventId}/reject")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<String>> rejectEvent(
@@ -444,6 +485,22 @@ public class EventController {
     ) {
         String msg = eventService.rejectEvent(eventId, reason, staff);
         return ResponseEntity.ok(ApiResponse.msg(msg));
+    }
+    @Operation(
+            summary = "Lấy danh sách feedback của tôi (Student)",
+            description = """
+        Dành cho **STUDENT**.<br>
+        Trả về toàn bộ feedback mà sinh viên đã gửi cho các sự kiện khác nhau trong hệ thống.
+        Dùng để hiển thị lịch sử đánh giá của cá nhân.
+        """
+    )
+    @GetMapping("/my-feedbacks")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<List<EventFeedbackResponse>>> getMyFeedbacks(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+        Long userId = principal.getUser().getUserId();
+        List<EventFeedbackResponse> feedbacks = eventFeedbackService.getFeedbacksByUser(userId);
+        return ResponseEntity.ok(ApiResponse.ok(feedbacks));
     }
 
 

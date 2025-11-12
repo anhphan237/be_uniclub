@@ -17,6 +17,7 @@ public interface EventFeedbackService {
     Map<String, Object> getFeedbackSummaryByEvent(Long eventId);
     List<EventFeedbackResponse> getFeedbacksByClub(Long clubId);
     EventFeedbackResponse createFeedback(Long eventId, EventFeedbackRequest req, CustomUserDetails userDetails);
+    List<EventFeedbackResponse> getFeedbacksByUser(Long userId);
 
 
 }

@@ -20,5 +20,7 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
 """)
     List<EventFeedback> findAllByClubOrCoHost(@Param("clubId") Long clubId);
 
+    List<EventFeedback> findByMembership_User_UserId(Long userId);
+
 
 }

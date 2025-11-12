@@ -131,6 +131,13 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                         .build())
                 .toList();
     }
+    @Override
+    public List<EventFeedbackResponse> getFeedbacksByUser(Long userId) {
+        return feedbackRepo.findByMembership_User_UserId(userId)
+                .stream()
+                .map(EventFeedbackResponse::fromEntity)
+                .toList();
+    }
 
 
 }
