@@ -23,7 +23,7 @@ public class AdminProductServiceImpl implements AdminProductService {
     private final ProductOrderRepository orderRepo;
 
     // ============================================================
-    // 📦 Danh sách tất cả sản phẩm
+    // 📦 Danh sách tất cả sản phẩm (phân trang)
     // ============================================================
     @Override
     public Page<AdminProductResponse> getAllProducts(Pageable pageable) {
@@ -39,19 +39,17 @@ public class AdminProductServiceImpl implements AdminProductService {
         Product product = productRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
-        // ✅ Đổi sang INACTIVE thay vì DISABLED
         product.setStatus(ProductStatusEnum.INACTIVE);
         product.setIsActive(false);
         productRepo.save(product);
     }
 
-
     // ============================================================
-    // 📜 Danh sách đơn redeem (tất cả)
+    // 📜 Danh sách tất cả đơn redeem (phân trang)
     // ============================================================
     @Override
     public Page<AdminRedeemOrderResponse> getAllOrders(Pageable pageable) {
-        Page<ProductOrder> orders = orderRepo.findAll(pageable);
+        Page<ProductOrder> orders = orderRepo.findAllByOrderByCreatedAtDesc(pageable);
         return orders.map(this::toOrderResp);
     }
 
@@ -66,7 +64,22 @@ public class AdminProductServiceImpl implements AdminProductService {
     }
 
     // ============================================================
-    // 🧩 Helper mapping methods
+    // 🔘 Bật/tắt hoạt động sản phẩm
+    // ============================================================
+    @Override
+    public void toggleProductActive(Long productId) {
+        Product product = productRepo.findById(productId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        product.setIsActive(!product.getIsActive());
+        product.setStatus(product.getIsActive()
+                ? ProductStatusEnum.ACTIVE
+                : ProductStatusEnum.INACTIVE);
+        productRepo.save(product);
+    }
+
+    // ============================================================
+    // 🧩 Helper Mapping Methods
     // ============================================================
     private AdminProductResponse toProductResp(Product p) {
         return AdminProductResponse.builder()
@@ -91,27 +104,13 @@ public class AdminProductServiceImpl implements AdminProductService {
                 .buyerName(o.getMembership() != null && o.getMembership().getUser() != null
                         ? o.getMembership().getUser().getFullName()
                         : "Unknown User")
+                .clubName(o.getClub() != null ? o.getClub().getName() : "Unknown Club")
                 .quantity(o.getQuantity())
                 .totalPoints(o.getTotalPoints())
                 .status(o.getStatus() != null ? o.getStatus().name() : "UNKNOWN")
                 .createdAt(o.getCreatedAt())
+                .completedAt(o.getCompletedAt())
                 .qrCodeBase64(o.getQrCodeBase64())
                 .build();
     }
-    @Override
-    public void toggleProductActive(Long productId) {
-        Product product = productRepo.findById(productId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
-
-        product.setIsActive(!product.getIsActive());
-
-        product.setStatus(product.getIsActive()
-                ? ProductStatusEnum.ACTIVE
-                : ProductStatusEnum.INACTIVE);
-
-        productRepo.save(product);
-    }
-
-
-
 }

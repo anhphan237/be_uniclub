@@ -3,6 +3,8 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.OrderStatusEnum;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -27,4 +29,7 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
 
     // 🔍 Tra cứu đơn hàng bằng mã UC-xxxxxx
     Optional<ProductOrder> findByOrderCode(String orderCode);
+    // 🧾 Lấy toàn bộ đơn hàng (phân trang + sort)
+    Page<ProductOrder> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
 }
