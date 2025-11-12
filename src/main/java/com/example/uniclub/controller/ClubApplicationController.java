@@ -84,12 +84,13 @@ public class ClubApplicationController {
         clubApplicationService.saveOtp(studentEmail, otp); // Lưu tạm trong cache hoặc DB
 
         String html = String.format("""
-        <p>Xin chào <b>%s</b>,</p>
-        <p>Bạn đã được cấp quyền gửi đơn xin thành lập CLB mới trên hệ thống <b>UniClub</b>.</p>
-        <p>Mã OTP của bạn là:</p>
+        <p>Hello <b>%s</b>,</p>
+        <p>You have been granted permission to submit a request to establish a new club on the <b>UniClub</b> system.</p>
+        <p>Your OTP code is:</p>
         <div style="font-size: 26px; color: #ff6600; font-weight: bold;">%s</div>
-        <p>Mã này có hiệu lực trong <b>24 giờ</b>. Vui lòng không chia sẻ cho người khác.</p>
+        <p>This code is valid for <b>48 hours</b>. Please do not share it with anyone else.</p>
         """, student.getFullName(), otp);
+
 
         emailService.sendEmail(studentEmail, "[UniClub] OTP code for Club Creation Request", html);
 
