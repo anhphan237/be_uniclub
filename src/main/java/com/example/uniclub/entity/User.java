@@ -43,7 +43,7 @@ public class User {
     @Column(name = "background_url")
     private String backgroundUrl;
 
-    @Column(name = "student_code", nullable = false, unique = true)
+    @Column(name = "student_code", nullable = true, unique = true)
     private String studentCode; // MSSV
 
     // 🔗 Mối quan hệ với chuyên ngành (vẫn giữ LAZY vì không cần khi login)
