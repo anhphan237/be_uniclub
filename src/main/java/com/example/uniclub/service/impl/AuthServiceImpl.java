@@ -151,6 +151,21 @@ public class AuthServiceImpl {
 
         user = userRepository.save(user);
 
+        // ✅ Thêm gửi email chào mừng ngay tại đây
+        String subject = "[UniClub] Welcome to the system 🎉";
+        String content = """
+    <h2>Hello %s,</h2>
+    <p>Congratulations! You’ve successfully registered your <b>UniClub</b> account. 🎉</p>
+    <p>You can now log in to explore clubs, join events, and start earning points within the system.</p>
+    <p>👉 Access here: <a href="https://uniclub-fpt.vercel.app/login">https://uniclub-fpt.vercel.app/login</a></p>
+    <br>
+    <p>Best regards,<br><b>The UniClub Vietnam Team</b></p>
+    """.formatted(user.getFullName() != null ? user.getFullName() : "there");
+
+
+        emailService.sendEmail(user.getEmail(), subject, content);
+
+        // 🔹 Tiếp tục phần cũ
         String token = jwtUtil.generateToken(user.getEmail());
 
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
@@ -166,6 +181,7 @@ public class AuthServiceImpl {
 
         return responseBuilder.build();
     }
+
 
     // ==============================================
     // 🔹 Quên mật khẩu — Gửi email reset password
