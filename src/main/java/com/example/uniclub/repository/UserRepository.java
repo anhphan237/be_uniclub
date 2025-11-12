@@ -31,5 +31,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<Object[]> countGroupByRole();
 
     Page<User> findByFullNameContainingIgnoreCase(String keyword, Pageable pageable);
+    // 📊 Thống kê số lượng sinh viên theo ngành
+    @Query("""
+    SELECT u.major.name AS majorName, COUNT(u) AS studentCount
+    FROM User u
+    WHERE u.role.roleName = 'STUDENT' AND u.major IS NOT NULL
+    GROUP BY u.major.name
+    ORDER BY COUNT(u) DESC
+""")
+    List<Object[]> countStudentsByMajor();
 
 }
