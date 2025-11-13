@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -164,53 +165,61 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     @Transactional
     @Override
     public ApiResponse<?> createClubAccounts(CreateClubAccountsRequest req) {
+
+        // 1️⃣ Lấy club
         Club club = clubRepo.findById(req.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
+        // 2️⃣ Lấy role CLUB_LEADER
         Role clubLeaderRole = roleRepo.findByRoleName("CLUB_LEADER")
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Role CLUB_LEADER not found"));
 
-        // 🟢 Chủ nhiệm
-        User leader = User.builder()
-                .fullName(req.getLeaderFullName())
-                .email(req.getLeaderEmail())
-                .passwordHash(passwordEncoder.encode(req.getDefaultPassword()))
-                .status(UserStatusEnum.ACTIVE.name())
-                .role(clubLeaderRole)
-                .build();
+        // 3️⃣ Tạo User Leader
+        User leader = new User();
+        leader.setFullName(req.getLeaderFullName());
+        leader.setEmail(req.getLeaderEmail());
+        leader.setPasswordHash(passwordEncoder.encode(req.getDefaultPassword()));
+        leader.setStatus(UserStatusEnum.ACTIVE.name());
+        leader.setRole(clubLeaderRole);
         userRepo.save(leader);
 
-        // 🟣 Phó chủ nhiệm
-        User vice = User.builder()
-                .fullName(req.getViceFullName())
-                .email(req.getViceEmail())
-                .passwordHash(passwordEncoder.encode(req.getDefaultPassword()))
-                .status(UserStatusEnum.ACTIVE.name())
-                .role(clubLeaderRole)
-                .build();
+        // 4️⃣ Tạo User Vice Leader
+        User vice = new User();
+        vice.setFullName(req.getViceFullName());
+        vice.setEmail(req.getViceEmail());
+        vice.setPasswordHash(passwordEncoder.encode(req.getDefaultPassword()));
+        vice.setStatus(UserStatusEnum.ACTIVE.name());
+        vice.setRole(clubLeaderRole);
         userRepo.save(vice);
 
-        // 🔗 Membership cho cả hai
-        membershipRepo.save(Membership.builder()
-                .club(club)
-                .user(leader)
-                .clubRole(ClubRoleEnum.LEADER)
-                .state(MembershipStateEnum.ACTIVE)
-                .staff(true)
-                .build());
+        // 5️⃣ Membership Leader
+        Membership leaderMember = new Membership();
+        leaderMember.setUser(leader);
+        leaderMember.setClub(club);
+        leaderMember.setClubRole(ClubRoleEnum.LEADER);
+        leaderMember.setState(MembershipStateEnum.ACTIVE);
+        leaderMember.setStaff(true);
+        leaderMember.setJoinedDate(LocalDate.now());
+        // Default tự chạy:
+        // memberLevel = BASIC
+        // memberMultiplier = 1.0
+        membershipRepo.save(leaderMember);
 
-        membershipRepo.save(Membership.builder()
-                .club(club)
-                .user(vice)
-                .clubRole(ClubRoleEnum.VICE_LEADER)
-                .state(MembershipStateEnum.ACTIVE)
-                .staff(true)
-                .build());
+        // 6️⃣ Membership Vice Leader
+        Membership viceMember = new Membership();
+        viceMember.setUser(vice);
+        viceMember.setClub(club);
+        viceMember.setClubRole(ClubRoleEnum.VICE_LEADER);
+        viceMember.setState(MembershipStateEnum.ACTIVE);
+        viceMember.setStaff(true);
+        viceMember.setJoinedDate(LocalDate.now());
+        membershipRepo.save(viceMember);
 
+        // 7️⃣ Set leader cho Club
         club.setLeader(leader);
         clubRepo.save(club);
 
-        // ✅ Cập nhật trạng thái COMPLETE cho đơn ứng tuyển
+        // 8️⃣ Update trạng thái đơn thành COMPLETE
         ClubApplication app = appRepo.findByClub(club).orElse(null);
         if (app != null) {
             app.setStatus(ClubApplicationStatusEnum.COMPLETE);
@@ -218,7 +227,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
             appRepo.save(app);
         }
 
-        // 📧 Gửi email cho người nộp đơn sau khi tạo tài khoản
+        // 9️⃣ Gửi email
         if (app != null && app.getProposer() != null) {
             User proposer = app.getProposer();
             try {
@@ -236,10 +245,10 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 Email: %s<br><br>
                 Default password for both accounts: <b>%s</b><br><br>
                 Both accounts can log in at:<br>
-                <a href='https://uniclub.vn/login'>https://uniclub.vn/login</a><br><br>
+                <a href='https://uniclub.id.vn/login'>https://uniclub.id.vn/login</a><br><br>
                 The status of your club creation request is now: <b>COMPLETE </b><br><br>
                 Best regards,<br>
-                <b>UniClub System</b> 
+                <b>UniClub System</b>
                 """,
                         proposer.getFullName(),
                         club.getName(),
@@ -248,9 +257,9 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                         req.getDefaultPassword()
                 );
 
-
                 emailService.sendEmail(proposer.getEmail(), subject, content);
                 System.out.println("Sent COMPLETE email to proposer: " + proposer.getEmail());
+
             } catch (Exception e) {
                 System.err.println("Failed to send COMPLETE email: " + e.getMessage());
             }
@@ -258,6 +267,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
 
         return ApiResponse.ok("Created leader & vice leader successfully, status = COMPLETE");
     }
+
 
     // ============================================================
     // 🟣 4. Các hàm tiện ích khác
