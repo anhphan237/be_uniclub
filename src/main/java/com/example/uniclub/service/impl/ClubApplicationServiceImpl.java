@@ -222,7 +222,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         // 8️⃣ Update trạng thái đơn thành COMPLETE
         ClubApplication app = appRepo.findByClub(club).orElse(null);
         if (app != null) {
-            app.setStatus(ClubApplicationStatusEnum.COMPLETE);
+            app.setStatus(ClubApplicationStatusEnum.COMPLETED);
             app.setReviewedAt(LocalDateTime.now());
             appRepo.save(app);
         }
@@ -302,7 +302,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         stats.put("pending", appRepo.countByStatus(ClubApplicationStatusEnum.PENDING));
         stats.put("approved", appRepo.countByStatus(ClubApplicationStatusEnum.APPROVED));
         stats.put("rejected", appRepo.countByStatus(ClubApplicationStatusEnum.REJECTED));
-        stats.put("complete", appRepo.countByStatus(ClubApplicationStatusEnum.COMPLETE));
+        stats.put("complete", appRepo.countByStatus(ClubApplicationStatusEnum.COMPLETED));
         return stats;
     }
 

@@ -4,5 +4,5 @@ public enum ClubApplicationStatusEnum {
     PENDING,
     APPROVED,
     REJECTED,
-    COMPLETE
+    COMPLETED
 }
