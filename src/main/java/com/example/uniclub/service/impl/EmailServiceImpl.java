@@ -58,7 +58,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setText(html, true);
 
             // ✅ Inline logo (đảm bảo file nằm đúng đường dẫn)
-            helper.addInline("uniclub-logo", new ClassPathResource("static/images/Logo.png"));
+            helper.addInline("uniclub-logo", new ClassPathResource("static/images/logo.png"));
 
             mailSender.send(message);
             System.out.println(" Email sent successfully to " + to);
