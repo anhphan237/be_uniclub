@@ -4,6 +4,7 @@ import com.example.uniclub.dto.request.MajorPolicyRequest;
 import com.example.uniclub.dto.response.MajorPolicyResponse;
 import com.example.uniclub.entity.Major;
 import com.example.uniclub.entity.MajorPolicy;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.MajorPolicyRepository;
 import com.example.uniclub.repository.MajorRepository;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -136,5 +138,36 @@ public class MajorPolicyServiceImpl implements MajorPolicyService {
                 .maxClubJoin(entity.getMaxClubJoin())
                 .active(entity.isActive())
                 .build();
+    }
+    @Override
+    public void validateClubJoinLimit(User user, int currentJoinedClubs) {
+        if (user.getMajor() == null) {
+            // Không có major -> không áp hạn mức
+            return;
+        }
+
+        Long majorId = user.getMajor().getId();
+
+        List<MajorPolicy> activePolicies =
+                majorPolicyRepo.findByMajor_IdAndActiveTrue(majorId);
+
+        // Không có policy active -> không giới hạn
+        Integer maxJoin = activePolicies.stream()
+                .map(MajorPolicy::getMaxClubJoin)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+        if (maxJoin == null) {
+            return; // Không có limit -> cho qua
+        }
+
+        if (currentJoinedClubs >= maxJoin) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    String.format(
+                            "You have reached the maximum number of clubs for your major. Allowed: %d, current: %d.",
+                            maxJoin, currentJoinedClubs
+                    ));
+        }
     }
 }
