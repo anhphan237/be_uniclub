@@ -246,11 +246,21 @@ public class MembershipServiceImpl implements MembershipService {
 
         validateMajorPolicy(m.getUser());
 
+        if (m.getMemberLevel() == null)
+            m.setMemberLevel(MemberLevelEnum.BASIC);
+
+        if (m.getMemberMultiplier() == null)
+            m.setMemberMultiplier(1.0);
+
+        if (m.isStaff() == false)
+            m.setStaff(false); // đảm bảo không null (boolean vẫn ổn)
+
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
         clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
+
 
     @Override
     @Transactional

@@ -5,13 +5,15 @@ import com.example.uniclub.enums.MemberLevelEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
 import java.time.LocalDate;
 
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-@Builder(toBuilder = true)
 @Entity
 @Table(name = "memberships",
         uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "club_id"}))
@@ -57,18 +59,18 @@ public class Membership {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    // 🔰 Level thành viên
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MemberLevelEnum memberLevel = MemberLevelEnum.BASIC;
 
+    // ➗ Hệ số điểm
     @Column(nullable = false)
     private Double memberMultiplier = 1.0;
-    // 🔹 Dữ liệu phụ trợ (không lưu DB)
+
+    // 🔹 Data phụ (không lưu DB)
     @Transient private String email;
-
     @Transient private String avatarUrl;
-
     @Transient private String studentCode;
-
     @Transient private String major;
 }

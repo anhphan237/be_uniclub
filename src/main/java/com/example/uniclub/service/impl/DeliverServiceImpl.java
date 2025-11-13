@@ -60,9 +60,15 @@ public class DeliverServiceImpl implements DeliverService {
 
         redeem.setStatus(RedeemStatusEnum.DELIVERED);
         redeem.setDeliveredAt(java.time.LocalDateTime.now());
+
+        // 🔥 FIX builder(): dùng thủ công
         if (redeem.getEvent() != null) {
-            redeem.setStaff(Membership.builder().membershipId(staffMembershipId).build());
+            Membership staffRef = new Membership();
+            staffRef.setMembershipId(staffMembershipId);
+            redeem.setStaff(staffRef);
         }
+
         redeemRepository.save(redeem);
     }
+
 }

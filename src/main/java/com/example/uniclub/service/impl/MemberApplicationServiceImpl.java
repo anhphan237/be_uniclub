@@ -97,13 +97,14 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     @Override
     @Transactional
     public MemberApplicationResponse updateStatusByEmail(String email, Long applicationId, MemberApplicationStatusUpdateRequest req) {
+
         User actor = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         MemberApplication app = appRepo.findById(applicationId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
 
-        // ✅ Kiểm tra quyền (Leader/Vice/Admin)
+        // Kiểm tra quyền
         if (!isClubLeaderOrVice(actor.getUserId(), app.getClub().getClubId()) && !hasAdminRole(actor)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
         }
@@ -114,8 +115,11 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         app.setUpdatedAt(LocalDateTime.now());
         app.setHandledBy(actor);
 
-        // ✅ Nếu Leader duyệt đơn APPROVED
+        // ================================
+        // ✅ KHI LEADER APPROVE ĐƠN
+        // ================================
         if (newStatus == MemberApplicationStatusEnum.APPROVED) {
+
             List<MembershipStateEnum> activeStates = List.of(
                     MembershipStateEnum.ACTIVE,
                     MembershipStateEnum.APPROVED,
@@ -132,7 +136,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 throw new ApiException(HttpStatus.CONFLICT, "User is already a member or has a pending request");
             }
 
-            // ✅ Reuse record cũ nếu có (INACTIVE / KICKED / REJECTED)
+            // ================================
+            // 🔄 Reuse membership cũ nếu có
+            // ================================
             Optional<Membership> existingOpt = membershipRepo.findByUser_UserIdAndClub_ClubId(
                     app.getApplicant().getUserId(),
                     app.getClub().getClubId()
@@ -140,35 +146,61 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
             if (existingOpt.isPresent()) {
                 Membership existing = existingOpt.get();
+
                 existing.setState(MembershipStateEnum.ACTIVE);
                 existing.setJoinedDate(LocalDate.now());
                 existing.setEndDate(null);
                 existing.setClubRole(ClubRoleEnum.MEMBER);
+
+                // DEFAULTS BẮT BUỘC
+                existing.setMemberLevel(MemberLevelEnum.BASIC);
+                existing.setMemberMultiplier(1.0);
+                existing.setStaff(false);
+
                 membershipRepo.save(existing);
+
             } else {
-                // ✅ Nếu chưa từng có membership → tạo mới
-                Membership m = Membership.builder()
-                        .user(app.getApplicant())
-                        .club(app.getClub())
-                        .clubRole(ClubRoleEnum.MEMBER)
-                        .state(MembershipStateEnum.ACTIVE)
-                        .joinedDate(LocalDate.now())
-                        .staff(false)
-                        .build();
+                // ================================
+                // 🆕 Tạo membership mới
+                // ================================
+                Membership m = new Membership();
+                m.setUser(app.getApplicant());
+                m.setClub(app.getClub());
+                m.setClubRole(ClubRoleEnum.MEMBER);
+                m.setState(MembershipStateEnum.ACTIVE);
+                m.setJoinedDate(LocalDate.now());
+
+                // DEFAULTS BẮT BUỘC
+                m.setMemberLevel(MemberLevelEnum.BASIC);
+                m.setMemberMultiplier(1.0);
+                m.setStaff(false);
+
                 membershipRepo.save(m);
             }
 
-            notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), true);
+            // Gửi email thông báo APPROVED
+            notificationService.sendApplicationResult(
+                    app.getApplicant().getEmail(),
+                    app.getClub().getName(),
+                    true
+            );
         }
 
-        // ❌ Nếu bị từ chối
+        // ================================
+        // ❌ Khi Leader từ chối
+        // ================================
         if (newStatus == MemberApplicationStatusEnum.REJECTED) {
-            notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), false);
+            notificationService.sendApplicationResult(
+                    app.getApplicant().getEmail(),
+                    app.getClub().getName(),
+                    false
+            );
         }
 
         MemberApplication saved = appRepo.save(app);
         return mapToResponse(saved);
     }
+
 
 
     // ✅ Admin / Staff view all
@@ -315,10 +347,12 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     @Override
     @Transactional
     public MemberApplicationResponse approve(CustomUserDetails principal, Long id) {
+
         MemberApplication app = appRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Application not found"));
 
-        if (!isClubLeaderOrVice(principal.getId(), app.getClub().getClubId()) && !hasAdminRole(principal.getUser()))
+        if (!isClubLeaderOrVice(principal.getId(), app.getClub().getClubId())
+                && !hasAdminRole(principal.getUser()))
             throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
 
         app.setStatus(MemberApplicationStatusEnum.APPROVED);
@@ -326,49 +360,70 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         app.setUpdatedAt(LocalDateTime.now());
         appRepo.save(app);
 
-        // ✅ Kiểm tra membership đang hoạt động
+        // CHECK active membership
         List<MembershipStateEnum> activeStates = List.of(
                 MembershipStateEnum.ACTIVE,
                 MembershipStateEnum.APPROVED,
                 MembershipStateEnum.PENDING
         );
 
-        boolean hasActiveMembership = membershipRepo.existsByUser_UserIdAndClub_ClubIdAndStateIn(
-                app.getApplicant().getUserId(),
-                app.getClub().getClubId(),
-                activeStates
-        );
+        boolean hasActiveMembership = membershipRepo
+                .existsByUser_UserIdAndClub_ClubIdAndStateIn(
+                        app.getApplicant().getUserId(),
+                        app.getClub().getClubId(),
+                        activeStates
+                );
 
         if (!hasActiveMembership) {
-            // ✅ Nếu có record cũ → kích hoạt lại
-            Optional<Membership> existingOpt = membershipRepo.findByUser_UserIdAndClub_ClubId(
-                    app.getApplicant().getUserId(),
-                    app.getClub().getClubId()
-            );
+
+            Optional<Membership> existingOpt = membershipRepo
+                    .findByUser_UserIdAndClub_ClubId(
+                            app.getApplicant().getUserId(),
+                            app.getClub().getClubId()
+                    );
 
             if (existingOpt.isPresent()) {
+                // ===== RE-ACTIVATE OLD MEMBERSHIP =====
                 Membership existing = existingOpt.get();
                 existing.setState(MembershipStateEnum.ACTIVE);
                 existing.setJoinedDate(LocalDate.now());
                 existing.setEndDate(null);
                 existing.setClubRole(ClubRoleEnum.MEMBER);
+
+                // DEFAULT VALUES — BẮT BUỘC
+                existing.setMemberLevel(MemberLevelEnum.BASIC);
+                existing.setMemberMultiplier(1.0);
+                existing.setStaff(false);
+
                 membershipRepo.save(existing);
+
             } else {
-                // ✅ Nếu chưa có record → tạo mới
-                Membership membership = Membership.builder()
-                        .user(app.getApplicant())
-                        .club(app.getClub())
-                        .clubRole(ClubRoleEnum.MEMBER)
-                        .state(MembershipStateEnum.ACTIVE)
-                        .joinedDate(LocalDate.now())
-                        .build();
-                membershipRepo.save(membership);
+                // ===== CREATE NEW MEMBERSHIP =====
+                Membership m = new Membership();
+                m.setUser(app.getApplicant());
+                m.setClub(app.getClub());
+                m.setClubRole(ClubRoleEnum.MEMBER);
+                m.setState(MembershipStateEnum.ACTIVE);
+                m.setJoinedDate(LocalDate.now());
+
+                // DEFAULT VALUES — BẮT BUỘC
+                m.setMemberLevel(MemberLevelEnum.BASIC);
+                m.setMemberMultiplier(1.0);
+                m.setStaff(false);
+
+                membershipRepo.save(m);
             }
         }
 
-        notificationService.sendApplicationResult(app.getApplicant().getEmail(), app.getClub().getName(), true);
+        notificationService.sendApplicationResult(
+                app.getApplicant().getEmail(),
+                app.getClub().getName(),
+                true
+        );
+
         return mapToResponse(app);
     }
+
 
 
     @Override
