@@ -47,12 +47,16 @@ public class Club {
     @Column(name = "member_count", nullable = false)
     private Integer memberCount = 0;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ClubActivityStatusEnum activityStatus = ClubActivityStatusEnum.ACTIVE;
 
+
+    @Builder.Default
     @Column(nullable = false)
     private Double clubMultiplier = 1.0;
+
 
     // 🕓 Thời gian tạo và cập nhật
     @Column(name = "created_at", updatable = false)
