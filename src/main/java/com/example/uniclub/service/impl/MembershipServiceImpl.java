@@ -196,11 +196,12 @@ public class MembershipServiceImpl implements MembershipService {
 
     private void notifyClubManagers(Club club, User applicant) {
 
-        List<Membership> managers = membershipRepo.findByClub_ClubIdAndClubRoleInAndState(
+        List<Membership> managers = membershipRepo.findByClub_ClubIdAndClubRoleInAndStateIn(
                 club.getClubId(),
                 List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER),
-                MembershipStateEnum.ACTIVE
+                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
         );
+
 
 
         if (managers.isEmpty()) return;
