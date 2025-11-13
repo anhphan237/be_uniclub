@@ -120,7 +120,6 @@ public class MembershipServiceImpl implements MembershipService {
         );
     }
 
-
     @Override
     @Transactional
     public MembershipResponse joinClub(Long userId, Long clubId) {
@@ -129,7 +128,7 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // ✅ Check if membership exists
+        // Check if membership exists
         Optional<Membership> existingOpt = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
 
         if (existingOpt.isPresent()) {
@@ -137,17 +136,22 @@ public class MembershipServiceImpl implements MembershipService {
             MembershipStateEnum state = existing.getState();
 
             switch (state) {
-                // ❌ Nếu đang hoạt động hoặc đang chờ duyệt — không được apply lại
+
                 case ACTIVE, APPROVED, PENDING -> {
                     throw new ApiException(HttpStatus.CONFLICT, "You are already a member or have a pending request.");
                 }
 
-                // ✅ Nếu bị kick / inactive / rejected → cho phép reapply
                 case KICKED, INACTIVE, REJECTED -> {
                     existing.setState(MembershipStateEnum.PENDING);
                     existing.setJoinedDate(LocalDate.now());
                     existing.setEndDate(null);
                     existing.setClubRole(ClubRoleEnum.MEMBER);
+
+                    // FIX DEFAULTS
+                    existing.setMemberLevel(MemberLevelEnum.BASIC);
+                    existing.setMemberMultiplier(1.0);
+                    existing.setStaff(false);
+
                     membershipRepo.save(existing);
                     return toResp(existing);
                 }
@@ -156,19 +160,24 @@ public class MembershipServiceImpl implements MembershipService {
             }
         }
 
-        // ⚖️ Check major policy limit
+        // Check major policy
         validateMajorPolicy(user);
 
-        // ✅ Create new membership
-        Membership newMembership = Membership.builder()
-                .user(user)
-                .club(club)
-                .clubRole(ClubRoleEnum.MEMBER)
-                .state(MembershipStateEnum.PENDING)
-                .joinedDate(LocalDate.now())
-                .build();
+        // FIX: Không dùng Builder (builder bỏ default), dùng new Membership()
+        Membership newMembership = new Membership();
+        newMembership.setUser(user);
+        newMembership.setClub(club);
+        newMembership.setClubRole(ClubRoleEnum.MEMBER);
+        newMembership.setState(MembershipStateEnum.PENDING);
+        newMembership.setJoinedDate(LocalDate.now());
+
+        // FIX DEFAULT VALUES
+        newMembership.setMemberLevel(MemberLevelEnum.BASIC);
+        newMembership.setMemberMultiplier(1.0);
+        newMembership.setStaff(false);
 
         membershipRepo.save(newMembership);
+
         eventLogService.logAction(
                 userId,
                 user.getFullName(),
@@ -177,8 +186,10 @@ public class MembershipServiceImpl implements MembershipService {
                 UserActionEnum.JOIN_CLUB,
                 "User joined club " + club.getName()
         );
+
         return toResp(newMembership);
     }
+
 
 
     // ========================== 🔹 2. Membership Approval Management ==========================
