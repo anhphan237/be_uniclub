@@ -30,22 +30,29 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(to);
             helper.setSubject(subject);
 
-            // ✅ Dùng String.format thay vì .formatted() để tránh Java 17 lỗi cú pháp cũ
+
             String html = String.format("""
-                    <div style="font-family: Arial, sans-serif; background: linear-gradient(180deg, #EAF9FF 0%%, #FFFFFF 100%%);
-                                border-radius: 10px; padding: 30px; max-width: 600px; margin: auto; box-shadow: 0 0 12px rgba(0,0,0,0.1);">
-                        <div style="text-align: center; margin-bottom: 25px;">
-                            <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 110px;'>
-                        </div>
-                        <div style="font-size: 16px; color: #333;">
-                            %s
-                        </div>
-                        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
-                        <div style="text-align: center; font-size: 14px; color: #777;">
-                            <p>Best regards,<br><b>UniClub Vietnam</b><br>Digitalizing Communities 💡</p>
-                        </div>
-                    </div>
-                    """, content);
+<div style="font-family: Arial, sans-serif; background: #F7FBFF; 
+            border-radius: 12px; padding: 28px; max-width: 600px; margin: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.08); color-scheme: light !important;">
+
+    <div style="text-align: center; margin-bottom: 22px;">
+        <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 120px;'>
+    </div>
+
+    <div style="font-size: 16px; color: #111111 !important; line-height: 1.6;">
+        %s
+    </div>
+
+    <hr style="margin: 28px 0; border: none; border-top: 1px solid #e2e2e2;">
+
+    <div style="text-align: center; font-size: 14px; color: #444 !important;">
+        <p>Best regards,<br><b>UniClub Vietnam</b><br>Digitalizing Communities 💡</p>
+    </div>
+
+</div>
+""", content);
+
 
             // ✅ Đặt nội dung HTML
             helper.setText(html, true);

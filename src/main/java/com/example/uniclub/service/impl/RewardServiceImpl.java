@@ -185,4 +185,76 @@ public class RewardServiceImpl implements RewardService {
         log.info("✅ {} points refunded from event '{}' to {} club wallet(s).",
                 remaining, event.getName(), destinationWallets.size());
     }
+    public void sendClubTopUpEmail(Long userId, String clubName, long points, String reason) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String subject = "[UniClub] Your club just received points 🎉";
+
+        String html = """
+        <h2>Hello %s,</h2>
+        <p>Your club <b>%s</b> has just received <b>%d points</b>.</p>
+        <p><b>Reason:</b> %s</p>
+        <br>
+        <p>Best regards,<br>UniClub System</p>
+        """.formatted(
+                user.getFullName(),
+                clubName,
+                points,
+                reason
+        );
+
+        emailService.sendEmail(user.getEmail(), subject, html);
+    }
+    @Override
+    public void sendClubWalletDeductionEmail(Long userId, String clubName, long points, String reason) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String subject = "[UniClub] Your club wallet has been used";
+
+        String html = """
+        <h2>Hello %s,</h2>
+        <p>Your club <b>%s</b> has just spent <b>%d points</b> from the club wallet.</p>
+        <p><b>Reason:</b> %s</p>
+        <br>
+        <p>If this action was not performed by you or your club's management team, please contact the university staff.</p>
+        <br>
+        <p>Best regards,<br>UniClub System</p>
+        """.formatted(
+                user.getFullName(),
+                clubName,
+                points,
+                reason
+        );
+
+        emailService.sendEmail(user.getEmail(), subject, html);
+    }
+
+    @Override
+    public void sendClubBatchDeductionSummaryEmail(Long userId, String clubName, long totalPoints, int memberCount, String reason) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String subject = "[UniClub] Club wallet used for member rewards";
+
+        String html = """
+        <h2>Hello %s,</h2>
+        <p>Your club <b>%s</b> has just spent <b>%d points</b> from the club wallet to reward <b>%d members</b>.</p>
+        <p><b>Reason:</b> %s</p>
+        <br>
+        <p>You can check the detailed transactions in the UniClub system.</p>
+        <br>
+        <p>Best regards,<br>UniClub System</p>
+        """.formatted(
+                user.getFullName(),
+                clubName,
+                totalPoints,
+                memberCount,
+                reason
+        );
+
+        emailService.sendEmail(user.getEmail(), subject, html);
+    }
+
 }
