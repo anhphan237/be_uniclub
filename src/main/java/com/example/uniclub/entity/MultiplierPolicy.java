@@ -18,37 +18,39 @@ public class MultiplierPolicy {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 🎯 Đối tượng áp dụng: MEMBER hoặc CLUB
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PolicyTargetTypeEnum targetType;
+    private PolicyTargetTypeEnum targetType; // CLUB, MEMBER
 
-    // 📊 Số sự kiện tối thiểu để đạt mức này
-    @Column(name = "min_events_for_club")
-    private Integer minEventsForClub;
-
-
-    // 💰 Hệ số nhân điểm thưởng (VD: 1.0 = bình thường, 1.2 = +20%)
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Double multiplier = 1.0;
-    @Column(name = "level_or_status", nullable = false)
-    private String levelOrStatus;
+    private PolicyActivityTypeEnum activityType; // MEMBER_EVENT_PARTICIPATION...
 
-    // ⚙️ Còn hiệu lực hay không
+    @Column(nullable = false)
+    private String ruleName; // NORMAL, POSITIVE, FULL...
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PolicyConditionTypeEnum conditionType;
+    // PERCENTAGE or ABSOLUTE
+
+    @Column(nullable = false)
+    private Integer minThreshold; // min value
+
+    private Integer maxThreshold; // nullable = không giới hạn
+
+    @Column(nullable = false)
+    private Double multiplier; // x1.2, x1.4...
+
     @Column(nullable = false)
     private boolean active = true;
 
-    // 🕒 Thông tin cập nhật
     private String updatedBy;
+
     private LocalDateTime updatedAt;
+
     private LocalDateTime effectiveFrom;
 
-    @Column(name = "policy_name")
-    private String policyName;
-
-    @Column(name = "policy_description")
+    @Column(length = 500)
     private String policyDescription;
-
-
-
 }

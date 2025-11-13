@@ -34,120 +34,32 @@ public class WalletRewardServiceImpl implements WalletRewardService {
     // ⚙️ Helper: Lấy multiplier theo policy
     // ================================================================
     private double getMemberMultiplier(User member) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threeMonthsAgo = now.minusMonths(3);
-
-        // 🧮 1️⃣ Lấy tất cả attendance trong 3 tháng gần nhất
-        List<ClubAttendanceRecord> attendanceList = clubAttendanceRecordRepo
-                .findByMembership_User_UserIdAndSession_CreatedAtBetween(
-                        member.getUserId(),
-                        threeMonthsAgo,
-                        now
-                );
-
-        int totalEvents = attendanceList.size();
-        if (totalEvents == 0) return 1.0;
-
-        long attended = attendanceList.stream()
-                .filter(a -> a.getStatus() == AttendanceStatusEnum.PRESENT || a.getStatus() == AttendanceStatusEnum.LATE)
-                .count();
-
-        double attendanceRate = (double) attended / totalEvents * 100; // % chuyên cần
-
-        // 🧩 2️⃣ Lấy danh sách chính sách multiplier cho MEMBER từ DB (sắp xếp giảm dần)
-        List<MultiplierPolicy> policies = multiplierPolicyService
-                .getActiveEntityByTargetType(PolicyTargetTypeEnum.MEMBER);
-
-
-        // 🔍 3️⃣ Chọn policy phù hợp nhất (ngưỡng attendanceRate ≥ minEventsForClub)
-        MultiplierPolicy matchedPolicy = policies.stream()
-                .filter(p -> attendanceRate >= (p.getMinEventsForClub() != null ? p.getMinEventsForClub() : 0))
-                .findFirst()
-                .orElse(null);
-
-        // ⚙️ 4️⃣ Kiểm tra xem member có duy trì ≥80% attendance 3 tháng liên tục (ELITE)
-        boolean sustainedHighAttendance = true;
-        for (int i = 0; i < 3; i++) {
-            LocalDateTime start = now.minusMonths(i + 1);
-            LocalDateTime end = now.minusMonths(i);
-
-            int monthTotal = clubAttendanceRecordRepo.countByMembership_User_UserIdAndSession_CreatedAtBetween(
-                    member.getUserId(), start, end);
-            int monthPresent = clubAttendanceRecordRepo.countByMembership_User_UserIdAndStatusInAndSession_CreatedAtBetween(
-                    member.getUserId(),
-                    List.of(AttendanceStatusEnum.PRESENT, AttendanceStatusEnum.LATE),
-                    start, end);
-
-            double monthRate = monthTotal == 0 ? 0 : (double) monthPresent / monthTotal;
-            if (monthRate < 0.8) {
-                sustainedHighAttendance = false;
-                break;
-            }
-        }
-
-        // 🎯 5️⃣ Xác định cấp độ tương ứng
-        MemberLevelEnum level = MemberLevelEnum.BASIC;
-        if (matchedPolicy != null) {
-            try {
-                level = MemberLevelEnum.valueOf(matchedPolicy.getLevelOrStatus());
-            } catch (IllegalArgumentException ignored) {
-                level = MemberLevelEnum.BASIC;
-            }
-        }
-
-        // Nếu chuyên cần 3 tháng liên tiếp ≥80% → ép thành ELITE (nếu có chính sách)
-        if (sustainedHighAttendance) {
-            MultiplierPolicy elitePolicy = policies.stream()
-                    .filter(p -> "ELITE".equalsIgnoreCase(p.getLevelOrStatus()))
-                    .findFirst()
-                    .orElse(null);
-            if (elitePolicy != null) {
-                matchedPolicy = elitePolicy;
-                level = MemberLevelEnum.ELITE;
-            }
-        }
-
-        // 💰 6️⃣ Trả multiplier tương ứng
-        double multiplier = matchedPolicy != null ? matchedPolicy.getMultiplier() : 1.0;
-
-        // (tuỳ chọn) Cập nhật lại memberLevel vào Membership
-        final MemberLevelEnum finalLevel = level;
-        final double finalMultiplier = multiplier;
-        membershipRepo.findByUser_UserId(member.getUserId())
+        // Lấy tất cả membership ACTIVE / APPROVED của user
+        return membershipRepo.findActiveMembershipsByUserId(member.getUserId())
                 .stream()
-                .findFirst()
-                .ifPresent(m -> {
-                    m.setMemberLevel(finalLevel);
-                    m.setMemberMultiplier(finalMultiplier);
-                    membershipRepo.save(m);
-                });
-
-        return multiplier;
-    }
-
-
-
-
-    private double getClubMultiplier(Club club) {
-        // 📅 Đếm số sự kiện đã hoàn thành của CLB
-        long completedEvents = (long) eventRepo.countByHostClub_ClubIdAndStatus(
-                club.getClubId(),
-                EventStatusEnum.COMPLETED
-        );
-
-
-        // 🧠 Xác định trạng thái hoạt động dựa trên số sự kiện
-        ClubActivityStatusEnum status;
-        if (completedEvents < 2) status = ClubActivityStatusEnum.INACTIVE;
-        else if (completedEvents < 5) status = ClubActivityStatusEnum.ACTIVE;
-        else status = ClubActivityStatusEnum.EXCELLENT;
-
-        // 💰 Tìm multiplier tương ứng trong bảng policy
-        return multiplierPolicyService
-                .findByTargetTypeAndLevelOrStatus(PolicyTargetTypeEnum.CLUB, status.name())
-                .map(MultiplierPolicy::getMultiplier)
+                .map(Membership::getMemberMultiplier)
+                // Nếu user ở nhiều CLB thì lấy hệ số cao nhất
+                .max(Double::compareTo)
+                // Không có membership nào thì mặc định x1.0
                 .orElse(1.0);
     }
+
+
+
+
+
+    // ================================================================
+// ⚙️ Helper: Lấy multiplier hiện tại của CLB
+//  -> lấy từ Club.clubMultiplier (đã được ClubActivityScheduler + policy set sẵn)
+// ================================================================
+    private double getClubMultiplier(Club club) {
+        Double multi = club.getClubMultiplier();
+        if (multi == null || multi <= 0) {
+            return 1.0;
+        }
+        return multi;
+    }
+
 
 
     // ================================================================

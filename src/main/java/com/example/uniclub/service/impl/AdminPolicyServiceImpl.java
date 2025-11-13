@@ -28,16 +28,17 @@ public class AdminPolicyServiceImpl implements AdminPolicyService {
     }
 
     @Override
-    public AdminPolicyResponse savePolicy(AdminPolicyResponse req) {
-        // cập nhật thời gian và người sửa gần nhất
+    public AdminPolicyResponse savePolicy(AdminPolicyResponse req, String updatedBy) {
+
         var entity = req.toEntity();
+
         entity.setUpdatedAt(LocalDateTime.now());
-        if (entity.getUpdatedBy() == null)
-            entity.setUpdatedBy("unistaff@fpt.edu.vn");
+        entity.setUpdatedBy(updatedBy);   // ✔ lấy đúng người dùng
 
         MultiplierPolicy saved = policyRepo.save(entity);
         return AdminPolicyResponse.fromEntity(saved);
     }
+
 
     @Override
     public void deletePolicy(Long id) {

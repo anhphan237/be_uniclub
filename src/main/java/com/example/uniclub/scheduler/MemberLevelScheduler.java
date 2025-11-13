@@ -3,6 +3,7 @@ package com.example.uniclub.scheduler;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.MultiplierPolicy;
 import com.example.uniclub.enums.MemberLevelEnum;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import com.example.uniclub.repository.EventRegistrationRepository;
 import com.example.uniclub.repository.MembershipRepository;
@@ -23,52 +24,67 @@ public class MemberLevelScheduler {
     private final EventRegistrationRepository regRepo;
     private final MultiplierPolicyRepository policyRepo;
 
-    /**
-     * 🕒 Chạy đầu mỗi tháng để cập nhật cấp độ và multiplier cho thành viên
-     */
-    @Scheduled(cron = "0 30 0 1 * *") // 00:30 ngày đầu tháng
+    @Scheduled(cron = "0 5 0 1 * *") // chạy 00:05 đầu tháng
     @Transactional
     public void updateMemberLevels() {
+
         LocalDate oneMonthAgo = LocalDate.now().minusMonths(1);
 
-        // 🔹 Lấy danh sách chính sách multiplier dành cho MEMBER
-        List<MultiplierPolicy> memberPolicies =
-                policyRepo.findByTargetTypeOrderByMinEventsForClubDesc(PolicyTargetTypeEnum.MEMBER);
+        // 📌 Lấy policy cho MEMBER tham gia EVENT (theo model mới)
+        List<MultiplierPolicy> policies = policyRepo
+                .findByTargetTypeAndActivityTypeAndActiveTrue(
+                        PolicyTargetTypeEnum.MEMBER,
+                        PolicyActivityTypeEnum.MEMBER_EVENT_PARTICIPATION
+                );
 
-        // 🔹 Lấy toàn bộ membership hiện có
-        List<Membership> members = membershipRepo.findAll();
+        // sort theo minThreshold giảm dần
+        policies.sort((a, b) -> b.getMinThreshold() - a.getMinThreshold());
 
-        for (Membership m : members) {
-            // 🧮 Đếm số sự kiện đã tham gia trong 1 tháng gần nhất
+        List<Membership> list = membershipRepo.findAll();
+
+        for (Membership m : list) {
+
+            // 🔢 Đếm số event user tham gia trong tháng trước
             long attendedEvents = regRepo.countByUser_UserIdAndRegisteredAtAfter(
-                    m.getUser().getUserId(), oneMonthAgo);
+                    m.getUser().getUserId(),
+                    oneMonthAgo
+            );
 
-            // 🔍 Tìm chính sách phù hợp nhất
-            MultiplierPolicy matchedPolicy = memberPolicies.stream()
-                    .filter(p -> attendedEvents >= (p.getMinEventsForClub() != null ? p.getMinEventsForClub() : 0)
-                            && p.isActive())
-                    .findFirst()
-                    .orElse(null);
+            // 🔍 tìm policy phù hợp theo min/max threshold
+            MultiplierPolicy matched = findMatchedPolicy(policies, (int) attendedEvents);
 
-            // ⚙️ Cập nhật cấp độ & multiplier
-            if (matchedPolicy != null) {
+            if (matched != null) {
+
+                // set multiplier
+                m.setMemberMultiplier(matched.getMultiplier());
+
+                // map ruleName → MemberLevelEnum
                 try {
-                    // Dùng levelOrStatus để map sang MemberLevelEnum
                     m.setMemberLevel(
-                            MemberLevelEnum.valueOf(matchedPolicy.getLevelOrStatus())
+                            MemberLevelEnum.valueOf(matched.getRuleName().toUpperCase())
                     );
-                } catch (IllegalArgumentException ex) {
-                    // Nếu không khớp Enum, fallback BASIC
+                } catch (Exception ex) {
                     m.setMemberLevel(MemberLevelEnum.BASIC);
                 }
-                m.setMemberMultiplier(matchedPolicy.getMultiplier());
+
             } else {
-                m.setMemberLevel(MemberLevelEnum.BASIC);
+                // fallback
                 m.setMemberMultiplier(1.0);
+                m.setMemberLevel(MemberLevelEnum.BASIC);
             }
         }
 
-        membershipRepo.saveAll(members);
-        System.out.println("Updated member levels & multipliers successfully!");
+        membershipRepo.saveAll(list);
+    }
+
+    // 🎯 match theo minThreshold / maxThreshold
+    private MultiplierPolicy findMatchedPolicy(List<MultiplierPolicy> list, int value) {
+        return list.stream()
+                .filter(p ->
+                        value >= p.getMinThreshold() &&
+                                (p.getMaxThreshold() == null || value < p.getMaxThreshold())
+                )
+                .findFirst()
+                .orElse(null);
     }
 }

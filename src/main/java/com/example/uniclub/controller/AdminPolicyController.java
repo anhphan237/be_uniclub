@@ -28,9 +28,15 @@ public class AdminPolicyController {
 
     @Operation(summary = "💾 Tạo mới hoặc cập nhật multiplier policy")
     @PostMapping
-    public ResponseEntity<ApiResponse<AdminPolicyResponse>> savePolicy(@RequestBody AdminPolicyResponse req) {
-        return ResponseEntity.ok(ApiResponse.ok(adminPolicyService.savePolicy(req)));
+    public ResponseEntity<ApiResponse<AdminPolicyResponse>> savePolicy(
+            @AuthenticationPrincipal CustomUserDetails me,
+            @RequestBody AdminPolicyResponse req
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(adminPolicyService.savePolicy(req, me.getUsername()))
+        );
     }
+
 
     @Operation(summary = "🗑️ Xóa multiplier policy theo ID")
     @DeleteMapping("/{id}")

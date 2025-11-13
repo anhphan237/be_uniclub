@@ -1,8 +1,11 @@
 package com.example.uniclub.dto.response;
 
 import com.example.uniclub.entity.MultiplierPolicy;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
+import com.example.uniclub.enums.PolicyConditionTypeEnum;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -13,26 +16,41 @@ import java.time.LocalDateTime;
 public class AdminPolicyResponse {
 
     private Long id;
-    private String name;               // Tên chính sách
-    private String description;        // Mô tả chính sách
-    private String targetType;         // CLUB / MEMBER
-    private String levelOrStatus;      // EXCELLENT, LEGEND, ...
-    private Integer minEventsForClub;  // Số sự kiện tối thiểu
-    private Double multiplier;         // Hệ số nhân
+    private String policyName;
+    private String policyDescription;
+
+    private PolicyTargetTypeEnum targetType;
+    private PolicyActivityTypeEnum activityType;
+
+    private String ruleName;
+
+    private PolicyConditionTypeEnum conditionType;
+
+    private Integer minThreshold;
+    private Integer maxThreshold;
+
+    private Double multiplier;
+
     private boolean active;
+
     private String updatedBy;
     private LocalDateTime updatedAt;
     private LocalDateTime effectiveFrom;
 
-    // 🧩 Convert từ Entity sang DTO
+    // --------------------------
+    // ENTITY → DTO
+    // --------------------------
     public static AdminPolicyResponse fromEntity(MultiplierPolicy mp) {
         return AdminPolicyResponse.builder()
                 .id(mp.getId())
-                .name(mp.getPolicyName())
-                .description(mp.getPolicyDescription())
-                .targetType(mp.getTargetType() != null ? mp.getTargetType().name() : null)
-                .levelOrStatus(mp.getLevelOrStatus())
-                .minEventsForClub(mp.getMinEventsForClub())
+                .policyName(mp.getRuleName())
+                .policyDescription(mp.getPolicyDescription())
+                .targetType(mp.getTargetType())
+                .activityType(mp.getActivityType())
+                .ruleName(mp.getRuleName())
+                .conditionType(mp.getConditionType())
+                .minThreshold(mp.getMinThreshold())
+                .maxThreshold(mp.getMaxThreshold())
                 .multiplier(mp.getMultiplier())
                 .active(mp.isActive())
                 .updatedBy(mp.getUpdatedBy())
@@ -41,22 +59,24 @@ public class AdminPolicyResponse {
                 .build();
     }
 
-    // 🧩 Convert từ DTO sang Entity (khi tạo/sửa)
+    // --------------------------
+    // DTO → ENTITY
+    // --------------------------
     public MultiplierPolicy toEntity() {
         return MultiplierPolicy.builder()
                 .id(id)
-                .policyName(name)
-                .policyDescription(description)
-                .targetType(targetType != null
-                        ? Enum.valueOf(PolicyTargetTypeEnum.class, targetType)
-                        : null)
-                .levelOrStatus(levelOrStatus)
-                .minEventsForClub(minEventsForClub)
+                .targetType(targetType)
+                .activityType(activityType)
+                .ruleName(ruleName)
+                .conditionType(conditionType)
+                .minThreshold(minThreshold)
+                .maxThreshold(maxThreshold)
                 .multiplier(multiplier)
                 .active(active)
                 .updatedBy(updatedBy)
                 .updatedAt(updatedAt)
                 .effectiveFrom(effectiveFrom)
+                .policyDescription(policyDescription)
                 .build();
     }
 }

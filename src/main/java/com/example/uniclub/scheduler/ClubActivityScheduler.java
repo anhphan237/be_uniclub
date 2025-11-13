@@ -3,6 +3,7 @@ package com.example.uniclub.scheduler;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.MultiplierPolicy;
 import com.example.uniclub.enums.ClubActivityStatusEnum;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.EventRepository;
@@ -24,57 +25,63 @@ public class ClubActivityScheduler {
     private final EventRepository eventRepo;
     private final MultiplierPolicyRepository policyRepo;
 
-    /**
-     * 🕒 Chạy vào ngày đầu tiên mỗi tháng
-     * Cập nhật trạng thái hoạt động và multiplier của CLB
-     */
-    @Scheduled(cron = "0 0 0 1 * *")
+    @Scheduled(cron = "0 0 0 1 * *") // chạy đầu tháng
     @Transactional
     public void updateClubActivityStatus() {
+
         YearMonth lastMonth = YearMonth.now().minusMonths(1);
         LocalDate start = lastMonth.atDay(1);
         LocalDate end = lastMonth.atEndOfMonth();
 
-        // 🔹 Lấy danh sách chính sách multiplier của CLUB (sắp xếp theo minEventsForClub giảm dần)
-        List<MultiplierPolicy> clubPolicies =
-                policyRepo.findByTargetTypeOrderByMinEventsForClubDesc(PolicyTargetTypeEnum.CLUB);
+        // 📌 Lấy chính sách dành cho CLUB
+        List<MultiplierPolicy> policies = policyRepo
+                .findByTargetTypeAndActivityTypeAndActiveTrue(
+                        PolicyTargetTypeEnum.CLUB,
+                        PolicyActivityTypeEnum.CLUB_EVENT_ORGANIZATION
+                );
 
         List<Club> clubs = clubRepo.findAll();
 
         for (Club club : clubs) {
-            // 🔹 Đếm số sự kiện CLB tổ chức trong tháng trước
-            long eventCount = eventRepo.findByHostClub_ClubId(club.getClubId()).stream()
-                    .filter(e -> e.getDate() != null &&
-                            !e.getDate().isBefore(start) &&
-                            !e.getDate().isAfter(end))
+
+            // Đếm số event CLB đã tổ chức tháng trước
+            long count = eventRepo.findByHostClub_ClubId(club.getClubId())
+                    .stream()
+                    .filter(ev -> ev.getDate() != null &&
+                            !ev.getDate().isBefore(start) &&
+                            !ev.getDate().isAfter(end))
                     .count();
 
-            // 🔹 Tìm chính sách phù hợp nhất
-            MultiplierPolicy matchedPolicy = clubPolicies.stream()
-                    .filter(p -> eventCount >= (p.getMinEventsForClub() != null ? p.getMinEventsForClub() : 0)
-                            && p.isActive())
-                    .findFirst()
-                    .orElse(null);
+            // 🔍 Chọn policy tương ứng
+            MultiplierPolicy matched = findMatchedPolicy(policies, (int) count);
 
-            if (matchedPolicy != null) {
+            // ⚙️ Cập nhật vào CLB
+            if (matched != null) {
+                club.setClubMultiplier(matched.getMultiplier());
+
+                // Nếu tên rule khớp enum → set activityStatus
                 try {
-                    // ⚙️ Gán trạng thái hoạt động tương ứng
                     club.setActivityStatus(
-                            ClubActivityStatusEnum.valueOf(matchedPolicy.getLevelOrStatus())
+                            ClubActivityStatusEnum.valueOf(matched.getRuleName().toUpperCase())
                     );
-                } catch (IllegalArgumentException ex) {
-                    // Nếu DB chứa giá trị không khớp enum
+                } catch (Exception ex) {
                     club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 }
-                club.setClubMultiplier(matchedPolicy.getMultiplier());
             } else {
-                // ❌ Nếu không có policy nào phù hợp → INACTIVE
-                club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
                 club.setClubMultiplier(1.0);
+                club.setActivityStatus(ClubActivityStatusEnum.INACTIVE);
             }
         }
 
         clubRepo.saveAll(clubs);
-        System.out.println("Updated club activity & multiplier for " + lastMonth);
+    }
+
+    /** Tìm policy phù hợp theo ngưỡng min/max */
+    private MultiplierPolicy findMatchedPolicy(List<MultiplierPolicy> list, int value) {
+        return list.stream()
+                .filter(p -> value >= p.getMinThreshold() &&
+                        (p.getMaxThreshold() == null || value < p.getMaxThreshold()))
+                .findFirst()
+                .orElse(null);
     }
 }

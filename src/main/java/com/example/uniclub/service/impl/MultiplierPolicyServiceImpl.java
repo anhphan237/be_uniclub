@@ -3,6 +3,7 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.MultiplierPolicyRequest;
 import com.example.uniclub.dto.response.MultiplierPolicyResponse;
 import com.example.uniclub.entity.MultiplierPolicy;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.MultiplierPolicyRepository;
@@ -21,7 +22,6 @@ import java.util.stream.Collectors;
 public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
     private final MultiplierPolicyRepository multiplierPolicyRepository;
-    private final MultiplierPolicyRepository multiplierRepo;
 
     // ================================================================
     // 🧾 Lấy tất cả
@@ -50,26 +50,34 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     @Override
     public MultiplierPolicyResponse create(MultiplierPolicyRequest req) {
 
-        boolean exists = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
-                req.getTargetType(), req.getLevelOrStatus());
+        // ❗ Kiểm tra trùng rule theo targetType + activityType + ruleName
+        boolean exists = multiplierPolicyRepository.existsByTargetTypeAndActivityTypeAndRuleName(
+                req.getTargetType(),
+                req.getActivityType(),
+                req.getRuleName()
+        );
+
         if (exists) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Policy already exists for this target type and level/status");
+                    "A policy with the same targetType, activityType and ruleName already exists.");
         }
 
         MultiplierPolicy policy = MultiplierPolicy.builder()
                 .targetType(req.getTargetType())
-                .levelOrStatus(req.getLevelOrStatus())
-                .minEventsForClub(req.getMinEvents()) // ✅ đổi tên field
+                .activityType(req.getActivityType())
+                .ruleName(req.getRuleName())
+                .conditionType(req.getConditionType())
+                .minThreshold(req.getMinThreshold())
+                .maxThreshold(req.getMaxThreshold())
                 .multiplier(req.getMultiplier())
+                .active(req.isActive())
                 .updatedBy(req.getUpdatedBy())
                 .updatedAt(LocalDateTime.now())
                 .effectiveFrom(LocalDateTime.now())
-                .active(req.isActive())
+                .policyDescription(req.getPolicyDescription())
                 .build();
 
-        MultiplierPolicy saved = multiplierPolicyRepository.save(policy);
-        return toResponse(saved);
+        return toResponse(multiplierPolicyRepository.save(policy));
     }
 
     // ================================================================
@@ -77,26 +85,33 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     // ================================================================
     @Override
     public MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest req) {
+
         MultiplierPolicy existing = multiplierPolicyRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
 
-        boolean duplicate = multiplierPolicyRepository.existsByTargetTypeAndLevelOrStatus(
-                req.getTargetType(), req.getLevelOrStatus());
-        if (duplicate && !req.getLevelOrStatus().equals(existing.getLevelOrStatus())) {
+        // Kiểm tra rule trùng (nếu đổi ruleName hoặc activityType)
+        boolean duplicate = multiplierPolicyRepository.existsByTargetTypeAndActivityTypeAndRuleName(
+                req.getTargetType(), req.getActivityType(), req.getRuleName()
+        );
+
+        if (duplicate && !req.getRuleName().equals(existing.getRuleName())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "A policy already exists for this target type and level/status");
+                    "A policy with the same targetType, activityType and ruleName already exists.");
         }
 
         existing.setTargetType(req.getTargetType());
-        existing.setLevelOrStatus(req.getLevelOrStatus());
-        existing.setMinEventsForClub(req.getMinEvents()); // ✅ đổi tên setter
+        existing.setActivityType(req.getActivityType());
+        existing.setRuleName(req.getRuleName());
+        existing.setConditionType(req.getConditionType());
+        existing.setMinThreshold(req.getMinThreshold());
+        existing.setMaxThreshold(req.getMaxThreshold());
         existing.setMultiplier(req.getMultiplier());
+        existing.setActive(req.isActive());
         existing.setUpdatedBy(req.getUpdatedBy());
         existing.setUpdatedAt(LocalDateTime.now());
-        existing.setActive(req.isActive());
+        existing.setPolicyDescription(req.getPolicyDescription());
 
-        MultiplierPolicy updated = multiplierPolicyRepository.save(existing);
-        return toResponse(updated);
+        return toResponse(multiplierPolicyRepository.save(existing));
     }
 
     // ================================================================
@@ -116,22 +131,11 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
     @Override
     public List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType) {
         return multiplierPolicyRepository
-                .findByTargetTypeAndActiveTrueOrderByMinEventsForClubDesc(targetType)
+                .findByTargetTypeOrderByActivityTypeAscMinThresholdAsc(targetType)
                 .stream()
+                .filter(MultiplierPolicy::isActive)
                 .map(this::toResponse)
                 .collect(Collectors.toList());
-    }
-
-
-    // ================================================================
-    // 🧮 Tìm multiplier theo cấp độ
-    // ================================================================
-    @Override
-    public Double getMultiplierForLevel(PolicyTargetTypeEnum targetType, String levelOrStatus) {
-        return multiplierPolicyRepository
-                .findByTargetTypeAndLevelOrStatusAndActiveTrue(targetType, levelOrStatus)
-                .map(MultiplierPolicy::getMultiplier)
-                .orElse(1.0);
     }
 
     // ================================================================
@@ -141,37 +145,40 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         return MultiplierPolicyResponse.builder()
                 .id(entity.getId())
                 .targetType(entity.getTargetType())
-                .levelOrStatus(entity.getLevelOrStatus())
-                .minEvents(entity.getMinEventsForClub()) // ✅ sửa ở đây
+                .activityType(entity.getActivityType())
+                .ruleName(entity.getRuleName())
+                .conditionType(entity.getConditionType())
+                .minThreshold(entity.getMinThreshold())
+                .maxThreshold(entity.getMaxThreshold())
                 .multiplier(entity.getMultiplier())
                 .active(entity.isActive())
                 .updatedBy(entity.getUpdatedBy())
+                .policyDescription(entity.getPolicyDescription())
                 .build();
     }
 
     // ================================================================
-    // 🔹 Lấy toàn bộ theo loại (bất kể active)
+    // 🧮 Áp dụng multiplier theo giá trị hoạt động (KHÔNG hard-code)
     // ================================================================
     @Override
-    public List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type) {
-        return multiplierPolicyRepository.findByTargetTypeOrderByMinEventsForClubDesc(type); // ✅ sửa field
-    }
-
-    @Override
-    public Optional<MultiplierPolicy> findByTargetTypeAndLevelOrStatus(
-            PolicyTargetTypeEnum targetType,
-            String levelOrStatus
+    public double resolveMultiplier(
+            PolicyTargetTypeEnum target,
+            PolicyActivityTypeEnum activity,
+            int value
     ) {
-        return multiplierRepo.findByTargetTypeAndLevelOrStatusAndActiveTrue(
-                targetType,
-                levelOrStatus
-        );
+        List<MultiplierPolicy> policies =
+                multiplierPolicyRepository.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
+                        target, activity
+                );
+
+        for (MultiplierPolicy p : policies) {
+            boolean minOK = value >= p.getMinThreshold();
+            boolean maxOK = (p.getMaxThreshold() == null) || value < p.getMaxThreshold();
+
+            if (minOK && maxOK) {
+                return p.getMultiplier();  // 🔥 lấy multiplier từ DB → unistaff kiểm soát 100%
+            }
+        }
+        return 1.0; // default multiplier
     }
-
-    @Override
-    public List<MultiplierPolicy> getActiveEntityByTargetType(PolicyTargetTypeEnum targetType) {
-        return multiplierPolicyRepository.findByTargetTypeAndActiveTrueOrderByMinEventsForClubDesc(targetType);
-    }
-
-
 }

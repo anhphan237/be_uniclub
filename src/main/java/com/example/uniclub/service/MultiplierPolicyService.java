@@ -2,39 +2,29 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.MultiplierPolicyRequest;
 import com.example.uniclub.dto.response.MultiplierPolicyResponse;
-import com.example.uniclub.entity.MultiplierPolicy;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
 import com.example.uniclub.enums.PolicyTargetTypeEnum;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface MultiplierPolicyService {
 
-    // 🔹 Lấy tất cả policy (cả CLUB & MEMBER)
     List<MultiplierPolicyResponse> getAll();
 
-    // 🔹 Lấy chi tiết 1 policy
     MultiplierPolicyResponse getById(Long id);
 
-    // 🔹 Tạo mới policy
-    MultiplierPolicyResponse create(MultiplierPolicyRequest request);
+    MultiplierPolicyResponse create(MultiplierPolicyRequest req);
 
-    // 🔹 Cập nhật policy
-    MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest request);
+    MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest req);
 
-    // 🔹 Xoá policy
     void delete(Long id);
 
-    // 🔹 Lấy danh sách policy đang active theo loại (CLUB hoặc MEMBER)
     List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType);
 
-    // 🔹 Lấy multiplier cho 1 cấp độ cụ thể (dùng khi thưởng điểm)
-    Double getMultiplierForLevel(PolicyTargetTypeEnum targetType, String level);
-    List<MultiplierPolicy> getPolicies(PolicyTargetTypeEnum type);
-    Optional<MultiplierPolicy> findByTargetTypeAndLevelOrStatus(
-            PolicyTargetTypeEnum targetType,
-            String levelOrStatus
+    // 🔥 Hàm quan trọng nhất
+    double resolveMultiplier(
+            PolicyTargetTypeEnum target,
+            PolicyActivityTypeEnum activity,
+            int value
     );
-    List<MultiplierPolicy> getActiveEntityByTargetType(PolicyTargetTypeEnum targetType);
-
 }
