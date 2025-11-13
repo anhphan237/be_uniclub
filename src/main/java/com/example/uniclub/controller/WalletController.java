@@ -254,4 +254,16 @@ public class WalletController {
                         walletRewardService.rewardMultipleMembers(operator, req))
         );
     }
+    @GetMapping("/me/transactions")
+    public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getMyTransactions(
+            HttpServletRequest request) {
+
+        User user = jwtUtil.getUserFromRequest(request);
+        Wallet wallet = walletService.getOrCreateUserWallet(user);
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(walletService.getWalletTransactions(wallet.getWalletId()))
+        );
+    }
+
 }
