@@ -153,6 +153,7 @@ public class MembershipServiceImpl implements MembershipService {
                     existing.setStaff(false);
 
                     membershipRepo.save(existing);
+                    notifyClubManagers(club, user);
                     return toResp(existing);
                 }
 
@@ -163,15 +164,13 @@ public class MembershipServiceImpl implements MembershipService {
         // Check major policy
         validateMajorPolicy(user);
 
-        // FIX: Không dùng Builder (builder bỏ default), dùng new Membership()
+        // FIX: Không dùng builder
         Membership newMembership = new Membership();
         newMembership.setUser(user);
         newMembership.setClub(club);
         newMembership.setClubRole(ClubRoleEnum.MEMBER);
         newMembership.setState(MembershipStateEnum.PENDING);
         newMembership.setJoinedDate(LocalDate.now());
-
-        // FIX DEFAULT VALUES
         newMembership.setMemberLevel(MemberLevelEnum.BASIC);
         newMembership.setMemberMultiplier(1.0);
         newMembership.setStaff(false);
@@ -187,8 +186,54 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
+        // 📧 Notify Leader + Vice Leader
+        notifyClubManagers(club, user);
+
         return toResp(newMembership);
     }
+
+// ===================== 🔔 EMAIL NOTIFICATION FUNC =====================
+
+    private void notifyClubManagers(Club club, User applicant) {
+
+        List<Membership> managers = membershipRepo.findByClub_ClubIdAndClubRoleInAndState(
+                club.getClubId(),
+                List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER),
+                MembershipStateEnum.ACTIVE
+        );
+
+
+        if (managers.isEmpty()) return;
+
+        String subject = "[UniClub] New membership request for " + club.getName();
+
+        for (Membership mgr : managers) {
+
+            String content = """
+            <p>Dear %s,</p>
+            <p>A new member has requested to join your club <b>%s</b>.</p>
+            <p><b>Applicant:</b> %s</p>
+            <p>Please log in to UniClub to review and approve/reject this request.</p>
+            <br>
+            <p>Best regards,<br><b>UniClub System</b></p>
+        """.formatted(
+                    mgr.getUser().getFullName(),
+                    club.getName(),
+                    applicant.getFullName()
+            );
+
+            try {
+                emailService.sendEmail(
+                        mgr.getUser().getEmail(),
+                        subject,
+                        content
+                );
+            } catch (Exception e) {
+                log.warn("Failed to send email to club manager: {}", mgr.getUser().getEmail());
+            }
+        }
+    }
+
 
 
 
