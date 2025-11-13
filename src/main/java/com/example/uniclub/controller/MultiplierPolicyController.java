@@ -17,10 +17,8 @@ import java.util.List;
 @Tag(
         name = "Multiplier Policy Management",
         description = """
-        Quản lý **chính sách nhân điểm thưởng (Multiplier Policy)** trong hệ thống UniClub.<br>
-        - Cho phép đặt hệ số nhân điểm cho từng đối tượng (CLUB hoặc MEMBER).<br>
-        - Áp dụng khi tính điểm thưởng, thưởng thêm hoặc quy đổi trong các sự kiện.<br>
-        - Chỉ dành cho **UNIVERSITY_STAFF**.
+        Quản lý chính sách nhân điểm (Multiplier Policy) cho CLUB và MEMBER.<br>
+        Dành cho **ADMIN** và **UNIVERSITY_STAFF**.
         """
 )
 @SecurityRequirement(name = "bearerAuth")
@@ -32,85 +30,54 @@ public class MultiplierPolicyController {
     private final MultiplierPolicyService multiplierPolicyService;
 
     // ===============================================================
-    // 🔹 1️⃣ LẤY TẤT CẢ POLICIES
+    // 1️⃣ LẤY TẤT CẢ POLICIES
     // ===============================================================
-    @Operation(
-            summary = "Lấy danh sách toàn bộ Multiplier Policies",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Trả về danh sách toàn bộ chính sách nhân điểm hiện có, bao gồm trạng thái hiệu lực, 
-                hệ số nhân và đối tượng áp dụng (CLUB / MEMBER).
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Lấy danh sách toàn bộ Multiplier Policies")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @GetMapping
     public ResponseEntity<List<MultiplierPolicyResponse>> getAll() {
         return ResponseEntity.ok(multiplierPolicyService.getAll());
     }
 
     // ===============================================================
-    // 🔹 2️⃣ LẤY CHI TIẾT POLICY THEO ID
+    // 2️⃣ LẤY CHI TIẾT POLICY THEO ID
     // ===============================================================
-    @Operation(
-            summary = "Lấy chi tiết một chính sách nhân điểm theo ID",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Trả về thông tin chi tiết của một policy bao gồm: tên, đối tượng áp dụng, hệ số nhân và mô tả.
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Lấy chi tiết một chính sách nhân điểm theo ID")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @GetMapping("/{id}")
     public ResponseEntity<MultiplierPolicyResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(multiplierPolicyService.getById(id));
     }
 
     // ===============================================================
-    // 🔹 3️⃣ LỌC POLICY THEO LOẠI (CLUB / MEMBER)
+    // 3️⃣ LỌC POLICY THEO TARGET TYPE
     // ===============================================================
-    @Operation(
-            summary = "Lọc danh sách chính sách theo loại đối tượng",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Trả về danh sách các chính sách hiện đang áp dụng cho loại mục tiêu cụ thể:<br>
-                - `CLUB`: Chính sách nhân điểm dành cho CLB<br>
-                - `MEMBER`: Chính sách nhân điểm dành cho thành viên
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Lọc chính sách theo loại đối tượng (CLUB / MEMBER)")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @GetMapping("/target/{type}")
-    public ResponseEntity<List<MultiplierPolicyResponse>> getByType(@PathVariable PolicyTargetTypeEnum type) {
+    public ResponseEntity<List<MultiplierPolicyResponse>> getByType(
+            @PathVariable PolicyTargetTypeEnum type
+    ) {
         return ResponseEntity.ok(multiplierPolicyService.getActiveByTargetType(type));
     }
 
     // ===============================================================
-    // 🔹 4️⃣ TẠO MỚI POLICY
+    // 4️⃣ TẠO MỚI
     // ===============================================================
-    @Operation(
-            summary = "Tạo mới chính sách nhân điểm",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Tạo mới một chính sách nhân điểm mới (Multiplier Policy) với thông tin hệ số nhân, 
-                đối tượng mục tiêu và mô tả chi tiết.
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Tạo mới chính sách nhân điểm")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @PostMapping
-    public ResponseEntity<MultiplierPolicyResponse> create(@RequestBody MultiplierPolicyRequest request) {
+    public ResponseEntity<MultiplierPolicyResponse> create(
+            @RequestBody MultiplierPolicyRequest request
+    ) {
         return ResponseEntity.ok(multiplierPolicyService.create(request));
     }
 
     // ===============================================================
-    // 🔹 5️⃣ CẬP NHẬT POLICY
+    // 5️⃣ CẬP NHẬT
     // ===============================================================
-    @Operation(
-            summary = "Cập nhật thông tin một chính sách nhân điểm",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Cập nhật hệ số nhân, mô tả, hoặc trạng thái hiệu lực của chính sách.<br>
-                Các thay đổi chỉ có hiệu lực cho các hoạt động được tạo sau khi cập nhật.
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Cập nhật thông tin một chính sách nhân điểm")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @PutMapping("/{id}")
     public ResponseEntity<MultiplierPolicyResponse> update(
             @PathVariable Long id,
@@ -120,16 +87,10 @@ public class MultiplierPolicyController {
     }
 
     // ===============================================================
-    // 🔹 6️⃣ XÓA POLICY
+    // 6️⃣ XÓA
     // ===============================================================
-    @Operation(
-            summary = "Xoá chính sách nhân điểm",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Xoá một chính sách nhân điểm khỏi hệ thống nếu nó chưa được áp dụng trong sự kiện hoặc điểm thưởng hiện hành.
-                """
-    )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    @Operation(summary = "Xoá chính sách nhân điểm")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         multiplierPolicyService.delete(id);
