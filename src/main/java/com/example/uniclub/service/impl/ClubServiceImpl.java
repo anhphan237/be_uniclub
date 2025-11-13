@@ -68,6 +68,7 @@ public class ClubServiceImpl implements ClubService {
                 .major(major)
                 .createdBy(null)
                 .memberCount(0)
+                .activityStatus(ClubActivityStatusEnum.ACTIVE)
                 .build();
 
         Wallet wallet = Wallet.builder()
