@@ -254,6 +254,20 @@ public class WalletController {
                         walletRewardService.rewardMultipleMembers(operator, req))
         );
     }
+    @Operation(
+            summary = "Xem lịch sử giao dịch của chính bạn",
+            description = """
+            API này cho phép người dùng xem **toàn bộ lịch sử cộng/trừ điểm** trong ví của chính họ.<br>
+            Không cần truyền walletId — hệ thống tự xác định ví dựa trên **JWT**.<br><br>
+            
+            Bao gồm các loại giao dịch:<br>
+            • Thưởng điểm từ CLB hoặc Nhà trường.<br>
+            • Trừ điểm khi đổi quà / tham gia sự kiện.<br>
+            • Chuyển điểm giữa ví (nếu có).<br><br>
+            
+            Trả về danh sách các giao dịch theo thứ tự thời gian mới → cũ.
+            """
+    )
     @GetMapping("/me/transactions")
     public ResponseEntity<ApiResponse<List<WalletTransactionResponse>>> getMyTransactions(
             HttpServletRequest request) {
@@ -265,5 +279,6 @@ public class WalletController {
                 ApiResponse.ok(walletService.getWalletTransactions(wallet.getWalletId()))
         );
     }
+
 
 }
