@@ -23,6 +23,7 @@ public class DeliverServiceImpl implements DeliverService {
     private final ProductRepository productRepository;
     private final ProductTransactionRepository productTxRepository;
     private final EventStaffRepository eventStaffRepository;
+    private final MembershipRepository membershipRepo;
 
     @Override
     @Transactional
@@ -38,6 +39,7 @@ public class DeliverServiceImpl implements DeliverService {
 
             boolean ended = event.getDate().isBefore(LocalDate.now())
                     || (event.getDate().isEqual(LocalDate.now()) && event.getEndTime().isBefore(LocalTime.now()));
+
             if (ended || staff.getState() != EventStaffStateEnum.ACTIVE) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Event already ended or staff expired");
             }
@@ -61,10 +63,9 @@ public class DeliverServiceImpl implements DeliverService {
         redeem.setStatus(RedeemStatusEnum.DELIVERED);
         redeem.setDeliveredAt(java.time.LocalDateTime.now());
 
-        // 🔥 FIX builder(): dùng thủ công
+        // ⭐⭐ FIX QUAN TRỌNG — KHÔNG TẠO Membership MỚI
         if (redeem.getEvent() != null) {
-            Membership staffRef = new Membership();
-            staffRef.setMembershipId(staffMembershipId);
+            Membership staffRef = membershipRepo.getReferenceById(staffMembershipId);
             redeem.setStaff(staffRef);
         }
 
