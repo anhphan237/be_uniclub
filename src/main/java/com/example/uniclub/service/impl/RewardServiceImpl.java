@@ -30,8 +30,11 @@ public class RewardServiceImpl implements RewardService {
     // =====================================================
 
     private String formatPoints(long points) {
-        return NumberFormat.getNumberInstance(Locale.US).format(points);
+        return NumberFormat.getNumberInstance(Locale.US)
+                .format(points)
+                .replace(",", ".");
     }
+
 
     @Override
     public void sendCheckInRewardEmail(Long userId, String eventName, long pointsEarned, long totalPoints) {
@@ -191,70 +194,77 @@ public class RewardServiceImpl implements RewardService {
 
         String subject = "[UniClub] Your club just received points 🎉";
 
+        String formattedPoints = formatPoints(points);
+
         String html = """
-        <h2>Hello %s,</h2>
-        <p>Your club <b>%s</b> has just received <b>%d points</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <br>
-        <p>Best regards,<br>UniClub System</p>
-        """.formatted(
+    <h2>Hello %s,</h2>
+    <p>Your club <b>%s</b> has just received <b>%s points</b>.</p>
+    <p><b>Reason:</b> %s</p>
+    <br>
+    <p>Best regards,<br>UniClub System</p>
+    """.formatted(
                 user.getFullName(),
                 clubName,
-                points,
+                formattedPoints,
                 reason
         );
 
         emailService.sendEmail(user.getEmail(), subject, html);
     }
-    @Override
+
     public void sendClubWalletDeductionEmail(Long userId, String clubName, long points, String reason) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         String subject = "[UniClub] Your club wallet has been used";
 
+        String formattedPoints = formatPoints(points);
+
         String html = """
-        <h2>Hello %s,</h2>
-        <p>Your club <b>%s</b> has just spent <b>%d points</b> from the club wallet.</p>
-        <p><b>Reason:</b> %s</p>
-        <br>
-        <p>If this action was not performed by you or your club's management team, please contact the university staff.</p>
-        <br>
-        <p>Best regards,<br>UniClub System</p>
-        """.formatted(
+    <h2>Hello %s,</h2>
+    <p>Your club <b>%s</b> has just spent <b>%s points</b> from the club wallet.</p>
+    <p><b>Reason:</b> %s</p>
+    <br>
+    <p>If this action was not performed by you or your club's management team, please contact the university staff.</p>
+    <br>
+    <p>Best regards,<br>UniClub System</p>
+    """.formatted(
                 user.getFullName(),
                 clubName,
-                points,
+                formattedPoints,
                 reason
         );
 
         emailService.sendEmail(user.getEmail(), subject, html);
     }
 
-    @Override
+
     public void sendClubBatchDeductionSummaryEmail(Long userId, String clubName, long totalPoints, int memberCount, String reason) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         String subject = "[UniClub] Club wallet used for member rewards";
 
+        String formattedTotal = formatPoints(totalPoints);
+
         String html = """
-        <h2>Hello %s,</h2>
-        <p>Your club <b>%s</b> has just spent <b>%d points</b> from the club wallet to reward <b>%d members</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <br>
-        <p>You can check the detailed transactions in the UniClub system.</p>
-        <br>
-        <p>Best regards,<br>UniClub System</p>
-        """.formatted(
+    <h2>Hello %s,</h2>
+    <p>Your club <b>%s</b> has just spent <b>%s points</b> from the club wallet to reward <b>%d members</b>.</p>
+    <p><b>Reason:</b> %s</p>
+    <br>
+    <p>You can check the detailed transactions in the UniClub system.</p>
+    <br>
+    <p>Best regards,<br>UniClub System</p>
+    """.formatted(
                 user.getFullName(),
                 clubName,
-                totalPoints,
+                formattedTotal,
                 memberCount,
                 reason
         );
 
         emailService.sendEmail(user.getEmail(), subject, html);
     }
+
 
 }
