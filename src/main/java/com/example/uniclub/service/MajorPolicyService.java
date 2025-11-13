@@ -3,6 +3,7 @@ package com.example.uniclub.service;
 import com.example.uniclub.dto.request.MajorPolicyRequest;
 import com.example.uniclub.dto.response.MajorPolicyResponse;
 import com.example.uniclub.entity.MajorPolicy;
+import com.example.uniclub.entity.User;
 
 import java.util.List;
 
@@ -22,4 +23,7 @@ public interface MajorPolicyService {
     void delete(Long id);
 
     List<MajorPolicyResponse> getActiveByMajor(Long majorId);
+
+    void validateClubJoinLimit(User user, int currentJoinedClubs);
+
 }

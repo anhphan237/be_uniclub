@@ -7,10 +7,7 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
-import com.example.uniclub.service.ClubService;
-import com.example.uniclub.service.EmailService;
-import com.example.uniclub.service.EventLogService;
-import com.example.uniclub.service.MembershipService;
+import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -27,7 +24,7 @@ import java.util.*;
 public class MembershipServiceImpl implements MembershipService {
     private final ClubLeaveRequestEntityRepository leaveRequestRepo;
     private final EventRegistrationRepository eventRegistrationRepo;
-
+    private final MajorPolicyRepository majorPolicyRepo;
     private final EventLogService eventLogService;
     private final MembershipRepository membershipRepo;
     private final UserRepository userRepo;
@@ -35,7 +32,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final ClubService clubService;
     private final EmailService emailService;
     private final MajorPolicyRepository majorPolicyRepository;
-
+    private final MajorPolicyService majorPolicyService;
     // ========================== 🔹 Helper: Mapping ==========================
     private MembershipResponse toResp(Membership m) {
         User u = m.getUser();
@@ -61,33 +58,55 @@ public class MembershipServiceImpl implements MembershipService {
 
     // ========================== 🔹 Helper: Validate Major Policy ==========================
     private void validateMajorPolicy(User user) {
+
         Major major = user.getMajor();
         if (major == null) {
-            log.warn("User {} has no major assigned, skipping policy validation", user.getEmail());
+            log.warn("User {} has no major assigned -> skipping policy validation", user.getEmail());
             return;
         }
 
-        // 🔍 Retrieve first active policy for this major (if any)
-        MajorPolicy policy = major.getPolicies()
-                .stream()
-                .filter(MajorPolicy::isActive)
+        Long majorId = major.getId();
+
+        // 🎯 Load active policies from database
+        List<MajorPolicy> policies =
+                majorPolicyRepo.findByMajor_IdAndActiveTrue(majorId);
+
+        if (policies.isEmpty()) {
+            log.info("Major {} has no active policy -> skipping limit check", major.getName());
+            return;
+        }
+
+        // 🎯 Extract the first policy that has maxClubJoin
+        Integer maxJoin = policies.stream()
+                .map(MajorPolicy::getMaxClubJoin)
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
 
-        if (policy == null) {
-            log.info("Major {} has no active policy, skipping limit check", major.getName());
+        // 🚫 No limit defined -> skip
+        if (maxJoin == null) {
+            log.info("Major {} has no maxClubJoin policy -> skipping limit check", major.getName());
             return;
         }
 
-        // 📊 Count ACTIVE club memberships
-        int joinedCount = membershipRepo.countByUser_UserIdAndState(user.getUserId(), MembershipStateEnum.ACTIVE);
+        // 📊 Count ACTIVE memberships
+        int activeClubCount = membershipRepo.countByUser_UserIdAndState(
+                user.getUserId(),
+                MembershipStateEnum.ACTIVE
+        );
 
-        if (joinedCount >= policy.getMaxClubJoin()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "You have reached the maximum number of clubs allowed (" + policy.getMaxClubJoin() +
-                            ") for your major " + major.getName());
+        // 🚫 Vi phạm chính sách
+        if (activeClubCount >= maxJoin) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    String.format(
+                            "You have reached the maximum number of clubs allowed for your major (%d). Current: %d",
+                            maxJoin, activeClubCount
+                    )
+            );
         }
     }
+
 
     // ========================== 🔹 1. Basic Membership Operations ==========================
     @Override
@@ -136,9 +155,9 @@ public class MembershipServiceImpl implements MembershipService {
             MembershipStateEnum state = existing.getState();
 
             switch (state) {
-
                 case ACTIVE, APPROVED, PENDING -> {
-                    throw new ApiException(HttpStatus.CONFLICT, "You are already a member or have a pending request.");
+                    throw new ApiException(HttpStatus.CONFLICT,
+                            "You are already a member or have a pending request.");
                 }
 
                 case KICKED, INACTIVE, REJECTED -> {
@@ -147,24 +166,26 @@ public class MembershipServiceImpl implements MembershipService {
                     existing.setEndDate(null);
                     existing.setClubRole(ClubRoleEnum.MEMBER);
 
-                    // FIX DEFAULTS
+                    // Reset fields
                     existing.setMemberLevel(MemberLevelEnum.BASIC);
                     existing.setMemberMultiplier(1.0);
                     existing.setStaff(false);
 
                     membershipRepo.save(existing);
                     notifyClubManagers(club, user);
+
                     return toResp(existing);
                 }
 
-                default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Unexpected membership state: " + state);
+                default ->
+                        throw new ApiException(HttpStatus.BAD_REQUEST, "Unexpected membership state: " + state);
             }
         }
 
-        // Check major policy
+        // ⭐ APPLY MAJOR POLICY HERE ⭐
         validateMajorPolicy(user);
 
-        // FIX: Không dùng builder
+        // Create new membership
         Membership newMembership = new Membership();
         newMembership.setUser(user);
         newMembership.setClub(club);
@@ -186,11 +207,11 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        // 📧 Notify Leader + Vice Leader
         notifyClubManagers(club, user);
 
         return toResp(newMembership);
     }
+
 
 // ===================== 🔔 EMAIL NOTIFICATION FUNC =====================
 
