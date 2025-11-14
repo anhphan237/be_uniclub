@@ -50,30 +50,29 @@ public class LocationController {
     }
 
     // =========================================================
-    // 🔍 2. GET BY ID
-    // =========================================================
+// 🔍 2. GET BY ID
+// =========================================================
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Xem chi tiết địa điểm",
-            description = "Lấy thông tin chi tiết của một địa điểm."
+            description = "Lấy thông tin chi tiết của một địa điểm. (Không yêu cầu quyền)"
     )
     public ResponseEntity<LocationResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(locationService.get(id));
     }
 
     // =========================================================
-    // 📋 3. LIST
-    // =========================================================
+// 📋 3. LIST
+// =========================================================
     @GetMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Lấy danh sách địa điểm (phân trang)",
-            description = "Trả về danh sách tất cả địa điểm."
+            description = "Trả về danh sách tất cả địa điểm. (Không yêu cầu quyền)"
     )
     public ResponseEntity<?> list(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(locationService.list(pageable));
     }
+
 
     // =========================================================
     // 🗑️ 4. DELETE
