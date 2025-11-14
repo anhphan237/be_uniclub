@@ -10,18 +10,19 @@ import lombok.*;
 @Builder
 public class MultiplierPolicyRequest {
 
-    private PolicyTargetTypeEnum targetType;          // CLUB / MEMBER
-    private PolicyActivityTypeEnum activityType;      // MEMBER_EVENT_PARTICIPATION...
+    private PolicyTargetTypeEnum targetType;
+    private String name;                         // NEW
+    private PolicyActivityTypeEnum activityType;
 
-    private String ruleName;                          // low / normal / full...
-    private PolicyConditionTypeEnum conditionType;    // PERCENTAGE / ABSOLUTE
+    private String ruleName;
+    private PolicyConditionTypeEnum conditionType;
 
-    private Integer minThreshold;                     // ngưỡng dưới
-    private Integer maxThreshold;                     // ngưỡng trên (nullable)
+    private Integer minThreshold;
+    private Integer maxThreshold;
 
-    private Double multiplier;                        // hệ số nhân
+    private Double multiplier;
 
-    private boolean active;                           // còn hiệu lực?
+    private boolean active;
 
     private String updatedBy;
     private String policyDescription;

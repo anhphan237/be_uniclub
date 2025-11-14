@@ -14,160 +14,114 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
-    private final MultiplierPolicyRepository multiplierPolicyRepository;
+    private final MultiplierPolicyRepository repo;
 
-    // ================================================================
-    // 🧾 Lấy tất cả
-    // ================================================================
     @Override
     public List<MultiplierPolicyResponse> getAll() {
-        return multiplierPolicyRepository.findAll()
-                .stream()
+        return repo.findAll().stream()
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // ================================================================
-    // 🔍 Lấy theo ID
-    // ================================================================
     @Override
     public MultiplierPolicyResponse getById(Long id) {
-        MultiplierPolicy policy = multiplierPolicyRepository.findById(id)
+        MultiplierPolicy p = repo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
-        return toResponse(policy);
+        return toResponse(p);
     }
 
-    // ================================================================
-    // ➕ Tạo mới
-    // ================================================================
     @Override
-    public MultiplierPolicyResponse create(MultiplierPolicyRequest req) {
+    public MultiplierPolicyResponse create(MultiplierPolicyRequest r) {
 
-        // ❗ Kiểm tra trùng rule theo targetType + activityType + ruleName
-        boolean exists = multiplierPolicyRepository.existsByTargetTypeAndActivityTypeAndRuleName(
-                req.getTargetType(),
-                req.getActivityType(),
-                req.getRuleName()
+        boolean exists = repo.existsByTargetTypeAndActivityTypeAndRuleName(
+                r.getTargetType(), r.getActivityType(), r.getRuleName()
         );
 
         if (exists) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "A policy with the same targetType, activityType and ruleName already exists.");
+                    "Duplicate rule: same targetType + activityType + ruleName already exists.");
         }
 
-        MultiplierPolicy policy = MultiplierPolicy.builder()
-                .targetType(req.getTargetType())
-                .activityType(req.getActivityType())
-                .ruleName(req.getRuleName())
-                .conditionType(req.getConditionType())
-                .minThreshold(req.getMinThreshold())
-                .maxThreshold(req.getMaxThreshold())
-                .multiplier(req.getMultiplier())
-                .active(req.isActive())
-                .updatedBy(req.getUpdatedBy())
+        MultiplierPolicy p = MultiplierPolicy.builder()
+                .targetType(r.getTargetType())
+                .name(r.getName())
+                .activityType(r.getActivityType())
+                .ruleName(r.getRuleName())
+                .conditionType(r.getConditionType())
+                .minThreshold(r.getMinThreshold())
+                .maxThreshold(r.getMaxThreshold())
+                .multiplier(r.getMultiplier())
+                .active(r.isActive())
+                .updatedBy(r.getUpdatedBy())
+                .policyDescription(r.getPolicyDescription())
                 .updatedAt(LocalDateTime.now())
                 .effectiveFrom(LocalDateTime.now())
-                .policyDescription(req.getPolicyDescription())
                 .build();
 
-        return toResponse(multiplierPolicyRepository.save(policy));
+        return toResponse(repo.save(p));
     }
 
-    // ================================================================
-    // ✏️ Cập nhật
-    // ================================================================
     @Override
-    public MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest req) {
+    public MultiplierPolicyResponse update(Long id, MultiplierPolicyRequest r) {
 
-        MultiplierPolicy existing = multiplierPolicyRepository.findById(id)
+        MultiplierPolicy old = repo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Policy not found"));
 
-        // Kiểm tra rule trùng (nếu đổi ruleName hoặc activityType)
-        boolean duplicate = multiplierPolicyRepository.existsByTargetTypeAndActivityTypeAndRuleName(
-                req.getTargetType(), req.getActivityType(), req.getRuleName()
-        );
+        boolean duplicate =
+                repo.existsByTargetTypeAndActivityTypeAndRuleName(
+                        r.getTargetType(), r.getActivityType(), r.getRuleName()
+                );
 
-        if (duplicate && !req.getRuleName().equals(existing.getRuleName())) {
+        if (duplicate && !r.getRuleName().equals(old.getRuleName())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "A policy with the same targetType, activityType and ruleName already exists.");
+                    "A policy with the same ruleName already exists.");
         }
 
-        existing.setTargetType(req.getTargetType());
-        existing.setActivityType(req.getActivityType());
-        existing.setRuleName(req.getRuleName());
-        existing.setConditionType(req.getConditionType());
-        existing.setMinThreshold(req.getMinThreshold());
-        existing.setMaxThreshold(req.getMaxThreshold());
-        existing.setMultiplier(req.getMultiplier());
-        existing.setActive(req.isActive());
-        existing.setUpdatedBy(req.getUpdatedBy());
-        existing.setUpdatedAt(LocalDateTime.now());
-        existing.setPolicyDescription(req.getPolicyDescription());
+        old.setName(r.getName());
+        old.setTargetType(r.getTargetType());
+        old.setActivityType(r.getActivityType());
+        old.setRuleName(r.getRuleName());
+        old.setConditionType(r.getConditionType());
+        old.setMinThreshold(r.getMinThreshold());
+        old.setMaxThreshold(r.getMaxThreshold());
+        old.setMultiplier(r.getMultiplier());
+        old.setActive(r.isActive());
+        old.setUpdatedBy(r.getUpdatedBy());
+        old.setPolicyDescription(r.getPolicyDescription());
+        old.setUpdatedAt(LocalDateTime.now());
 
-        return toResponse(multiplierPolicyRepository.save(existing));
+        return toResponse(repo.save(old));
     }
 
-    // ================================================================
-    // ❌ Xóa
-    // ================================================================
     @Override
     public void delete(Long id) {
-        if (!multiplierPolicyRepository.existsById(id)) {
+        if (!repo.existsById(id)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Policy not found");
         }
-        multiplierPolicyRepository.deleteById(id);
+        repo.deleteById(id);
     }
 
-    // ================================================================
-    // 🟩 Lấy danh sách policy active theo loại
-    // ================================================================
     @Override
-    public List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType) {
-        return multiplierPolicyRepository
-                .findByTargetTypeOrderByActivityTypeAscMinThresholdAsc(targetType)
+    public List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum type) {
+        return repo.findByTargetTypeOrderByActivityTypeAscMinThresholdAsc(type)
                 .stream()
                 .filter(MultiplierPolicy::isActive)
                 .map(this::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // ================================================================
-    // 🔁 Convert Entity → DTO
-    // ================================================================
-    private MultiplierPolicyResponse toResponse(MultiplierPolicy entity) {
-        return MultiplierPolicyResponse.builder()
-                .id(entity.getId())
-                .targetType(entity.getTargetType())
-                .activityType(entity.getActivityType())
-                .ruleName(entity.getRuleName())
-                .conditionType(entity.getConditionType())
-                .minThreshold(entity.getMinThreshold())
-                .maxThreshold(entity.getMaxThreshold())
-                .multiplier(entity.getMultiplier())
-                .active(entity.isActive())
-                .updatedBy(entity.getUpdatedBy())
-                .policyDescription(entity.getPolicyDescription())
-                .build();
-    }
-
-    // ================================================================
-    // 🧮 Áp dụng multiplier theo giá trị hoạt động (KHÔNG hard-code)
-    // ================================================================
     @Override
-    public double resolveMultiplier(
-            PolicyTargetTypeEnum target,
-            PolicyActivityTypeEnum activity,
-            int value
-    ) {
+    public double resolveMultiplier(PolicyTargetTypeEnum target,
+                                    PolicyActivityTypeEnum activity,
+                                    int value) {
+
         List<MultiplierPolicy> policies =
-                multiplierPolicyRepository.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
+                repo.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
                         target, activity
                 );
 
@@ -175,10 +129,26 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
             boolean minOK = value >= p.getMinThreshold();
             boolean maxOK = (p.getMaxThreshold() == null) || value < p.getMaxThreshold();
 
-            if (minOK && maxOK) {
-                return p.getMultiplier();  // 🔥 lấy multiplier từ DB → unistaff kiểm soát 100%
-            }
+            if (minOK && maxOK) return p.getMultiplier();
         }
-        return 1.0; // default multiplier
+
+        return 1.0;
+    }
+
+    private MultiplierPolicyResponse toResponse(MultiplierPolicy e) {
+        return MultiplierPolicyResponse.builder()
+                .id(e.getId())
+                .targetType(e.getTargetType())
+                .name(e.getName())
+                .activityType(e.getActivityType())
+                .ruleName(e.getRuleName())
+                .conditionType(e.getConditionType())
+                .minThreshold(e.getMinThreshold())
+                .maxThreshold(e.getMaxThreshold())
+                .multiplier(e.getMultiplier())
+                .active(e.isActive())
+                .updatedBy(e.getUpdatedBy())
+                .policyDescription(e.getPolicyDescription())
+                .build();
     }
 }

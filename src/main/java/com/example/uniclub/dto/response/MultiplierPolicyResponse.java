@@ -13,6 +13,7 @@ public class MultiplierPolicyResponse {
     private Long id;
 
     private PolicyTargetTypeEnum targetType;
+    private String name;                         // NEW
     private PolicyActivityTypeEnum activityType;
 
     private String ruleName;

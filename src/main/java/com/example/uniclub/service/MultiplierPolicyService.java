@@ -21,7 +21,6 @@ public interface MultiplierPolicyService {
 
     List<MultiplierPolicyResponse> getActiveByTargetType(PolicyTargetTypeEnum targetType);
 
-    // 🔥 Hàm quan trọng nhất
     double resolveMultiplier(
             PolicyTargetTypeEnum target,
             PolicyActivityTypeEnum activity,
