@@ -28,6 +28,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     private final MemberMonthlyActivityRepository monthlyActivityRepo;
     private final MultiplierPolicyRepository multiplierPolicyRepo;
     private final ClubRepository clubRepo;
+    private final EventRepository eventRepo;
 
     // ==========================================================
     // 🔹 PUBLIC API
@@ -60,13 +61,11 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
             return;
         }
 
-        Map<Membership, MemberMonthlyActivity> resultMap = new HashMap<>();
         for (Membership m : members) {
-            MemberMonthlyActivity act = calculateActivityForMembership(m, year, month);
-            resultMap.put(m, act);
+            calculateActivityForMembership(m, year, month);
         }
 
-        // 🔹 Xác định MEMBER_OF_MONTH trong CLB (nếu muốn)
+        // 🔹 Sau khi tính từng member, chọn MEMBER_OF_MONTH cho CLB
         pickMemberOfMonthInClub(clubId, year, month);
 
         log.info("Recalculated monthly activity for club {} ({}/{}) – {} members",
@@ -80,54 +79,77 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         for (Club club : clubs) {
             recalculateForClub(club.getClubId(), year, month);
         }
+
+        // 🔥 Sau khi chạy cho tất cả member → cập nhật multiplier cho CLB
+        recalculateClubMultipliersForMonth(year, month);
+
         log.info("Recalculated monthly activity for ALL clubs ({}/{})", month, year);
     }
 
     // ==========================================================
-    // 🔹 CORE CALCULATION
+    // 🔹 CORE CALCULATION CHO MEMBER
     // ==========================================================
+    private static class PenaltyStats {
+        int totalPoints;
+        int violationCount;
+        boolean hasRepeat;
+    }
+
     @Transactional
-    protected MemberMonthlyActivity calculateActivityForMembership(Membership membership,
-                                                                   int year,
-                                                                   int month) {
+    protected MemberMonthlyActivity calculateActivityForMembership(
+            Membership membership,
+            int year,
+            int month
+    ) {
         Long userId = membership.getUser().getUserId();
         Long membershipId = membership.getMembershipId();
+        Long clubId = membership.getClub().getClubId();
 
         LocalDate startDate = LocalDate.of(year, month, 1);
-        LocalDate endDateExclusive = startDate.plusMonths(1); // [start, end)
-
-        LocalDateTime startDt = startDate.atStartOfDay();
-        LocalDateTime endDt = endDateExclusive.atStartOfDay();
+        LocalDate endDateExclusive = startDate.plusMonths(1);
 
         // 1️⃣ Event participation
-        var eventStats = computeEventStats(userId, startDate, endDateExclusive);
+        var eventStats = computeEventStats(membership, startDate, endDateExclusive);
 
-        // 2️⃣ Club session attendance
-        var sessionStats = computeClubSessionStats(userId, startDt, endDt);
+        // 2️⃣ Club session attendance (FIXED to membershipId + date)
+        var sessionStats = computeClubSessionStats(membership, startDate, endDateExclusive.minusDays(1));
 
         // 3️⃣ Staff performance
-        double avgStaffPerf = computeStaffPerformanceScore(membershipId, startDate, endDateExclusive.minusDays(1));
+        double avgStaffPerf = computeStaffPerformanceScore(
+                membershipId,
+                startDate,
+                endDateExclusive.minusDays(1)
+        );
 
         // 4️⃣ Penalty
-        int totalPenalty = computePenaltyPoints(membershipId, startDt, endDt);
+        PenaltyStats penaltyStats = computePenaltyStats(
+                membershipId,
+                startDate.atStartOfDay(),
+                endDateExclusive.atStartOfDay()
+        );
 
-        // 5️⃣ Tính base score (0–1)
+        // 5️⃣ Base score
         double baseScore = computeBaseScore(
                 eventStats,
                 sessionStats,
                 avgStaffPerf,
-                totalPenalty
+                penaltyStats.totalPoints
         );
         int basePercent = (int) Math.round(baseScore * 100);
 
-        // 6️⃣ Lấy MultiplierPolicy để map sang level + multiplier (KHÔNG HARDCODE)
+        // 6️⃣ Multiplier from policy
         var multiplierResult = resolveMultiplierFromPolicy(basePercent);
+        MemberActivityLevelEnum level = multiplierResult.level();
+        double appliedMultiplier = multiplierResult.multiplier();
 
-        MemberActivityLevelEnum level = multiplierResult.level;
-        double appliedMultiplier = multiplierResult.multiplier;
         double finalScore = baseScore * appliedMultiplier;
 
-        // 7️⃣ Tìm hoặc tạo record monthly
+        // 🔻 Repeat violation penalty
+        if (penaltyStats.hasRepeat) {
+            finalScore = finalScore * 0.8;
+        }
+
+        // 7️⃣ Save or update MonthlyActivity
         MemberMonthlyActivity monthly = monthlyActivityRepo
                 .findByMembershipAndYearAndMonth(membership, year, month)
                 .orElseGet(() -> MemberMonthlyActivity.builder()
@@ -142,64 +164,79 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         monthly.setTotalClubSessions(sessionStats.totalSessions);
         monthly.setTotalClubPresent(sessionStats.presentSessions);
         monthly.setAvgStaffPerformance(avgStaffPerf);
-        monthly.setTotalPenaltyPoints(totalPenalty);
+        monthly.setTotalPenaltyPoints(penaltyStats.totalPoints);
         monthly.setBaseScore(baseScore);
         monthly.setBaseScorePercent(basePercent);
         monthly.setActivityLevel(level);
         monthly.setAppliedMultiplier(appliedMultiplier);
         monthly.setFinalScore(finalScore);
 
-        // Cập nhật hệ số vào Membership
+        // Update membership multiplier
         membership.setMemberMultiplier(appliedMultiplier);
         membershipRepo.save(membership);
 
         return monthlyActivityRepo.save(monthly);
     }
 
+
     // ==========================================================
-    // 🔹 EVENT STATS
+    // 🔹 EVENT STATS (tham gia event trong tháng theo CLB)
     // ==========================================================
     private static class EventStats {
-        int totalRegistered;
-        int totalAttendedWeighted;
-        double attendanceRatio;
+        int totalRegistered;         // số event member đã đăng ký (trong CLB)
+        int totalAttendedWeighted;   // số event đã tham gia (FULL = 1, HALF = 0.5 ~ làm tròn)
+        double attendanceRatio;      // 0–1 = (weighted_attended / tổng số event CLB tổ chức)
     }
 
-    private EventStats computeEventStats(Long userId, LocalDate start, LocalDate endExclusive) {
+    private EventStats computeEventStats(
+            Membership membership,
+            LocalDate start,
+            LocalDate endExclusive
+    ) {
+        Long userId = membership.getUser().getUserId();
+        Long clubId = membership.getClub().getClubId();
+
         List<EventRegistration> all = eventRegistrationRepo
                 .findByUser_UserIdOrderByRegisteredAtDesc(userId);
 
-        List<EventRegistration> inMonth = all.stream()
+        List<EventRegistration> inMonthAndClub = all.stream()
                 .filter(r -> r.getEvent() != null && r.getEvent().getDate() != null)
+                .filter(r -> r.getEvent().getHostClub() != null &&
+                        Objects.equals(r.getEvent().getHostClub().getClubId(), clubId))
                 .filter(r -> {
                     LocalDate d = r.getEvent().getDate();
                     return !d.isBefore(start) && d.isBefore(endExclusive);
                 })
                 .toList();
 
-        int total = inMonth.size();
-        int attendedWeighted = 0;
+        // Count club events completed this month
+        List<Event> clubEventsInMonth = eventRepo.findCompletedEventsOfClubInRange(
+                clubId,
+                start,
+                endExclusive.minusDays(1)
+        );
 
-        for (EventRegistration r : inMonth) {
-            if (r.getAttendanceLevel() == null) continue;
-            switch (r.getAttendanceLevel()) {
-                case FULL -> attendedWeighted += 1;
-                case HALF -> attendedWeighted += 0.5;
-                default -> {}
-            }
+        int totalClubEvents = clubEventsInMonth.size();
+        int totalRegistered = inMonthAndClub.size();
+
+        double attendedWeighted = 0;
+        for (EventRegistration r : inMonthAndClub) {
+            if (r.getAttendanceLevel() == AttendanceLevelEnum.FULL) attendedWeighted += 1.0;
+            else if (r.getAttendanceLevel() == AttendanceLevelEnum.HALF) attendedWeighted += 0.5;
         }
 
-        double ratio = (total == 0) ? 0.0 : (double) attendedWeighted / total;
-
         EventStats stats = new EventStats();
-        stats.totalRegistered = total;
-        stats.totalAttendedWeighted = attendedWeighted;
-        stats.attendanceRatio = Math.min(1.0, Math.max(0.0, ratio));
+        stats.totalRegistered = totalRegistered;
+        stats.totalAttendedWeighted = (int) Math.round(attendedWeighted);
+        stats.attendanceRatio = totalClubEvents == 0 ? 0.0 :
+                clamp01(attendedWeighted / totalClubEvents);
+
         return stats;
     }
 
+
     // ==========================================================
-    // 🔹 CLUB SESSION STATS
+    // 🔹 CLUB SESSION STATS (điểm danh buổi sinh hoạt)
     // ==========================================================
     private static class SessionStats {
         int totalSessions;
@@ -207,38 +244,46 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         double attendanceRatio;
     }
 
-    private SessionStats computeClubSessionStats(Long userId,
-                                                 LocalDateTime startDt,
-                                                 LocalDateTime endDt) {
+    private SessionStats computeClubSessionStats(
+            Membership membership,
+            LocalDate start,
+            LocalDate endInclusive
+    ) {
+        Long membershipId = membership.getMembershipId();
 
         int totalSessions = clubAttendanceRecordRepo
-                .countByMembership_User_UserIdAndSession_CreatedAtBetween(
-                        userId, startDt, endDt
+                .countByMembership_MembershipIdAndSession_DateBetween(
+                        membershipId,
+                        start,
+                        endInclusive
                 );
 
         int present = clubAttendanceRecordRepo
-                .countByMembership_User_UserIdAndStatusInAndSession_CreatedAtBetween(
-                        userId,
+                .countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
+                        membershipId,
                         List.of(AttendanceStatusEnum.PRESENT, AttendanceStatusEnum.LATE),
-                        startDt,
-                        endDt
+                        start,
+                        endInclusive
                 );
-
-        double ratio = (totalSessions == 0) ? 0.0 : (double) present / totalSessions;
 
         SessionStats stats = new SessionStats();
         stats.totalSessions = totalSessions;
         stats.presentSessions = present;
-        stats.attendanceRatio = Math.min(1.0, Math.max(0.0, ratio));
+        stats.attendanceRatio =
+                totalSessions == 0 ? 0.0 : clamp01((double) present / totalSessions);
+
         return stats;
     }
 
+
     // ==========================================================
-    // 🔹 STAFF PERFORMANCE (0–1)
+    // 🔹 STAFF PERFORMANCE (0–1) theo bảng yêu cầu
     // ==========================================================
-    private double computeStaffPerformanceScore(Long membershipId,
-                                                LocalDate start,
-                                                LocalDate endInclusive) {
+    private double computeStaffPerformanceScore(
+            Long membershipId,
+            LocalDate start,
+            LocalDate endInclusive
+    ) {
         List<StaffPerformance> list = staffPerformanceRepo
                 .findByMembership_MembershipIdAndEvent_DateBetween(
                         membershipId,
@@ -252,25 +297,36 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         for (StaffPerformance sp : list) {
             sum += mapPerformanceLevelToScore(sp.getPerformance());
         }
-        return Math.min(1.0, Math.max(0.0, sum / list.size()));
+
+        return clamp01(sum / list.size());
     }
 
+
+    /**
+     * Bám bảng:
+     * POOR      -> 0
+     * AVERAGE   -> 0.4
+     * GOOD      -> 0.8
+     * EXCELLENT -> 1.0
+     */
     private double mapPerformanceLevelToScore(PerformanceLevelEnum level) {
         if (level == null) return 0.0;
         return switch (level) {
-            case POOR -> 0.25;
-            case AVERAGE -> 0.5;
-            case GOOD -> 0.75;
+            case POOR -> 0.0;
+            case AVERAGE -> 0.4;
+            case GOOD -> 0.8;
             case EXCELLENT -> 1.0;
         };
     }
 
     // ==========================================================
-    // 🔹 PENALTY POINTS
+    // 🔹 PENALTY POINTS + REPEAT VIOLATION
     // ==========================================================
-    private int computePenaltyPoints(Long membershipId,
-                                     LocalDateTime start,
-                                     LocalDateTime end) {
+    private PenaltyStats computePenaltyStats(
+            Long membershipId,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
         List<ClubPenalty> penalties = clubPenaltyRepo
                 .findByMembership_MembershipIdAndCreatedAtBetween(
                         membershipId,
@@ -278,35 +334,26 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                         end
                 );
 
-        return penalties.stream()
+        PenaltyStats stats = new PenaltyStats();
+        stats.totalPoints = penalties.stream()
                 .mapToInt(ClubPenalty::getPoints)
-                .sum(); // thường là âm
+                .sum();
+        stats.violationCount = penalties.size();
+        stats.hasRepeat = penalties.size() >= 3;
+
+        return stats;
     }
 
-    // ==========================================================
-    // 🔹 BASE SCORE (0–1) – CÓ TRỌNG SỐ
-    // ==========================================================
-    private double computeBaseScore(EventStats eventStats,
-                                    SessionStats sessionStats,
-                                    double staffScore,
-                                    int totalPenaltyPoints) {
 
-        double eventScore = eventStats.attendanceRatio;   // 0–1
-        double sessionScore = sessionStats.attendanceRatio; // 0–1
-        double staff = staffScore;                        // 0–1
-
-        double penaltyFactor = mapPenaltyToFactor(totalPenaltyPoints);
-
-        // Trọng số có thể điều chỉnh sau nếu muốn
-        double baseScore =
-                eventScore * 0.5 +
-                        sessionScore * 0.2 +
-                        staff * 0.2 +
-                        penaltyFactor * 0.1;
-
-        return Math.min(1.0, Math.max(0.0, baseScore));
-    }
-
+    /**
+     * Map tổng điểm phạt sang factor 0–1.
+     * Dựa gần giống bảng vi phạm:
+     *  - <= -50  -> 0.0
+     *  - -30..-49 -> 0.25
+     *  - -15..-29 -> 0.5
+     *  - -1..-14  -> 0.75
+     *  - >= 0     -> 1.0
+     */
     private double mapPenaltyToFactor(int totalPenaltyPoints) {
         if (totalPenaltyPoints >= 0) return 1.0;       // không bị phạt
         if (totalPenaltyPoints <= -50) return 0.0;
@@ -316,84 +363,187 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     }
 
     // ==========================================================
-    // 🔹 RESOLVE MULTIPLIER FROM POLICY (NO HARDCODE RANGE)
+    // 🔹 BASE SCORE (0–1) – CÓ TRỌNG SỐ
+    // ==========================================================
+    private double computeBaseScore(
+            EventStats eventStats,
+            SessionStats sessionStats,
+            double staffScore,
+            int totalPenaltyPoints
+    ) {
+        double eventScore = eventStats.attendanceRatio;
+        double sessionScore = sessionStats.attendanceRatio;
+        double penaltyFactor = mapPenaltyToFactor(totalPenaltyPoints);
+
+        return clamp01(
+                eventScore * 0.56 +
+                        sessionScore * 0.16 +
+                        staffScore * 0.23 +
+                        penaltyFactor * 0.05
+        );
+    }
+
+
+    // ==========================================================
+    // 🔹 RESOLVE MULTIPLIER FROM POLICY (MEMBER_ACTIVITY_SCORE)
     // ==========================================================
     private record MultiplierResult(MemberActivityLevelEnum level, double multiplier) {}
 
     private MultiplierResult resolveMultiplierFromPolicy(int baseScorePercent) {
-        // Lấy policy cho MEMBER activity score
-        List<MultiplierPolicy> policies = multiplierPolicyRepo
-                .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
-                        PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.MEMBER_ACTIVITY_SCORE  // nhớ thêm enum này
-                );
 
-        for (MultiplierPolicy p : policies) {
-            Integer min = p.getMinThreshold();
-            Integer max = p.getMaxThreshold(); // có thể null = không giới hạn
-
-            boolean okMin = baseScorePercent >= min;
-            boolean okMax = (max == null) || (baseScorePercent <= max);
-
-            if (okMin && okMax) {
-                MemberActivityLevelEnum level;
-                try {
-                    level = MemberActivityLevelEnum.valueOf(p.getRuleName());
-                } catch (IllegalArgumentException ex) {
-                    // fallback nếu ruleName không khớp enum
-                    level = MemberActivityLevelEnum.NORMAL;
-                }
-                return new MultiplierResult(level, p.getMultiplier());
-            }
-        }
-
-        // Không tìm thấy policy phù hợp -> fallback
-        return new MultiplierResult(MemberActivityLevelEnum.NORMAL, 1.0);
-    }
-
-    // ==========================================================
-    // 🔹 MEMBER OF MONTH (trong từng CLB)
-    // ==========================================================
-    @Transactional
-    protected void pickMemberOfMonthInClub(Long clubId, int year, int month) {
-        List<MemberMonthlyActivity> list = monthlyActivityRepo
-                .findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
-
-        if (list.isEmpty()) return;
-
-        // tìm người có finalScore cao nhất
-        MemberMonthlyActivity best = list.stream()
-                .max(Comparator.comparingDouble(MemberMonthlyActivity::getFinalScore))
-                .orElse(null);
-
-        if (best == null) return;
-
-        // chỉ set MEMBER_OF_MONTH nếu điểm đủ cao (vd >= 0.8 base)
-        if (best.getBaseScore() < 0.8) return;
-
-        // lấy lại multiplier từ policy cho level MEMBER_OF_MONTH
         List<MultiplierPolicy> policies = multiplierPolicyRepo
                 .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
                         PolicyTargetTypeEnum.MEMBER,
                         PolicyActivityTypeEnum.MEMBER_ACTIVITY_SCORE
                 );
 
-        MultiplierPolicy momPolicy = policies.stream()
+        for (MultiplierPolicy p : policies) {
+            Integer min = p.getMinThreshold();
+            Integer max = p.getMaxThreshold();
+
+            boolean okMin = baseScorePercent >= min;
+            boolean okMax = (max == null) || baseScorePercent <= max;
+
+            if (okMin && okMax) {
+                MemberActivityLevelEnum lvl;
+                try {
+                    lvl = MemberActivityLevelEnum.valueOf(p.getRuleName());
+                } catch (Exception e) {
+                    lvl = MemberActivityLevelEnum.NORMAL;
+                }
+                return new MultiplierResult(lvl, p.getMultiplier());
+            }
+        }
+
+        return new MultiplierResult(MemberActivityLevelEnum.NORMAL, 1.0);
+    }
+
+
+    // ==========================================================
+    // 🔹 MEMBER OF MONTH (trong từng CLB)
+    // ==========================================================
+    @Transactional
+    protected void pickMemberOfMonthInClub(Long clubId, int year, int month) {
+
+        List<MemberMonthlyActivity> list = monthlyActivityRepo
+                .findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+
+        if (list.isEmpty()) return;
+
+        List<MemberMonthlyActivity> fullList = list.stream()
+                .filter(m -> m.getActivityLevel() == MemberActivityLevelEnum.FULL)
+                .toList();
+
+        if (fullList.isEmpty()) return;
+
+        MemberMonthlyActivity best = fullList.stream()
+                .max(Comparator.comparingDouble(MemberMonthlyActivity::getFinalScore))
+                .orElse(null);
+
+        if (best == null) return;
+
+        MultiplierPolicy mom = multiplierPolicyRepo
+                .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
+                        PolicyTargetTypeEnum.MEMBER,
+                        PolicyActivityTypeEnum.MEMBER_ACTIVITY_SCORE
+                ).stream()
                 .filter(p -> "MEMBER_OF_MONTH".equalsIgnoreCase(p.getRuleName()))
                 .findFirst()
                 .orElse(null);
 
-        if (momPolicy == null) return;
+        if (mom == null) return;
 
         best.setActivityLevel(MemberActivityLevelEnum.MEMBER_OF_MONTH);
-        best.setAppliedMultiplier(momPolicy.getMultiplier());
-        best.setFinalScore(best.getBaseScore() * momPolicy.getMultiplier());
+        best.setAppliedMultiplier(mom.getMultiplier());
+        best.setFinalScore(best.getBaseScore() * mom.getMultiplier());
 
-        // update multiplier của Membership
-        Membership membership = best.getMembership();
-        membership.setMemberMultiplier(momPolicy.getMultiplier());
-        membershipRepo.save(membership);
+        Membership m = best.getMembership();
+        m.setMemberMultiplier(mom.getMultiplier());
+        membershipRepo.save(m);
 
         monthlyActivityRepo.save(best);
     }
+
+
+    // ==========================================================
+    // 🔹 CLUB MULTIPLIER (Đánh giá hoạt động CLB theo số event)
+    // ==========================================================
+    @Transactional
+    protected void recalculateClubMultipliersForMonth(int year, int month) {
+
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate endExclusive = start.plusMonths(1);
+
+        List<Club> clubs = clubRepo.findAll();
+        if (clubs.isEmpty()) return;
+
+        int bestEventCount = 0;
+        List<Club> bestClubs = new ArrayList<>();
+
+        List<MultiplierPolicy> policies = multiplierPolicyRepo
+                .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
+                        PolicyTargetTypeEnum.CLUB,
+                        PolicyActivityTypeEnum.CLUB_EVENT_ORGANIZATION
+                );
+
+        for (Club club : clubs) {
+            int eventCount = eventRepo.countByHostClub_ClubIdAndStatusAndDateBetween(
+                    club.getClubId(),
+                    EventStatusEnum.COMPLETED,
+                    start,
+                    endExclusive.minusDays(1)
+            );
+
+            double mul = resolveClubMultiplierFromPolicies(policies, eventCount);
+            club.setClubMultiplier(mul);
+            clubRepo.save(club);
+
+            if (eventCount > bestEventCount) {
+                bestEventCount = eventCount;
+                bestClubs = new ArrayList<>(List.of(club));
+            } else if (eventCount == bestEventCount && eventCount > 0) {
+                bestClubs.add(club);
+            }
+        }
+
+        MultiplierPolicy clubOfMonth = policies.stream()
+                .filter(p -> "CLUB_OF_MONTH".equalsIgnoreCase(p.getRuleName()))
+                .findFirst()
+                .orElse(null);
+
+        if (bestEventCount > 0 && clubOfMonth != null) {
+            for (Club club : bestClubs) {
+                club.setClubMultiplier(clubOfMonth.getMultiplier());
+                clubRepo.save(club);
+            }
+        }
+    }
+
+
+
+    private double resolveClubMultiplierFromPolicies(
+            List<MultiplierPolicy> policies,
+            int eventCount
+    ) {
+        for (MultiplierPolicy p : policies) {
+            if ("CLUB_OF_MONTH".equalsIgnoreCase(p.getRuleName())) continue;
+
+            Integer min = p.getMinThreshold();
+            Integer max = p.getMaxThreshold();
+
+            boolean okMin = eventCount >= min;
+            boolean okMax = (max == null) || eventCount <= max;
+
+            if (okMin && okMax) {
+                return p.getMultiplier();
+            }
+        }
+        return 1.0;
+    }
+    private double clamp01(double v) {
+        if (v < 0) return 0.0;
+        if (v > 1) return 1.0;
+        return v;
+    }
+
 }

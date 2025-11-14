@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import com.example.uniclub.enums.EventStatusEnum;
 
 @Service
 @RequiredArgsConstructor
@@ -75,8 +76,8 @@ public class AdminClubServiceImpl implements AdminClubService {
 
         long memberCount = membershipRepo.countByClub_ClubId(clubId);
         long totalEvents = eventRepo.countByHostClub_ClubId(clubId);
-        long activeEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, "ONGOING");
-        long completedEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, "COMPLETED");
+        long activeEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, EventStatusEnum.ONGOING);
+        long completedEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, EventStatusEnum.COMPLETED);
 
         return AdminClubStatResponse.builder()
                 .clubId(club.getClubId())

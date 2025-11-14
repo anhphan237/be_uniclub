@@ -10,6 +10,8 @@ import com.example.uniclub.repository.MultiplierPolicyRepository;
 import com.example.uniclub.service.MultiplierPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,6 +22,12 @@ import java.util.List;
 public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
     private final MultiplierPolicyRepository repo;
+
+    private String getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) return "system";
+        return auth.getName(); // email / username
+    }
 
     @Override
     public List<MultiplierPolicyResponse> getAll() {
@@ -57,7 +65,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                 .maxThreshold(r.getMaxThreshold())
                 .multiplier(r.getMultiplier())
                 .active(r.isActive())
-                .updatedBy(r.getUpdatedBy())
+                .updatedBy(getCurrentUser())
                 .policyDescription(r.getPolicyDescription())
                 .updatedAt(LocalDateTime.now())
                 .effectiveFrom(LocalDateTime.now())
@@ -91,7 +99,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         old.setMaxThreshold(r.getMaxThreshold());
         old.setMultiplier(r.getMultiplier());
         old.setActive(r.isActive());
-        old.setUpdatedBy(r.getUpdatedBy());
+        old.setUpdatedBy(getCurrentUser());
         old.setPolicyDescription(r.getPolicyDescription());
         old.setUpdatedAt(LocalDateTime.now());
 
@@ -114,7 +122,6 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                 .map(this::toResponse)
                 .toList();
     }
-
     @Override
     public double resolveMultiplier(PolicyTargetTypeEnum target,
                                     PolicyActivityTypeEnum activity,
@@ -127,13 +134,14 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
         for (MultiplierPolicy p : policies) {
             boolean minOK = value >= p.getMinThreshold();
-            boolean maxOK = (p.getMaxThreshold() == null) || value < p.getMaxThreshold();
+            boolean maxOK = (p.getMaxThreshold() == null) || value <= p.getMaxThreshold();
 
             if (minOK && maxOK) return p.getMultiplier();
         }
 
         return 1.0;
     }
+
 
     private MultiplierPolicyResponse toResponse(MultiplierPolicy e) {
         return MultiplierPolicyResponse.builder()

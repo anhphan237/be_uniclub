@@ -27,7 +27,7 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
     // =========================================================
     @Override
     public ClubActivityMonthlyResponse getClubActivity(Long clubId, YearMonth month) {
-        String monthStr = month.toString(); // "YYYY-MM"
+        String monthStr = month.toString();
         int year = month.getYear();
         int monthValue = month.getMonthValue();
 
@@ -79,7 +79,7 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
                 .fullName(user.getFullName())
                 .email(user.getEmail())
 
-                .memberLevel(base.getMemberLevel())             // hiện tại sẽ là null
+                .memberLevel(null)             // hệ thống không còn member level
                 .activityLevel(base.getActivityLevel())
                 .activityMultiplier(base.getActivityMultiplier())
 
@@ -93,12 +93,12 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
 
                 .staffScore(base.getStaffScore())
                 .penaltyPoints(base.getPenaltyPoints())
-                .rawScore(base.getRawScore())                   // dùng baseScore làm rawScore
+                .rawScore(base.getRawScore())
                 .build();
     }
 
     // =========================================================
-    // 3) ADMIN / STAFF VIEW – ranking giữa các CLB trong 1 tháng
+    // 3) ADMIN / STAFF VIEW – ranking các CLB
     // =========================================================
     @Override
     public List<ClubActivityRankingItemResponse> getClubRanking(YearMonth month) {
@@ -109,7 +109,6 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
         List<MemberMonthlyActivity> all = activityRepo.findByYearAndMonth(year, monthValue);
         if (all.isEmpty()) return List.of();
 
-        // group by club
         Map<Club, List<MemberMonthlyActivity>> byClub = all.stream()
                 .collect(Collectors.groupingBy(a -> a.getMembership().getClub()));
 
@@ -120,31 +119,22 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
             List<MemberMonthlyActivity> list = entry.getValue();
 
             int count = list.size();
-
-            // avg rawScore = avg baseScore
             double avgRaw = list.stream()
                     .map(MemberMonthlyActivity::getBaseScore)
-                    .filter(Objects::nonNull)
                     .mapToDouble(Double::doubleValue)
                     .average().orElse(0.0);
 
-            // avg event participation rate
             double avgEvent = list.stream()
                     .mapToDouble(a -> {
-                        Integer reg = a.getTotalEventRegistered();
-                        Integer att = a.getTotalEventAttended();
-                        if (reg == null || reg == 0 || att == null) return 0.0;
-                        return (double) att / reg;
+                        if (a.getTotalEventRegistered() == 0) return 0.0;
+                        return (double) a.getTotalEventAttended() / a.getTotalEventRegistered();
                     })
                     .average().orElse(0.0);
 
-            // avg session rate
             double avgSession = list.stream()
                     .mapToDouble(a -> {
-                        Integer total = a.getTotalClubSessions();
-                        Integer present = a.getTotalClubPresent();
-                        if (total == null || total == 0 || present == null) return 0.0;
-                        return (double) present / total;
+                        if (a.getTotalClubSessions() == 0) return 0.0;
+                        return (double) a.getTotalClubPresent() / a.getTotalClubSessions();
                     })
                     .average().orElse(0.0);
 
@@ -159,26 +149,14 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
                     .build());
         }
 
-        // sort desc by avgRawScore (đúng với DTO hiện tại)
         result.sort(Comparator.comparing(ClubActivityRankingItemResponse::getAvgRawScore).reversed());
         return result;
     }
 
     // ================= HELPER =================
-
-    private MemberActivitySummaryResponse mapToMemberSummary(MemberMonthlyActivity activity) {
-        Membership m = activity.getMembership();
+    private MemberActivitySummaryResponse mapToMemberSummary(MemberMonthlyActivity a) {
+        Membership m = a.getMembership();
         User u = m.getUser();
-
-        MemberActivityLevelEnum actLevel = activity.getActivityLevel();
-
-        int totalEvents = nvl(activity.getTotalEventRegistered());
-        int attendedEvents = nvl(activity.getTotalEventAttended());
-        int totalSessions = nvl(activity.getTotalClubSessions());
-        int attendedSessions = nvl(activity.getTotalClubPresent());
-
-        double eventRate = totalEvents == 0 ? 0.0 : (double) attendedEvents / totalEvents;
-        double sessionRate = totalSessions == 0 ? 0.0 : (double) attendedSessions / totalSessions;
 
         return MemberActivitySummaryResponse.builder()
                 .membershipId(m.getMembershipId())
@@ -187,28 +165,22 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
                 .fullName(u.getFullName())
                 .email(u.getEmail())
 
-                // 🔹 memberLevel: hiện tại bỏ MemberLevelEnum nên để null cho FE tự xử
                 .memberLevel(null)
+                .activityLevel(a.getActivityLevel().name())
+                .activityMultiplier(a.getAppliedMultiplier())
 
-                .activityLevel(actLevel != null ? actLevel.name() : null)
-                .activityMultiplier(activity.getAppliedMultiplier())
+                .totalEvents(a.getTotalEventRegistered())
+                .attendedEvents(a.getTotalEventAttended())
+                .eventParticipationRate(round2(a.getEventAttendanceRate()))
 
-                .totalEvents(totalEvents)
-                .attendedEvents(attendedEvents)
-                .eventParticipationRate(round2(eventRate))
+                .totalSessions(a.getTotalClubSessions())
+                .attendedSessions(a.getTotalClubPresent())
+                .sessionRate(round2(a.getSessionAttendanceRate()))
 
-                .totalSessions(totalSessions)
-                .attendedSessions(attendedSessions)
-                .sessionRate(round2(sessionRate))
-
-                .staffScore(activity.getAvgStaffPerformance())
-                .penaltyPoints(activity.getTotalPenaltyPoints())
-                .rawScore(activity.getBaseScore()) // dùng baseScore làm “rawScore”
+                .staffScore(a.getAvgStaffPerformance())
+                .penaltyPoints(a.getTotalPenaltyPoints())
+                .rawScore(a.getBaseScore())
                 .build();
-    }
-
-    private int nvl(Integer v) {
-        return v == null ? 0 : v;
     }
 
     private double round2(double v) {

@@ -83,7 +83,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     int countByHostClub_ClubId(Long clubId);
 
-    long countByHostClub_ClubIdAndStatus(Long clubId, String status);
+
 
     // THÊM vào EventRepository
     @Query("""
@@ -98,6 +98,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("endDate") java.time.LocalDate endDate
     );
 
-
+    int countByHostClub_ClubIdAndStatusAndDateBetween(
+            Long clubId,
+            EventStatusEnum status,
+            LocalDate start,
+            LocalDate end
+    );
 
 }
