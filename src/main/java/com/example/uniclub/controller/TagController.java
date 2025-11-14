@@ -1,6 +1,8 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.TagRequest;
+import com.example.uniclub.dto.response.TagResponse;
 import com.example.uniclub.entity.Tag;
 import com.example.uniclub.service.TagService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -71,4 +73,22 @@ public class TagController {
         tagService.deleteTag(id);
         return ResponseEntity.ok(ApiResponse.msg("Tag deleted successfully"));
     }
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('UNIVERSITY_STAFF')")
+    @Operation(
+            summary = "Cập nhật thông tin tag",
+            description = """
+            Cho phép chỉnh sửa tên và mô tả của tag.<br>
+            - Chỉ UNIVERSITY_STAFF được sửa.<br>
+            - Tag hệ thống (core=true) **không được phép chỉnh sửa**.<br>
+            """
+    )
+    public ResponseEntity<ApiResponse<TagResponse>> updateTag(
+            @PathVariable Long id,
+            @RequestBody TagRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(tagService.updateTag(id, request)));
+    }
+
+
 }
