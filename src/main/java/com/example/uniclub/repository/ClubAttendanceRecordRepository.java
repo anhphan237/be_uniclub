@@ -37,5 +37,20 @@ public interface ClubAttendanceRecordRepository extends JpaRepository<ClubAttend
             LocalDateTime start,
             LocalDateTime end
     );
+    // THÊM vào ClubAttendanceRecordRepository
+
+    int countByMembership_MembershipIdAndSession_DateBetween(
+            Long membershipId,
+            java.time.LocalDate start,
+            java.time.LocalDate end
+    );
+
+    int countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
+            Long membershipId,
+            java.util.List<AttendanceStatusEnum> statuses,
+            java.time.LocalDate start,
+            java.time.LocalDate end
+    );
+
 
 }

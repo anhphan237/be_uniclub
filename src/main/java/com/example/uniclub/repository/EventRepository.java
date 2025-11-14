@@ -85,6 +85,18 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     long countByHostClub_ClubIdAndStatus(Long clubId, String status);
 
+    // THÊM vào EventRepository
+    @Query("""
+    SELECT e FROM Event e
+    WHERE e.hostClub.clubId = :clubId
+      AND e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
+      AND e.date BETWEEN :startDate AND :endDate
+""")
+    List<Event> findCompletedEventsOfClubInRange(
+            @Param("clubId") Long clubId,
+            @Param("startDate") java.time.LocalDate startDate,
+            @Param("endDate") java.time.LocalDate endDate
+    );
 
 
 

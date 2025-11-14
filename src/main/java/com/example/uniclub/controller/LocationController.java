@@ -36,20 +36,15 @@ public class LocationController {
     // =========================================================
     // 🟢 1. CREATE
     // =========================================================
+    @PostMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Tạo mới địa điểm tổ chức",
             description = """
-                Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
-                Nhập tên địa điểm, mô tả và thông tin liên quan để thêm mới.<br>
-                Trả về đối tượng địa điểm vừa được tạo.
-                """,
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo địa điểm thành công"),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
-            }
+                Dành cho ADMIN hoặc UNIVERSITY_STAFF.<br>
+                Nhập tên địa điểm và thông tin liên quan để thêm mới.
+                """
     )
-    @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     public ResponseEntity<LocationResponse> create(@RequestBody @Valid LocationCreateRequest req) {
         return ResponseEntity.ok(locationService.create(req));
     }
@@ -57,36 +52,25 @@ public class LocationController {
     // =========================================================
     // 🔍 2. GET BY ID
     // =========================================================
-    @Operation(
-            summary = "Xem chi tiết địa điểm theo ID",
-            description = """
-                Trả về thông tin chi tiết của một địa điểm cụ thể.<br>
-                Dùng cho các trang chi tiết hoặc chọn địa điểm khi tạo sự kiện.
-                """,
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin địa điểm thành công"),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy địa điểm")
-            }
-    )
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @Operation(
+            summary = "Xem chi tiết địa điểm",
+            description = "Lấy thông tin chi tiết của một địa điểm."
+    )
     public ResponseEntity<LocationResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(locationService.get(id));
     }
 
     // =========================================================
-    // 📋 3. LIST & PAGINATION
+    // 📋 3. LIST
     // =========================================================
+    @GetMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Lấy danh sách địa điểm (phân trang)",
-            description = """
-                Trả về danh sách tất cả địa điểm có trong hệ thống.<br>
-                Hỗ trợ phân trang, sắp xếp, tìm kiếm để hiển thị trong trang quản lý.
-                """,
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách địa điểm thành công")
-            }
+            description = "Trả về danh sách tất cả địa điểm."
     )
-    @GetMapping
     public ResponseEntity<?> list(@ParameterObject Pageable pageable) {
         return ResponseEntity.ok(locationService.list(pageable));
     }
@@ -94,40 +78,33 @@ public class LocationController {
     // =========================================================
     // 🗑️ 4. DELETE
     // =========================================================
-    @Operation(
-            summary = "Xoá địa điểm theo ID",
-            description = """
-                Dành cho **ADMIN** hoặc **UNIVERSITY_STAFF**.<br>
-                Chỉ có thể xoá nếu địa điểm chưa được gán cho sự kiện nào.
-                """,
-            responses = {
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Xoá địa điểm thành công"),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền xoá địa điểm"),
-                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy địa điểm")
-            }
-    )
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @Operation(
+            summary = "Xoá địa điểm",
+            description = """
+                Chỉ ADMIN và UNIVERSITY_STAFF có quyền xoá.<br>
+                Chỉ xoá nếu địa điểm chưa được gán cho sự kiện nào.
+                """
+    )
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         locationService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    // =========================================================
+    // ✏️ 5. UPDATE
+    // =========================================================
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
-            summary = "Cập nhật địa điểm tổ chức",
-            description = """
-                Thay đổi tên, địa chỉ hoặc sức chứa của địa điểm.<br>
-                Chỉ ADMIN và UNIVERSITY_STAFF được phép thực hiện.
-                """
+            summary = "Cập nhật địa điểm",
+            description = "ADMIN và UNIVERSITY_STAFF có thể sửa tên, địa chỉ, sức chứa."
     )
     public ResponseEntity<ApiResponse<LocationResponse>> update(
             @PathVariable Long id,
             @RequestBody LocationUpdateRequest req
     ) {
-        return ResponseEntity.ok(
-                ApiResponse.ok(locationService.update(id, req))
-        );
+        return ResponseEntity.ok(ApiResponse.ok(locationService.update(id, req)));
     }
-
 }

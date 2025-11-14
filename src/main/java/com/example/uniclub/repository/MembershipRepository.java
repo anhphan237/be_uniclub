@@ -110,5 +110,10 @@ WHERE m.user.userId = :userId
             List<ClubRoleEnum> roles,
             List<MembershipStateEnum> states
     );
+    // THÊM vào MembershipRepository
+    List<Membership> findByClub_ClubIdAndStateIn(
+            Long clubId,
+            List<MembershipStateEnum> states
+    );
 
 }

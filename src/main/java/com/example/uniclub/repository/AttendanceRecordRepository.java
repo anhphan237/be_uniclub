@@ -80,6 +80,18 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
       AND ar.attendanceLevel <> 'NONE'
 """)
     long countAttendanceDaysByUserId(@Param("userId") Long userId);
+    // THÊM vào AttendanceRecordRepository
+    @Query("""
+    SELECT COUNT(ar) FROM AttendanceRecord ar
+    WHERE ar.user.userId = :userId
+      AND ar.event.eventId IN :eventIds
+      AND ar.attendanceLevel IN :levels
+""")
+    long countByUserAndEventsAndLevels(
+            @Param("userId") Long userId,
+            @Param("eventIds") java.util.List<Long> eventIds,
+            @Param("levels") java.util.List<com.example.uniclub.enums.AttendanceLevelEnum> levels
+    );
 
 
 }

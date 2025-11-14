@@ -11,5 +11,11 @@ public interface ClubAttendanceSessionRepository extends JpaRepository<ClubAtten
     List<ClubAttendanceSession> findByDateAndIsLockedFalse(LocalDate date);
     List<ClubAttendanceSession> findByDateAndIsLockedTrue(LocalDate date);
     boolean existsByClub_ClubIdAndDate(Long clubId, LocalDate date);
+    // THÊM vào ClubAttendanceSessionRepository
+    List<ClubAttendanceSession> findByClub_ClubIdAndDateBetween(
+            Long clubId,
+            java.time.LocalDate start,
+            java.time.LocalDate end
+    );
 
 }

@@ -17,11 +17,10 @@ import java.util.List;
 @io.swagger.v3.oas.annotations.tags.Tag(
         name = "Tag Management",
         description = """
-        Quản lý **Tag (nhãn)** trong hệ thống UniClub:<br>
-        - Tag được dùng để phân loại sản phẩm, sự kiện, hoặc bài đăng.<br>
-        - Người dùng có thể xem tất cả tag.<br>
-        - Chỉ **UNIVERSITY_STAFF** có quyền tạo mới hoặc xóa tag.<br>
-        - Một số **core tags** không thể bị xóa.
+        Quản lý Tag trong hệ thống UniClub.<br>
+        - Xem tất cả tag.<br>
+        - ADMIN và UNIVERSITY_STAFF có quyền tạo, sửa, xoá.<br>
+        - Core tags không thể bị xoá.
         """
 )
 @SecurityRequirement(name = "bearerAuth")
@@ -32,56 +31,52 @@ public class TagController {
 
     private final TagService tagService;
 
+    // CREATE
+    @PostMapping
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Tạo tag mới",
-            description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Tạo một tag mới trong hệ thống nếu chưa tồn tại.<br>
-                Hữu ích để phân loại các sản phẩm, sự kiện hoặc bài viết theo chủ đề.
-                """
+            description = "ADMIN hoặc UNIVERSITY_STAFF có thể tạo tag mới."
     )
-    @PostMapping
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<Tag>> createTag(@RequestParam String name) {
         Tag tag = tagService.createTagIfNotExists(name);
         return ResponseEntity.ok(ApiResponse.ok(tag));
     }
 
+    // GET ALL
+    @GetMapping
     @Operation(
             summary = "Lấy danh sách tất cả tags",
-            description = """
-                Public API — ai cũng có thể xem.<br>
-                Trả về danh sách toàn bộ tag hiện có trong hệ thống, bao gồm cả tag mặc định và tag tùy chỉnh.
-                """
+            description = "Public API — bất kỳ ai cũng xem được."
     )
-    @GetMapping
     public ResponseEntity<ApiResponse<List<Tag>>> getAllTags() {
         return ResponseEntity.ok(ApiResponse.ok(tagService.getAllTags()));
     }
 
+    // DELETE
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
-            summary = "Xóa một tag (chỉ dành cho UniStaff)",
+            summary = "Xoá tag",
             description = """
-                Dành cho **UNIVERSITY_STAFF**.<br>
-                Cho phép xóa tag khỏi hệ thống nếu không phải tag lõi (core tag).<br>
-                Nếu tag đang được sử dụng hoặc là core tag, hệ thống sẽ chặn thao tác xóa.
+                Chỉ ADMIN và UNIVERSITY_STAFF.<br>
+                Core tags không thể bị xoá.
                 """
     )
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> deleteTag(@PathVariable Long id) {
         tagService.deleteTag(id);
         return ResponseEntity.ok(ApiResponse.msg("Tag deleted successfully"));
     }
+
+    // UPDATE
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
-            summary = "Cập nhật thông tin tag",
+            summary = "Cập nhật tag",
             description = """
-            Cho phép chỉnh sửa tên và mô tả của tag.<br>
-            - Chỉ UNIVERSITY_STAFF được sửa.<br>
-            - Tag hệ thống (core=true) **không được phép chỉnh sửa**.<br>
-            """
+                ADMIN và UNIVERSITY_STAFF có quyền sửa tag.<br>
+                Core tags không được chỉnh sửa.
+                """
     )
     public ResponseEntity<ApiResponse<TagResponse>> updateTag(
             @PathVariable Long id,
@@ -89,6 +84,4 @@ public class TagController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(tagService.updateTag(id, request)));
     }
-
-
 }
