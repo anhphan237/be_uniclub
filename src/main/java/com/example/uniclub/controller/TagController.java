@@ -33,7 +33,7 @@ public class TagController {
 
     // CREATE
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Tạo tag mới",
             description = "ADMIN hoặc UNIVERSITY_STAFF có thể tạo tag mới."
@@ -55,7 +55,7 @@ public class TagController {
 
     // DELETE
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Xoá tag",
             description = """
@@ -70,7 +70,7 @@ public class TagController {
 
     // UPDATE
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Cập nhật tag",
             description = """

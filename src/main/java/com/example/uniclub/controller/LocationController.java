@@ -37,7 +37,7 @@ public class LocationController {
     // 🟢 1. CREATE
     // =========================================================
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Tạo mới địa điểm tổ chức",
             description = """
@@ -78,7 +78,7 @@ public class LocationController {
     // 🗑️ 4. DELETE
     // =========================================================
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Xoá địa điểm",
             description = """
@@ -95,7 +95,7 @@ public class LocationController {
     // ✏️ 5. UPDATE
     // =========================================================
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     @Operation(
             summary = "Cập nhật địa điểm",
             description = "ADMIN và UNIVERSITY_STAFF có thể sửa tên, địa chỉ, sức chứa."
