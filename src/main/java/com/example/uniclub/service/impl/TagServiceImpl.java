@@ -54,11 +54,35 @@ public class TagServiceImpl implements TagService {
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Tag not found."));
 
-        // Core tags cannot be modified
-        if (tag.isCore()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Core tags cannot be modified.");
+        boolean isCore = tag.isCore();
+
+        // Nếu tag là core → CHỈ cho chỉnh sửa giá trị core
+        if (isCore) {
+
+            // Nếu người dùng cố đổi name → chặn
+            if (request.getName() != null && !request.getName().isBlank()
+                    && !request.getName().equals(tag.getName())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Core tag cannot change name.");
+            }
+
+            // Nếu cố đổi description → chặn
+            if (request.getDescription() != null
+                    && !request.getDescription().equals(tag.getDescription())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Core tag cannot change description.");
+            }
+
+            // CHỈ cho phép đổi core
+            if (request.getCore() != null) {
+                tag.setCore(request.getCore());
+            }
+
+            tagRepository.save(tag);
+            return TagResponse.from(tag);
         }
 
+        // Nếu KHÔNG phải core → cập nhật như bình thường
         // Update name
         if (request.getName() != null && !request.getName().isBlank()) {
             if (tagRepository.existsByNameIgnoreCaseAndTagIdNot(request.getName(), id)) {
@@ -80,4 +104,5 @@ public class TagServiceImpl implements TagService {
         tagRepository.save(tag);
         return TagResponse.from(tag);
     }
+
 }
