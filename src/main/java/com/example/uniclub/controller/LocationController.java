@@ -1,6 +1,8 @@
 package com.example.uniclub.controller;
 
+import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.LocationCreateRequest;
+import com.example.uniclub.dto.request.LocationUpdateRequest;
 import com.example.uniclub.dto.response.LocationResponse;
 import com.example.uniclub.service.LocationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -110,4 +112,22 @@ public class LocationController {
         locationService.delete(id);
         return ResponseEntity.noContent().build();
     }
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'UNIVERSITY_STAFF')")
+    @Operation(
+            summary = "Cập nhật địa điểm tổ chức",
+            description = """
+                Thay đổi tên, địa chỉ hoặc sức chứa của địa điểm.<br>
+                Chỉ ADMIN và UNIVERSITY_STAFF được phép thực hiện.
+                """
+    )
+    public ResponseEntity<ApiResponse<LocationResponse>> update(
+            @PathVariable Long id,
+            @RequestBody LocationUpdateRequest req
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(locationService.update(id, req))
+        );
+    }
+
 }
