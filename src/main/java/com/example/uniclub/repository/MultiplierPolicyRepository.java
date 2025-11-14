@@ -38,6 +38,10 @@ public interface MultiplierPolicyRepository extends JpaRepository<MultiplierPoli
             PolicyTargetTypeEnum targetType,
             PolicyActivityTypeEnum activityType
     );
+    List<MultiplierPolicy> findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
+            PolicyTargetTypeEnum targetType,
+            PolicyActivityTypeEnum activityType
+    );
 
 
 }

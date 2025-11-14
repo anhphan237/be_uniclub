@@ -166,9 +166,8 @@ public class MembershipServiceImpl implements MembershipService {
                     existing.setEndDate(null);
                     existing.setClubRole(ClubRoleEnum.MEMBER);
 
-                    // Reset fields
-                    existing.setMemberLevel(MemberLevelEnum.BASIC);
-                    existing.setMemberMultiplier(1.0);
+                    // Reset fields (NEW SYSTEM)
+                    existing.setMemberMultiplier(1.0);  // mặc định
                     existing.setStaff(false);
 
                     membershipRepo.save(existing);
@@ -192,7 +191,8 @@ public class MembershipServiceImpl implements MembershipService {
         newMembership.setClubRole(ClubRoleEnum.MEMBER);
         newMembership.setState(MembershipStateEnum.PENDING);
         newMembership.setJoinedDate(LocalDate.now());
-        newMembership.setMemberLevel(MemberLevelEnum.BASIC);
+
+        // NEW SYSTEM — NO MEMBER LEVEL
         newMembership.setMemberMultiplier(1.0);
         newMembership.setStaff(false);
 
@@ -211,6 +211,7 @@ public class MembershipServiceImpl implements MembershipService {
 
         return toResp(newMembership);
     }
+
 
 
 // ===================== 🔔 EMAIL NOTIFICATION FUNC =====================
@@ -266,22 +267,26 @@ public class MembershipServiceImpl implements MembershipService {
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
+        // Check major policy before approving
         validateMajorPolicy(m.getUser());
 
-        if (m.getMemberLevel() == null)
-            m.setMemberLevel(MemberLevelEnum.BASIC);
-
-        if (m.getMemberMultiplier() == null)
+        // NEW SYSTEM — no memberLevel, chỉ dùng multiplier
+        if (m.getMemberMultiplier() == null) {
             m.setMemberMultiplier(1.0);
+        }
 
-        if (m.isStaff() == false)
-            m.setStaff(false); // đảm bảo không null (boolean vẫn ổn)
+        // Staff boolean luôn an toàn nhưng giữ lại để đảm bảo rõ ràng
+        if (!m.isStaff()) {
+            m.setStaff(false);
+        }
 
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
+
         clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
+
 
 
     @Override

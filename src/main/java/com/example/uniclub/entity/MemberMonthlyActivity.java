@@ -1,4 +1,3 @@
-// NEW
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.MemberActivityLevelEnum;
@@ -8,10 +7,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "member_monthly_activities",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"membership_id", "month"})
-)
+@Table(name = "member_monthly_activities",
+        uniqueConstraints = @UniqueConstraint(columnNames = {
+                "membership_id", "year", "month"
+        }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,57 +22,83 @@ public class MemberMonthlyActivity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // membership thuộc CLB nào
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "membership_id")
     private Membership membership;
 
-    // tháng, dạng "2025-11"
-    @Column(nullable = false, length = 7)
-    private String month;
+    @Column(nullable = false)
+    private Integer year;
 
-    // ================== CHỈ SỐ HOẠT ĐỘNG ======================
+    @Column(nullable = false)
+    private Integer month; // 1–12
 
-    // Event
-    @Column(name = "total_events")
-    private Integer totalEvents;
+    // ====== RAW STATISTICS ======
+    @Column(nullable = false)
+    private int totalEventRegistered;
 
-    @Column(name = "attended_events")
-    private Integer attendedEvents;
+    @Column(nullable = false)
+    private int totalEventAttended;
 
-    @Column(name = "event_participation_rate")
-    private Double eventParticipationRate;
+    @Column(nullable = false)
+    private int totalClubSessions;
 
-    // Daily session (attendance CLB)
-    @Column(name = "total_sessions")
-    private Integer totalSessions;
+    @Column(nullable = false)
+    private int totalClubPresent;
 
-    @Column(name = "attended_sessions")
-    private Integer attendedSessions;
+    @Column(nullable = false)
+    private double avgStaffPerformance;   // 0.0 – 1.0
 
-    @Column(name = "session_rate")
-    private Double sessionRate;
+    @Column(nullable = false)
+    private int totalPenaltyPoints;
 
-    // Staff performance (0–1)
-    @Column(name = "staff_score")
-    private Double staffScore;
+    // ====== NORMALIZED SCORES ======
+    @Column(nullable = false)
+    private double baseScore;      // 0.0 – 1.0
 
-    // Tổng điểm phạt (số âm, ví dụ -25)
-    @Column(name = "penalty_points")
-    private Integer penaltyPoints;
-
-    // ================== KẾT QUẢ CUỐI ======================
+    @Column(nullable = false)
+    private int baseScorePercent;  // 0 – 100
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "activity_level", length = 30)
+    @Column(nullable = false)
     private MemberActivityLevelEnum activityLevel;
 
-    @Column(name = "activity_multiplier")
-    private Double activityMultiplier;
+    @Column(nullable = false)
+    private double appliedMultiplier;
 
-    @Column(name = "raw_score")
-    private Double rawScore;
+    @Column(nullable = false)
+    private double finalScore;
 
-    @Column(name = "calculated_at")
-    private LocalDateTime calculatedAt;
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    // ====== COMPUTED HELPERS (optional but recommended) ======
+    public double getEventAttendanceRate() {
+        return totalEventRegistered == 0 ? 0.0 :
+                (double) totalEventAttended / totalEventRegistered;
+    }
+
+    public double getSessionAttendanceRate() {
+        return totalClubSessions == 0 ? 0.0 :
+                (double) totalClubPresent / totalClubSessions;
+    }
+
+    // ====== Fix for compatibility with controller ======
+    public Double getActivityMultiplier() {
+        return appliedMultiplier;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) createdAt = now;
+        if (updatedAt == null) updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

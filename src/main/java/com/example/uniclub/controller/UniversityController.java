@@ -2,11 +2,9 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.Club;
+import com.example.uniclub.entity.MemberMonthlyActivity;
 import com.example.uniclub.entity.Membership;
-import com.example.uniclub.repository.ClubRepository;
-import com.example.uniclub.repository.EventRegistrationRepository;
-import com.example.uniclub.repository.EventRepository;
-import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.repository.*;
 import com.example.uniclub.service.UniversityService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
@@ -30,22 +28,25 @@ public class UniversityController {
     private final EventRepository eventRepo;
     private final MembershipRepository membershipRepo;
     private final EventRegistrationRepository regRepo;
+    private final MemberMonthlyActivityRepository activityRepo;
 
     // ===============================================================
     // 🔹 Thống kê tổng hợp cấp trường & CLB
     // ===============================================================
 
-    @Operation(summary = "Thống kê tổng hợp toàn trường", description = "Dành cho UniStaff. Trả về dữ liệu tổng quan về CLB, sự kiện, thành viên, điểm và hoạt động.")
+    @Operation(summary = "Thống kê tổng hợp toàn trường")
     @GetMapping("/statistics")
     public ResponseEntity<UniversityStatisticsResponse> getUniversityStatistics() {
         return ResponseEntity.ok(universityService.getUniversitySummary());
     }
-    @Operation(summary = "Thống kê chi tiết theo CLB", description = "Trả về dữ liệu tổng hợp riêng của 1 CLB (số thành viên, sự kiện, điểm trung bình, tỷ lệ attendance, v.v.).")
+
+    @Operation(summary = "Thống kê chi tiết theo CLB")
     @GetMapping("/statistics/{clubId}")
     public ResponseEntity<ClubStatisticsResponse> getClubStatistics(@PathVariable Long clubId) {
         return ResponseEntity.ok(universityService.getClubSummary(clubId));
     }
-    @Operation(summary = "Xếp hạng điểm toàn trường", description = "Trả về bảng xếp hạng điểm của các CLB trong trường theo tổng điểm và hiệu suất hoạt động.")
+
+    @Operation(summary = "Xếp hạng điểm toàn trường")
     @GetMapping("/points")
     public ResponseEntity<UniversityPointsResponse> getPointsOverview() {
         return ResponseEntity.ok(universityService.getPointsRanking());
@@ -54,19 +55,22 @@ public class UniversityController {
     // ===============================================================
     // 🔹 Attendance overview
     // ===============================================================
-    @Operation(summary = "Xếp hạng attendance toàn trường", description = "Thống kê tỷ lệ điểm danh trung bình và xếp hạng CLB hoặc thành viên theo attendance.")
+
+    @Operation(summary = "Xếp hạng attendance toàn trường")
     @GetMapping("/attendance-ranking")
     public ResponseEntity<UniversityAttendanceResponse> getAttendanceRanking() {
         return ResponseEntity.ok(universityService.getAttendanceRanking());
     }
-    @Operation(summary = "Tổng hợp attendance theo năm", description = "Thống kê tỷ lệ attendance cho toàn trường trong 1 năm cụ thể.")
+
+    @Operation(summary = "Tổng hợp attendance theo năm")
     @GetMapping("/attendance-summary")
     public ResponseEntity<AttendanceSummaryResponse> getAttendanceSummary(
             @RequestParam(defaultValue = "2025") int year
     ) {
         return ResponseEntity.ok(universityService.getAttendanceSummary(year));
     }
-    @Operation(summary = "Tổng hợp attendance theo CLB", description = "Thống kê tỷ lệ điểm danh cho một CLB cụ thể theo năm.")
+
+    @Operation(summary = "Tổng hợp attendance theo CLB")
     @GetMapping("/attendance-summary/club/{clubId}")
     public ResponseEntity<AttendanceSummaryResponse> getClubAttendanceSummary(
             @PathVariable Long clubId,
@@ -74,7 +78,8 @@ public class UniversityController {
     ) {
         return ResponseEntity.ok(universityService.getAttendanceSummaryByClub(year, clubId));
     }
-    @Operation(summary = "Tổng hợp attendance theo sự kiện", description = "Thống kê chi tiết attendance của một sự kiện cụ thể trong năm.")
+
+    @Operation(summary = "Tổng hợp attendance theo sự kiện")
     @GetMapping("/attendance-summary/event/{eventId}")
     public ResponseEntity<AttendanceSummaryResponse> getEventAttendanceSummary(
             @PathVariable Long eventId,
@@ -83,53 +88,12 @@ public class UniversityController {
         return ResponseEntity.ok(universityService.getAttendanceSummaryByEvent(year, eventId));
     }
 
-    // ===============================================================
-    // 🔹 Xem CLB hoạt động sôi nổi theo tháng hoặc năm
-    // ===============================================================
-    @Operation(summary = "Thống kê hoạt động CLB theo tháng/năm", description = "Thống kê số lượng sự kiện và tình trạng hoạt động của các CLB trong tháng hoặc năm được chọn.")
-    @GetMapping("/stats/clubs")
-    public ResponseEntity<List<Map<String, Object>>> getClubActivityStats(
-            @RequestParam int year,
-            @RequestParam(required = false) Integer month) {
-
-        LocalDate start = (month != null)
-                ? LocalDate.of(year, month, 1)
-                : LocalDate.of(year, 1, 1);
-        LocalDate end = (month != null)
-                ? start.withDayOfMonth(start.lengthOfMonth())
-                : LocalDate.of(year, 12, 31);
-
-        LocalDate today = LocalDate.now();
-        final LocalDate finalStart = start;
-        final LocalDate finalEnd = end.isAfter(today) ? today : end;
-
-        List<Club> clubs = clubRepo.findAll();
-        List<Map<String, Object>> result = new ArrayList<>();
-
-        for (Club c : clubs) {
-            long eventCount = eventRepo.findByHostClub_ClubId(c.getClubId()).stream()
-                    .filter(e -> e.getDate() != null &&
-                            !e.getDate().isBefore(finalStart) &&
-                            !e.getDate().isAfter(finalEnd))
-                    .count();
-
-            Map<String, Object> clubStats = new LinkedHashMap<>();
-            clubStats.put("clubId", c.getClubId());
-            clubStats.put("clubName", c.getName());
-            clubStats.put("eventCount", eventCount);
-            clubStats.put("activityStatus", c.getActivityStatus() != null ? c.getActivityStatus().name() : "UNKNOWN");
-            clubStats.put("multiplier", c.getClubMultiplier());
-            result.add(clubStats);
-        }
-
-        result.sort((a, b) -> Long.compare((long) b.get("eventCount"), (long) a.get("eventCount")));
-        return ResponseEntity.ok(result);
-    }
 
     // ===============================================================
-    // 🔹 Xem thành viên hoạt động tích cực theo tháng hoặc năm
+    // 🔹 Thành viên hoạt động sôi nổi theo tháng (ActivityEngine)
     // ===============================================================
-    @Operation(summary = "Thống kê hoạt động thành viên theo tháng/năm", description = "Trả về danh sách thành viên năng nổ nhất theo số lần tham gia sự kiện trong tháng hoặc năm được chọn.")
+
+    @Operation(summary = "Thống kê hoạt động thành viên theo tháng/năm")
     @GetMapping("/stats/members")
     public ResponseEntity<List<Map<String, Object>>> getMemberActivityStats(
             @RequestParam int year,
@@ -138,13 +102,13 @@ public class UniversityController {
         LocalDate start = (month != null)
                 ? LocalDate.of(year, month, 1)
                 : LocalDate.of(year, 1, 1);
+
         LocalDate end = (month != null)
                 ? start.withDayOfMonth(start.lengthOfMonth())
                 : LocalDate.of(year, 12, 31);
 
         LocalDate today = LocalDate.now();
-        final LocalDate finalStart = start;
-        final LocalDate finalEnd = end.isAfter(today) ? today : end;
+        LocalDate finalEnd = end.isAfter(today) ? today : end;
 
         List<Membership> members = membershipRepo.findAll();
         List<Map<String, Object>> result = new ArrayList<>();
@@ -152,83 +116,47 @@ public class UniversityController {
         for (Membership m : members) {
             if (m.getUser() == null || m.getClub() == null) continue;
 
-            long attendedEvents = regRepo.countByUser_UserIdAndRegisteredAtBetween(
+            long eventCount = regRepo.countByUser_UserIdAndRegisteredAtBetween(
                     m.getUser().getUserId(),
-                    finalStart.atStartOfDay(),
+                    start.atStartOfDay(),
                     finalEnd.atTime(23, 59, 59)
             );
 
-            Map<String, Object> memberStats = new LinkedHashMap<>();
-            memberStats.put("memberId", m.getMembershipId());
-            memberStats.put("memberName", m.getUser().getFullName());
-            memberStats.put("clubName", m.getClub().getName());
-            memberStats.put("eventCount", attendedEvents);
-            memberStats.put("memberLevel", m.getMemberLevel() != null ? m.getMemberLevel().name() : "BASIC");
-            memberStats.put("multiplier", m.getMemberMultiplier());
-            result.add(memberStats);
+            // Lấy activity theo tháng (nếu month != null)
+            MemberMonthlyActivity activity = (month != null)
+                    ? activityRepo.findByMembership_MembershipIdAndYearAndMonth(
+                    m.getMembershipId(), year, month
+            ).orElse(null)
+                    : null;
+
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("membershipId", m.getMembershipId());
+            map.put("memberName", m.getUser().getFullName());
+            map.put("clubName", m.getClub().getName());
+            map.put("eventCount", eventCount);
+
+            map.put("activityLevel",
+                    activity != null ? activity.getActivityLevel().name() : "UNKNOWN");
+
+            map.put("multiplier",
+                    activity != null ? activity.getAppliedMultiplier() : m.getMemberMultiplier());
+
+            result.add(map);
         }
 
-        result.sort((a, b) -> Long.compare((long) b.get("eventCount"), (long) a.get("eventCount")));
+        result.sort((a, b) ->
+                Long.compare((Long) b.get("eventCount"), (Long) a.get("eventCount"))
+        );
+
         return ResponseEntity.ok(result);
     }
 
-    // ===============================================================
-    // 📆 1️⃣ CLB hoạt động trong khoảng thời gian tùy chọn
-    // ===============================================================
-    @Operation(summary = "Thống kê hoạt động CLB trong khoảng thời gian tùy chọn", description = "Trả về danh sách CLB có hoạt động trong khoảng thời gian cụ thể (theo tháng/năm bắt đầu - kết thúc).")
-    @GetMapping("/stats/clubs/range")
-    public ResponseEntity<List<Map<String, Object>>> getClubActivityRange(
-            @RequestParam int fromYear,
-            @RequestParam int fromMonth,
-            @RequestParam int toYear,
-            @RequestParam int toMonth) {
-
-        LocalDate start = LocalDate.of(fromYear, fromMonth, 1);
-        LocalDate end = LocalDate.of(toYear, toMonth, 1)
-                .withDayOfMonth(LocalDate.of(toYear, toMonth, 1).lengthOfMonth());
-
-        LocalDate today = LocalDate.now();
-        final LocalDate finalStart = start;
-        final LocalDate finalEnd = end.isAfter(today) ? today : end;
-
-        final LocalDate SYSTEM_LAUNCH_DATE = LocalDate.of(2025, 9, 1);
-        if (finalEnd.isBefore(SYSTEM_LAUNCH_DATE)) {
-            return ResponseEntity.ok(List.of(Map.of("message", "⚠️ Hệ thống chưa hoạt động trong giai đoạn này (trước tháng 9/2025).")));
-        }
-
-        List<Club> clubs = clubRepo.findAll();
-        List<Map<String, Object>> result = new ArrayList<>();
-
-        for (Club c : clubs) {
-            long eventCount = eventRepo.findByHostClub_ClubId(c.getClubId()).stream()
-                    .filter(e -> e.getDate() != null &&
-                            !e.getDate().isBefore(finalStart) &&
-                            !e.getDate().isAfter(finalEnd))
-                    .count();
-
-            if (eventCount > 0) {
-                Map<String, Object> clubStats = new LinkedHashMap<>();
-                clubStats.put("clubId", c.getClubId());
-                clubStats.put("clubName", c.getName());
-                clubStats.put("eventCount", eventCount);
-                clubStats.put("activityStatus", c.getActivityStatus() != null ? c.getActivityStatus().name() : "UNKNOWN");
-                clubStats.put("multiplier", c.getClubMultiplier());
-                result.add(clubStats);
-            }
-        }
-
-        if (result.isEmpty()) {
-            return ResponseEntity.ok(List.of(Map.of("message", "❌ Không có hoạt động nào trong khoảng thời gian được chọn.")));
-        }
-
-        result.sort((a, b) -> Long.compare((long) b.get("eventCount"), (long) a.get("eventCount")));
-        return ResponseEntity.ok(result);
-    }
 
     // ===============================================================
-    // 📊 2️⃣ Thành viên hoạt động trong khoảng thời gian tùy chọn
+    // 🔹 Thành viên hoạt động theo RANGE (ActivityEngine)
     // ===============================================================
-    @Operation(summary = "Thống kê thành viên hoạt động trong khoảng thời gian tùy chọn", description = "Liệt kê thành viên có tham gia sự kiện trong khoảng thời gian xác định, kèm số lượng sự kiện.")
+
+    @Operation(summary = "Thống kê thành viên hoạt động theo range")
     @GetMapping("/stats/members/range")
     public ResponseEntity<List<Map<String, Object>>> getMemberActivityRange(
             @RequestParam int fromYear,
@@ -241,13 +169,7 @@ public class UniversityController {
                 .withDayOfMonth(LocalDate.of(toYear, toMonth, 1).lengthOfMonth());
 
         LocalDate today = LocalDate.now();
-        final LocalDate finalStart = start;
-        final LocalDate finalEnd = end.isAfter(today) ? today : end;
-
-        final LocalDate SYSTEM_LAUNCH_DATE = LocalDate.of(2025, 9, 1);
-        if (finalEnd.isBefore(SYSTEM_LAUNCH_DATE)) {
-            return ResponseEntity.ok(List.of(Map.of("message", "⚠️ Hệ thống chưa hoạt động trong giai đoạn này (trước tháng 9/2025).")));
-        }
+        if (end.isAfter(today)) end = today;
 
         List<Membership> members = membershipRepo.findAll();
         List<Map<String, Object>> result = new ArrayList<>();
@@ -255,29 +177,32 @@ public class UniversityController {
         for (Membership m : members) {
             if (m.getUser() == null || m.getClub() == null) continue;
 
-            long attendedEvents = regRepo.countByUser_UserIdAndRegisteredAtBetween(
+            long eventCount = regRepo.countByUser_UserIdAndRegisteredAtBetween(
                     m.getUser().getUserId(),
-                    finalStart.atStartOfDay(),
-                    finalEnd.atTime(23, 59, 59)
+                    start.atStartOfDay(),
+                    end.atTime(23, 59, 59)
             );
 
-            if (attendedEvents > 0) {
-                Map<String, Object> memberStats = new LinkedHashMap<>();
-                memberStats.put("memberId", m.getMembershipId());
-                memberStats.put("memberName", m.getUser().getFullName());
-                memberStats.put("clubName", m.getClub().getName());
-                memberStats.put("eventCount", attendedEvents);
-                memberStats.put("memberLevel", m.getMemberLevel() != null ? m.getMemberLevel().name() : "BASIC");
-                memberStats.put("multiplier", m.getMemberMultiplier());
-                result.add(memberStats);
-            }
+            if (eventCount == 0) continue;
+
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("membershipId", m.getMembershipId());
+            map.put("memberName", m.getUser().getFullName());
+            map.put("clubName", m.getClub().getName());
+            map.put("eventCount", eventCount);
+
+            // RANGE không thể xác định activityLevel → UNKNOWN
+            map.put("activityLevel", "UNKNOWN");
+
+            map.put("multiplier", m.getMemberMultiplier());
+
+            result.add(map);
         }
 
-        if (result.isEmpty()) {
-            return ResponseEntity.ok(List.of(Map.of("message", "❌ Không có thành viên nào hoạt động trong khoảng thời gian được chọn.")));
-        }
+        result.sort((a, b) ->
+                Long.compare((Long) b.get("eventCount"), (Long) a.get("eventCount"))
+        );
 
-        result.sort((a, b) -> Long.compare((long) b.get("eventCount"), (long) a.get("eventCount")));
         return ResponseEntity.ok(result);
     }
 }

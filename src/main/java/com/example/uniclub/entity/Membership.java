@@ -1,7 +1,6 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.ClubRoleEnum;
-import com.example.uniclub.enums.MemberLevelEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -60,9 +59,9 @@ public class Membership {
     private LocalDate endDate;
 
     // 🔰 Level thành viên
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MemberLevelEnum memberLevel = MemberLevelEnum.BASIC;
+//    @Enumerated(EnumType.STRING)
+//    @Column(nullable = false)
+//    private MemberLevelEnum memberLevel = MemberLevelEnum.BASIC;
 
     // ➗ Hệ số điểm
     @Column(nullable = false)
