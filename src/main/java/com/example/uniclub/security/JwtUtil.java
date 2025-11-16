@@ -66,9 +66,9 @@ public class JwtUtil {
     // ==============================================================
     //  ✔ BACKWARD COMPATIBLE: method cũ (1 tham số) vẫn dùng được
     // ==============================================================
-    public String generateToken(String email) {
-        return generateToken(email, "STUDENT");   // fallback
-    }
+//    public String generateToken(String email) {
+//        return generateToken(email, "STUDENT");   // fallback
+//    }
 
     // ==============================================================
     //  GET EMAIL (subject)
