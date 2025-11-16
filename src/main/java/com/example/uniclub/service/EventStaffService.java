@@ -6,5 +6,7 @@ import java.util.List;
 public interface EventStaffService {
     EventStaffResponse assignStaff(Long eventId, Long membershipId, String duty);
     void unassignStaff(Long eventStaffId);
-//    List<EventStaffResponse> getEventStaffList(Long eventId);
+
+long countStaffParticipation(Long membershipId);
+
 }

@@ -503,6 +503,25 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.ok(feedbacks));
     }
 
+    @Operation(
+            summary = "Đếm số lần tham gia hỗ trợ sự kiện (Staff Participation Count)",
+            description = """
+        API dùng để thống kê **số lần một thành viên (Membership)** tham gia hỗ trợ sự kiện (Staff).<br>
+        - Hệ thống sẽ dựa vào bảng *event_staff* để đếm số lần gán staff.<br>
+        - Dùng cho thống kê, xếp hạng, hoặc đánh giá mức độ đóng góp của từng thành viên.<br><br>
+        
+        📌 **Chỉ dành cho ADMIN / CLUB_LEADER / CLUB_MANAGER**.<br>
+        Cho phép xem số lần tham gia staff của bất kỳ thành viên nào trong CLB.
+        """
+    )
+    @GetMapping("/staff/{membershipId}/count")
+    @PreAuthorize("hasAnyRole('ADMIN','CLUB_LEADER','CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<Long>> countStaffParticipation(
+            @PathVariable Long membershipId
+    ) {
+        long count = eventStaffService.countStaffParticipation(membershipId);
+        return ResponseEntity.ok(ApiResponse.ok(count));
+    }
 
 
 }

@@ -87,26 +87,14 @@ public class EventStaffServiceImpl implements EventStaffService {
         staff.setUnassignedAt(java.time.LocalDateTime.now());
         eventStaffRepository.save(staff);
     }
-//    @Override
-//    public List<EventStaffResponse> getEventStaffList(Long eventId) {
-//        Event event = eventRepository.findById(eventId)
-//                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-//
-//        List<EventStaff> staffs = eventStaffRepository.findByEvent_EventId(eventId);
-//
-//        return staffs.stream().map(staff -> EventStaffResponse.builder()
-//                .id(staff.getId())
-//                .eventId(event.getEventId())
-//                .eventName(event.getName())
-//                .membershipId(staff.getMembership().getMembershipId())
-//                .memberName(staff.getMembership().getUser() != null
-//                        ? staff.getMembership().getUser().getFullName() : null)
-//                .duty(staff.getDuty())
-//                .state(staff.getState())
-//                .assignedAt(staff.getAssignedAt())
-//                .unassignedAt(staff.getUnassignedAt())
-//                .build()
-//        ).toList();
-//    }
+
+    @Override
+    public long countStaffParticipation(Long membershipId) {
+        return eventStaffRepository.countByMembership_MembershipIdAndState(
+                membershipId,
+                EventStaffStateEnum.ACTIVE
+        );
+    }
+
 
 }

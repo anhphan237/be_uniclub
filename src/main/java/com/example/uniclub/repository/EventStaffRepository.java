@@ -42,4 +42,7 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
             @Param("eventId") Long eventId,
             @Param("membershipId") Long membershipId
     );
+
+    long countByMembership_MembershipIdAndState(Long membershipId, EventStaffStateEnum state);
+
 }
