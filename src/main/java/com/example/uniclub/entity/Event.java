@@ -14,7 +14,7 @@ import java.util.List;
 @Table(name = "events")
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(force = true)
 @AllArgsConstructor
 @Builder
 public class Event {
