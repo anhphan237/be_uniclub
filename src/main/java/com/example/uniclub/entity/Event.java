@@ -63,23 +63,28 @@ public class Event {
     @Column(nullable = false)
     private EventStatusEnum status = EventStatusEnum.PENDING_COCLUB;
 
-    // 🧾 Thống kê
+
+    @Builder.Default
     @Column(nullable = false)
     private Integer currentCheckInCount = 0;
+
 
     @Column(name = "max_checkin_count")
     private Integer maxCheckInCount; // = sức chứa tối đa của sự kiện (theo location)
 
 
     // 🪙 Điểm cam kết
+    @Builder.Default
     @Column(nullable = false)
-    private Integer commitPointCost;
+    private Integer commitPointCost = 0;
 
     // 🔺 Hệ số thưởng trần
+    @Builder.Default
     @Column(nullable = false)
     private Integer rewardMultiplierCap = 2;
 
     // 💰 Ngân sách điểm (UniStaff cấp sau khi duyệt)
+    @Builder.Default
     @Column(name = "budget_points", nullable = false)
     private Long budgetPoints = 0L;
     // ❌ Lý do bị từ chối (nếu sự kiện bị reject bởi UniStaff hoặc Co-Club)

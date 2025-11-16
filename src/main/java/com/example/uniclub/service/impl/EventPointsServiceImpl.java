@@ -185,13 +185,15 @@ public class EventPointsServiceImpl implements EventPointsService {
     public String endEvent(CustomUserDetails principal, EventEndRequest req) {
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
         Wallet eventWallet = ensureEventWallet(event);
 
         List<EventRegistration> regs = regRepo.findByEvent_EventId(event.getEventId());
         long totalReward = 0L;
 
         for (EventRegistration reg : regs) {
-            AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel()).orElse(AttendanceLevelEnum.NONE);
+            AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel())
+                    .orElse(AttendanceLevelEnum.NONE);
             if (level == AttendanceLevelEnum.NONE || level == AttendanceLevelEnum.SUSPICIOUS) continue;
 
             long commit = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
@@ -228,7 +230,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         }
 
         long leftover = Optional.ofNullable(eventWallet.getBalancePoints()).orElse(0L);
-        if (eventWallet.isActive() && leftover > 0) {
+
+        // Refund leftover BEFORE closing the wallet
+        if (eventWallet.getStatus() == WalletStatusEnum.ACTIVE && leftover > 0) {
             List<Club> clubs = new ArrayList<>(event.getCoHostedClubs());
             if (!clubs.contains(event.getHostClub())) clubs.add(event.getHostClub());
 
@@ -249,23 +253,35 @@ public class EventPointsServiceImpl implements EventPointsService {
             }
         }
 
-        eventWallet.setActive(false);
+        // CLOSE WALLET AFTER ALL OPERATIONS
+        eventWallet.setStatus(WalletStatusEnum.CLOSED);
         walletRepo.save(eventWallet);
 
         event.setCompletedAt(LocalDateTime.now());
         eventRepo.save(event);
 
         notificationService.notifyEventCompleted(event);
-        log.info("✅ Event '{}' ended by {}. TotalReward={} pts, leftover={} pts.",
-                event.getName(), principal.getUsername(), totalReward, leftover);
+
+        log.info("✅ Event '{}' ended. TotalReward={} pts, leftover={} pts.",
+                event.getName(), totalReward, leftover);
 
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
-
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
-        if (w == null)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet not found. Please approve the event first.");
+
+        if (w == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event wallet not found. UniStaff must approve the event budget first.");
+        }
+
+        // Ví đã bị đóng → không được phép giao dịch nữa
+        if (w.getStatus() == WalletStatusEnum.CLOSED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event wallet is already closed.");
+        }
+
         return w;
     }
+
 }

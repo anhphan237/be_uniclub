@@ -146,7 +146,8 @@ public class EventServiceImpl implements EventService {
                 .commitPointCost(commitCost)
                 .budgetPoints(0L) // UniStaff sẽ cấp sau
                 .rewardMultiplierCap(2)
-                .registrationDeadline(req.registrationDeadline()) // ✅ thêm field mới
+                .currentCheckInCount(0)
+                .registrationDeadline(req.registrationDeadline())
                 .build();
 
         // ✅ 8.1 Validate theo loại sự kiện
@@ -173,6 +174,16 @@ public class EventServiceImpl implements EventService {
         }
 
         // ✅ 10. Lưu sự kiện
+        eventRepo.save(event);
+        Wallet wallet = Wallet.builder()
+                .ownerType(WalletOwnerTypeEnum.EVENT)
+                .event(event)
+                .balancePoints(0L)
+                .status(WalletStatusEnum.ACTIVE)
+                .build();
+
+        walletRepo.save(wallet);
+        event.setWallet(wallet);
         eventRepo.save(event);
 
         // ✅ 11. Gửi thông báo
@@ -311,17 +322,29 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to finish this event.");
         }
 
-        // ✅ Đánh dấu COMPLETED
+        // 🔥 1. Đóng ví sự kiện
+        Wallet wallet = event.getWallet();
+        if (wallet == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event wallet missing unexpectedly.");
+        }
+
+        wallet.setStatus(WalletStatusEnum.CLOSED);
+        walletRepo.save(wallet);
+
+        // 🔥 2. Đánh dấu COMPLETED
         event.setStatus(EventStatusEnum.COMPLETED);
         event.setApprovedAt(LocalDateTime.now());
         eventRepo.save(event);
 
-        // ✅ Gọi service trung tâm xử lý reward/refund/notify
+        // 🔥 3. Gọi service xử lý reward / refund / notify
         String result = eventPointsService.endEvent(principal, new EventEndRequest(eventId));
 
-        log.info("✅ Event '{}' completed by {} ({})", event.getName(), user.getEmail(), roleName);
+        log.info("🏁 Event '{}' completed by {} ({}) – Wallet CLOSED",
+                event.getName(), user.getEmail(), roleName);
+
         return result;
     }
+
 
 
 
@@ -567,70 +590,70 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff) {
+
         // 1️⃣ Lấy event
         Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
         // 2️⃣ Kiểm tra trạng thái
-        if (event.getStatus() == EventStatusEnum.REJECTED) {
+        if (event.getStatus() == EventStatusEnum.REJECTED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already been rejected.");
-        }
-        if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF && event.getStatus() != EventStatusEnum.APPROVED) {
+
+        if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF
+                && event.getStatus() != EventStatusEnum.APPROVED)
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Only events pending UniStaff review or approved can be granted budget.");
-        }
 
         // 3️⃣ Validate ngân sách
         if (req.getApprovedBudgetPoints() == null || req.getApprovedBudgetPoints() <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Approved budget points must be greater than 0.");
+
         long approvedPoints = req.getApprovedBudgetPoints();
 
-        // 4️⃣ Ghi nhận người duyệt & trạng thái
+        // 4️⃣ Lấy ví của event (luôn tồn tại từ lúc create)
+        Wallet eventWallet = event.getWallet();
+        if (eventWallet == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Event wallet missing unexpectedly.");
+
+        if (eventWallet.getStatus() == WalletStatusEnum.CLOSED)
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "This event wallet is already closed.");
+
+        // 5️⃣ Nạp ngân sách vào ví
+        eventWallet.setBalancePoints(approvedPoints);
+        eventWallet.setStatus(WalletStatusEnum.ACTIVE);
+        walletRepo.save(eventWallet);
+
+        // 6️⃣ Cập nhật thông tin duyệt
         event.setApprovedBy(staff.getUser());
         event.setApprovedAt(LocalDateTime.now());
         event.setStatus(EventStatusEnum.APPROVED);
         event.setBudgetPoints(approvedPoints);
+        eventRepo.save(event);
 
-        // 5️⃣ Cấp hoặc cập nhật ví sự kiện
-        Wallet eventWallet = event.getWallet();
-        if (eventWallet == null) {
-            eventWallet = Wallet.builder()
-                    .ownerType(WalletOwnerTypeEnum.EVENT)
-                    .event(event)
-                    .balancePoints(approvedPoints)
-                    .createdAt(LocalDateTime.now())
-                    .build();
-            walletRepo.save(eventWallet);
-            event.setWallet(eventWallet);
-        } else {
-            // Nếu ví đã tồn tại, cập nhật lại ngân sách
-            eventWallet.setBalancePoints(approvedPoints);
-        }
-
-        // 6️⃣ Ghi transaction lịch sử cấp ngân sách
+        // 7️⃣ Ghi transaction lịch sử
         WalletTransaction tx = WalletTransaction.builder()
                 .wallet(eventWallet)
                 .amount(approvedPoints)
                 .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
-                .description("UniStaff approved and granted " + approvedPoints + " points for event: " + event.getName())
+                .description("UniStaff approved " + approvedPoints + " points for event: " + event.getName())
                 .senderName(staff.getUser().getFullName())
                 .receiverName(event.getName())
                 .createdAt(LocalDateTime.now())
                 .build();
+
         walletTransactionRepo.save(tx);
 
-        // 7️⃣ Lưu thay đổi
-        walletRepo.save(eventWallet);
-        eventRepo.save(event);
-
-        // 8️⃣ Gửi thông báo
+        // 8️⃣ Notify
         notificationService.notifyEventApproved(event);
 
-        log.info("✅ Event '{}' approved by {} with {} points",
+        log.info("💰 Event '{}' budget approved by {} with {} points",
                 event.getName(), staff.getUser().getEmail(), approvedPoints);
 
         return mapToResponse(event);
     }
+
 
 
 

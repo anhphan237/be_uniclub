@@ -1,6 +1,7 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
+import com.example.uniclub.enums.WalletStatusEnum;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
@@ -55,9 +56,10 @@ public class Wallet {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private boolean active = true;
+    private WalletStatusEnum status = WalletStatusEnum.ACTIVE;
+
     @PrePersist
     @PreUpdate
     private void validateOwnerConsistency() {
