@@ -1,4 +1,3 @@
-// NEW
 package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.StaffPerformance;
@@ -14,4 +13,17 @@ public interface StaffPerformanceRepository extends JpaRepository<StaffPerforman
             LocalDate start,
             LocalDate end
     );
+
+    boolean existsByMembership_MembershipIdAndEvent_EventId(Long membershipId, Long eventId);
+
+    List<StaffPerformance> findByMembership_MembershipId(Long membershipId);
+
+    List<StaffPerformance> findByEvent_EventId(Long eventId);
+
+    List<StaffPerformance> findByMembership_Club_ClubIdAndEvent_DateBetween(
+            Long clubId,
+            LocalDate start,
+            LocalDate end
+    );
+
 }

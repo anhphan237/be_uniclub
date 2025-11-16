@@ -4,9 +4,13 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.StaffPerformance;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.entity.WalletTransaction;
 import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.enums.PerformanceLevelEnum;
+import com.example.uniclub.exception.ApiException;
+import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -54,6 +59,9 @@ public class EventController {
     private final EventWalletService eventWalletService;
     private final AttendanceService attendanceService;
     private final EventFeedbackService eventFeedbackService;
+    private final EventRepository eventRepo;
+    private final StaffPerformanceService staffPerformanceService;
+
     // =========================================================
     // 🔹 1. CRUD
     // =========================================================
@@ -523,5 +531,178 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.ok(count));
     }
 
+
+
+    @PostMapping("/{eventId}/staff/evaluate")
+    @Operation(
+            summary = "Đánh giá staff trong sự kiện",
+            description = """
+        Leader / Vice-Leader đánh giá hiệu suất làm việc của một staff sau sự kiện.<br><br>
+
+        **Điều kiện:**<br>
+        • Event phải COMPLETED.<br>
+        • Thành viên phải là staff ACTIVE của event.<br>
+        • Chỉ Leader / Vice-Leader CLB chủ trì mới có quyền.<br>
+        • Không được đánh giá staff quá 1 lần cho cùng event.<br><br>
+
+        **Request:** membershipId, eventId, performance (POOR/AVERAGE/GOOD/EXCELLENT), note.<br>
+        **Response:** Thông tin đánh giá vừa tạo.
+        """
+    )
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<StaffPerformanceResponse>> evaluateStaff(
+            @PathVariable Long eventId,
+            @RequestBody @Valid StaffPerformanceRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+
+        // ensure body eventId == path eventId
+        if (!request.eventId().equals(eventId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event ID mismatch.");
+        }
+
+        User evaluator = principal.getUser();
+
+        // Lấy event để tìm clubId
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        Long clubId = event.getHostClub().getClubId();
+
+        StaffPerformance perf = staffPerformanceService.createStaffPerformance(
+                clubId,
+                request,
+                evaluator
+        );
+
+        StaffPerformanceResponse response = StaffPerformanceResponse.builder()
+                .id(perf.getId())
+                .eventStaffId(perf.getEventStaff().getId())
+                .membershipId(perf.getMembership().getMembershipId())
+                .eventId(perf.getEvent().getEventId())
+                .performance(perf.getPerformance())
+                .note(perf.getNote())
+                .createdAt(perf.getCreatedAt())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+
+    @Operation(
+            summary = "Lấy danh sách đánh giá staff của sự kiện",
+            description = """
+            Dành cho **CLUB_LEADER**, **VICE_LEADER**, **UNIVERSITY_STAFF**.<br>
+            Trả về toàn bộ đánh giá staff của sự kiện, gồm performance + note + thời gian đánh giá.<br>
+            Dùng cho thống kê hoặc đánh giá chất lượng tổ chức.
+            """
+    )
+    @GetMapping("/{eventId}/staff/evaluations")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<StaffPerformanceResponse>>> getStaffEvaluations(
+            @PathVariable Long eventId
+    ) {
+
+        List<StaffPerformance> list = staffPerformanceService.getEvaluationsByEvent(eventId);
+
+        List<StaffPerformanceResponse> res = list.stream()
+                .map(sp -> StaffPerformanceResponse.builder()
+                        .id(sp.getId())
+                        .eventStaffId(sp.getEventStaff().getId())
+                        .membershipId(sp.getMembership().getMembershipId())
+                        .eventId(sp.getEvent().getEventId())
+                        .performance(sp.getPerformance())
+                        .note(sp.getNote())
+                        .createdAt(sp.getCreatedAt())
+                        .build())
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.ok(res));
+    }
+    @Operation(
+            summary = "Top staff được đánh giá cao nhất của sự kiện",
+            description = """
+            Dành cho **CLUB_LEADER**, **VICE_LEADER**, **UNIVERSITY_STAFF**.<br>
+            Trả về danh sách staff được đánh giá tốt nhất trong sự kiện, 
+            sắp xếp theo performance giảm dần.
+            """
+    )
+    @GetMapping("/{eventId}/staff/evaluations/top")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<List<StaffPerformanceResponse>>> getTopStaffOfEvent(
+            @PathVariable Long eventId
+    ) {
+
+        List<StaffPerformance> list = staffPerformanceService.getEvaluationsByEvent(eventId);
+
+        List<StaffPerformanceResponse> res = list.stream()
+                .sorted((a, b) -> Double.compare(
+                        mapLevelToScore(b.getPerformance()),
+                        mapLevelToScore(a.getPerformance())
+                ))
+                .map(sp -> StaffPerformanceResponse.builder()
+                        .id(sp.getId())
+                        .eventStaffId(sp.getEventStaff().getId())
+                        .membershipId(sp.getMembership().getMembershipId())
+                        .eventId(sp.getEvent().getEventId())
+                        .performance(sp.getPerformance())
+                        .note(sp.getNote())
+                        .createdAt(sp.getCreatedAt())
+                        .build())
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.ok(res));
+    }
+    private double mapLevelToScore(PerformanceLevelEnum level) {
+        return switch (level) {
+            case POOR -> 0.0;
+            case AVERAGE -> 0.4;
+            case GOOD -> 0.8;
+            case EXCELLENT -> 1.0;
+        };
+    }
+    @Operation(summary = "Điểm trung bình đánh giá staff của sự kiện")
+    @GetMapping("/{eventId}/staff/evaluations/average")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAverageStaffPerformance(
+            @PathVariable Long eventId
+    ) {
+
+        List<StaffPerformance> list = staffPerformanceService.getEvaluationsByEvent(eventId);
+
+        if (list.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(Map.of(
+                    "average", 0,
+                    "count", 0
+            )));
+        }
+
+        double avg = list.stream()
+                .mapToDouble(sp -> mapLevelToScore(sp.getPerformance()))
+                .average()
+                .orElse(0);
+
+        return ResponseEntity.ok(ApiResponse.ok(Map.of(
+                "average", avg,
+                "count", list.size()
+        )));
+    }
+    @Operation(
+            summary = "Tổng hợp đánh giá staff của CLB theo tháng",
+            description = """
+            Leader / Vice-Leader xem thống kê đánh giá staff trong tháng.<br>
+            Bao gồm: Excellent / Good / Average / Poor.
+            """
+    )
+    @GetMapping("/clubs/{clubId}/staff-performance/summary")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    public ResponseEntity<ApiResponse<StaffPerformanceMonthlySummaryResponse>> getStaffPerformanceSummary(
+            @PathVariable Long clubId,
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        var summary = staffPerformanceService.getClubStaffMonthlySummary(clubId, year, month);
+        return ResponseEntity.ok(ApiResponse.ok(summary));
+    }
 
 }
