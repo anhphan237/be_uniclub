@@ -50,7 +50,7 @@ public class CustomUserDetails implements UserDetails {
         return roleName.startsWith("ROLE_") ? roleName.substring(5) : roleName;
     }
 
-    // ✅ SỬA PHẦN NÀY — chuẩn hóa authorities (KHÔNG dùng lambda)
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         if (authorities == null) return List.of();

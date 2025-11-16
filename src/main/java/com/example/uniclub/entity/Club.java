@@ -40,8 +40,9 @@ public class Club {
     private User createdBy;
 
     // 💰 Ví riêng của CLB (liên kết 1–1 với Wallet)
-    @OneToOne(mappedBy = "club", cascade = CascadeType.MERGE)
+    @OneToOne(mappedBy = "club")
     private Wallet wallet;
+
 
     @Builder.Default
     @Column(name = "member_count", nullable = false)

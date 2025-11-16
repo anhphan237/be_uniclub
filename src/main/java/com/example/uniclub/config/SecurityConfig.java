@@ -42,7 +42,7 @@ public class SecurityConfig {
                 // ✅ CORS + CSRF + Stateless Session
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                .cors(Customizer.withDefaults())
+//                .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // ✅ Exception handling (Unauthorized / Forbidden)
@@ -75,6 +75,8 @@ public class SecurityConfig {
                         // ✅ Public data
                         .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events/**")
+                        .hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
 
                         // 👤 Profile & Attendance
                         .requestMatchers("/api/users/profile/**").authenticated()

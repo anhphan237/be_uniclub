@@ -29,6 +29,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
@@ -169,7 +171,7 @@ public class EventServiceImpl implements EventService {
                             .club(c)
                             .status(EventCoHostStatusEnum.PENDING)
                             .build())
-                    .toList();
+                    .collect(Collectors.toCollection(ArrayList::new));
             event.setCoHostRelations(coRelations);
         }
 
