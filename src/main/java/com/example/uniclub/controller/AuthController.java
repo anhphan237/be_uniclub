@@ -218,6 +218,15 @@ public class AuthController {
                 .staff(isStaff)
                 .newUser(user.isFirstLogin())
                 .build();
+// =============================
+// DEBUG LOG — kiểm tra runtime BE
+// =============================
+        System.out.println(">>> DEBUG GOOGLE LOGIN");
+        System.out.println(">>> DEBUG clubId   = " + clubId);
+        System.out.println(">>> DEBUG clubIds  = " + clubIds);
+        System.out.println(">>> DEBUG role     = " + user.getRole().getRoleName());
+        System.out.println(">>> DEBUG email    = " + user.getEmail());
+        System.out.println(">>> DEBUG USING NEW CODE !!!");
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
