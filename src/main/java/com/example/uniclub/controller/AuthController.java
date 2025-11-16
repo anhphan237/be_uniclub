@@ -4,9 +4,11 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.AuthResponse;
 import com.example.uniclub.dto.response.GoogleLoginResponse;
+import com.example.uniclub.entity.Major;
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
 import com.example.uniclub.enums.UserStatusEnum;
+import com.example.uniclub.repository.MajorRepository;
 import com.example.uniclub.repository.RoleRepository;
 import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.security.GoogleTokenVerifier;
@@ -27,6 +29,7 @@ import com.example.uniclub.enums.ClubRoleEnum;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Tag(
         name = "Authentication & Account Management",
@@ -50,6 +53,8 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserService userService;
     private final MembershipRepository membershipRepo;
+    private final MajorRepository majorRepo;
+
 
     // ==========================================================
     // 🟢 1. ĐĂNG NHẬP
@@ -107,14 +112,12 @@ public class AuthController {
             return ResponseEntity.badRequest().body(ApiResponse.error("Missing Google token"));
         }
 
-        // ✅ Verify Google token
         var payload = googleVerifier.verify(googleToken);
         if (payload == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("Invalid Google token"));
         }
 
-        // ✅ Extract user info from Google
         String email = payload.getEmail();
         String name = (String) payload.get("name");
         String picture = (String) payload.get("picture");
@@ -124,14 +127,20 @@ public class AuthController {
         final String finalEmail = email;
         final String finalName = name;
         final String finalPicture = picture;
-        // ✅ Find existing user or create new
-        var user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
+
+        // 🔴 flag để biết có phải user mới vừa được tạo hay không
+        AtomicBoolean isNewUser = new AtomicBoolean(false);
+
+        // ✅ Tìm hoặc tạo user
+        User user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
+            isNewUser.set(true); // đánh dấu là new user
+
             Role studentRole = roleRepo.findByRoleName("STUDENT")
                     .orElseThrow(() -> new RuntimeException("Role STUDENT not found in database"));
 
             User newUser = User.builder()
                     .email(finalEmail)
-                    .passwordHash("{noop}-") // no password needed
+                    .passwordHash("{noop}-") // không cần password cho Google login
                     .fullName(finalName)
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(studentRole)
@@ -149,20 +158,20 @@ public class AuthController {
         // ✅ Generate JWT
         String jwt = jwtUtil.generateToken(user.getEmail());
 
-        // ✅ Lấy danh sách CLB mà user đang tham gia
+        // ✅ Lấy danh sách CLB
         List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
                 .stream()
                 .map(m -> m.getClub().getClubId())
                 .toList();
 
-        // ✅ Kiểm tra user có phải staff CLB nào không
+        // ✅ Check staff
         boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId())
                 .stream()
                 .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER
                         || m.getClubRole() == ClubRoleEnum.VICE_LEADER
                         || m.getClubRole() == ClubRoleEnum.STAFF);
 
-        // ✅ Build DTO cho response
+        // ✅ Build response
         GoogleLoginResponse response = GoogleLoginResponse.builder()
                 .token(jwt)
                 .email(user.getEmail())
@@ -172,10 +181,51 @@ public class AuthController {
                 .role(user.getRole().getRoleName())
                 .clubIds(clubIds)
                 .staff(isStaff)
+                .newUser(user.isFirstLogin())
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+    @PostMapping("/complete-profile")
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<ApiResponse<String>> completeProfile(
+            @Valid @RequestBody CompleteProfileRequest req,
+            Authentication auth
+    ) {
+        String email = auth.getName();
+
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Không cho update nếu đã hoàn thành hồ sơ
+        if (!user.isFirstLogin()) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Profile already completed."));
+        }
+
+        user.setFullName(req.getFullName());
+        user.setPhone(req.getPhone());
+        user.setStudentCode(req.getStudentCode());
+
+        // major
+        if (req.getMajorId() != null) {
+            Major major = majorRepo.findById(req.getMajorId())
+                    .orElseThrow(() -> new RuntimeException("Major not found"));
+            user.setMajor(major);
+        }
+
+        user.setBio(req.getBio());
+        user.setBackgroundUrl(req.getBackgroundUrl());
+
+        // đánh dấu user đã hoàn tất profile
+        user.setFirstLogin(false);
+
+        userRepo.save(user);
+
+        return ResponseEntity.ok(ApiResponse.msg("Profile completed successfully"));
+    }
+
 
     // ==========================================================
     // 🟠 4. QUÊN MẬT KHẨU (PUBLIC)
