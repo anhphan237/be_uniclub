@@ -1,6 +1,9 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.response.PerformanceDetailResponse;
 import com.example.uniclub.entity.MemberMonthlyActivity;
+
+import java.util.List;
 
 public interface ActivityEngineService {
 
@@ -12,4 +15,16 @@ public interface ActivityEngineService {
 
     // Tính lại toàn bộ (tất cả CLB) trong 1 tháng
     void recalculateAllForMonth(int year, int month);
+
+    double calculateMemberScore(Long memberId);
+
+    // Lấy chi tiết điểm (base, multiplier, final)
+    PerformanceDetailResponse calculateMemberScoreDetail(Long memberId);
+
+    MemberMonthlyActivity getMonthlyActivity(Long memberId, int year, int month);
+    List<MemberMonthlyActivity> getClubMonthlyActivities(Long clubId, int year, int month);
+    List<MemberMonthlyActivity> getClubRanking(Long clubId, int year, int month);
+
+
+
 }

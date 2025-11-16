@@ -1,10 +1,12 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.response.PerformanceDetailResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ActivityEngineService;
+import com.example.uniclub.service.MultiplierPolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -29,6 +31,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     private final MultiplierPolicyRepository multiplierPolicyRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+    private final MultiplierPolicyService multiplierPolicyService;
 
     // ==========================================================
     // 🔹 PUBLIC API
@@ -544,6 +547,101 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         if (v < 0) return 0.0;
         if (v > 1) return 1.0;
         return v;
+    }
+    // ==========================================================
+// 🔥 REPLACE REALTIME CALCULATION WITH MONTHLY RESULT
+// ==========================================================
+
+    @Override
+    public double calculateMemberScore(Long memberId) {
+
+        // 1) lấy membership
+        Membership membership = membershipRepo
+                .findActiveMembershipsByUserId(memberId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Active membership not found"));
+
+        // 2) xác định thời gian tháng hiện tại
+        LocalDate now = LocalDate.now();
+        int year = now.getYear();
+        int month = now.getMonthValue();
+
+        // 3) lấy monthly activity đã tính
+        MemberMonthlyActivity monthly = monthlyActivityRepo
+                .findByMembershipAndYearAndMonth(membership, year, month)
+                .orElse(null);
+
+        // 4) nếu chưa có → tự tính monthly 1 lần → rồi trả về
+        if (monthly == null) {
+            monthly = calculateActivityForMembership(membership, year, month);
+        }
+
+        return clamp01(monthly.getFinalScore());
+    }
+
+
+
+    // ==========================================================
+// 🔥 CHI TIẾT PERFORMANCE (BASE / MULTIPLIER / FINAL)
+// ==========================================================
+    @Override
+    public PerformanceDetailResponse calculateMemberScoreDetail(Long memberId) {
+
+        Membership membership = membershipRepo
+                .findActiveMembershipsByUserId(memberId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Active membership not found"));
+
+
+        LocalDate now = LocalDate.now();
+        int year = now.getYear();
+        int month = now.getMonthValue();
+
+        MemberMonthlyActivity monthly = monthlyActivityRepo
+                .findByMembershipAndYearAndMonth(membership, year, month)
+                .orElse(null);
+
+        if (monthly == null) {
+            monthly = calculateActivityForMembership(membership, year, month);
+        }
+
+        return PerformanceDetailResponse.builder()
+                .baseScore(monthly.getBaseScore())
+                .multiplier(monthly.getAppliedMultiplier())
+                .finalScore(monthly.getFinalScore())
+                .build();
+    }
+    @Override
+    public MemberMonthlyActivity getMonthlyActivity(Long memberId, int year, int month) {
+
+        Membership membership = membershipRepo
+                .findActiveMembershipsByUserId(memberId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Active membership not found"));
+
+        return monthlyActivityRepo
+                .findByMembershipAndYearAndMonth(membership, year, month)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "No monthly activity found for this member in the specified month"));
+    }
+    @Override
+    public List<MemberMonthlyActivity> getClubMonthlyActivities(Long clubId, int year, int month) {
+
+        return monthlyActivityRepo
+                .findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+    }
+    @Override
+    public List<MemberMonthlyActivity> getClubRanking(Long clubId, int year, int month) {
+
+        List<MemberMonthlyActivity> list =
+                monthlyActivityRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+
+        list.sort(Comparator.comparingDouble(MemberMonthlyActivity::getFinalScore).reversed());
+
+        return list;
     }
 
 }
