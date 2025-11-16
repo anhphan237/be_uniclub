@@ -139,4 +139,37 @@ public class PerformanceController {
                 activityService.getClubRanking(clubId, year, month)
         );
     }
+
+
+    @Operation(
+            summary = "Tính lại toàn bộ Performance cho một tháng chỉ định",
+            description = """
+                API này dành cho **ADMIN** và **UNIVERSITY_STAFF** để **chạy lại toàn bộ hệ thống điểm Performance** cho cả trường trong một tháng cụ thể.<br><br>
+                
+                Chức năng chính:<br>
+                • Tính lại điểm hoạt động của **mọi thành viên trong tất cả CLB** (event, session, staff rating, penalty).<br>
+                • Cập nhật lại **activityLevel**, **baseScore**, **multiplier**, **finalScore** trong bảng `MemberMonthlyActivity`.<br>
+                • Tính lại và cập nhật **clubMultiplier** của từng CLB theo số lượng event hoàn thành.<br>
+                • Tự chọn **Member of the Month** và **Club of the Month** nếu đủ điều kiện.<br><br>
+
+                👉 Dùng khi:<br>
+                • Data bị sai và cần recalculation<br>
+                • Testing tính toán Performance<br>
+                • Tính thủ công mà không cần chờ scheduler ngày 1<br><br>
+
+                ⚠️ Lưu ý:<br>
+                • API này **không xoá dữ liệu cũ**, chỉ ghi đè lại tháng đó.<br>
+                • Chỉ cho phép gọi bởi ADMIN hoặc University Staff.
+                """
+    )
+
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @PostMapping("/recalculate")
+    public ResponseEntity<String> recalcMonth(
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        activityService.recalculateAllForMonth(year, month);
+        return ResponseEntity.ok("Recalculated performance for " + month + "/" + year);
+    }
 }
