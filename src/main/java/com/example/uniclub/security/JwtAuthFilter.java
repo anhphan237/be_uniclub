@@ -5,12 +5,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -26,40 +28,43 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String header = request.getHeader("Authorization");
-        System.out.println("HEADER AUTH RAW = " + header);
 
-        if (header != null) {
-            header = header.trim();
+        if (header == null || !header.startsWith("Bearer ")) {
+            chain.doFilter(request, response);
+            return;
+        }
 
-            if (header.toLowerCase().startsWith("bearer")) {
-                String token = header.substring(header.indexOf(" ") + 1).trim();
+        String token = header.substring(7);
 
-                try {
-                    String email = jwtUtil.getSubject(token);
+        try {
+            String email = jwtUtil.extractEmail(token);
+            String role = jwtUtil.extractRole(token);
 
-                    if (email != null
-                            && jwtUtil.validateToken(token)
-                            && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (email != null
+                    && SecurityContextHolder.getContext().getAuthentication() == null
+                    && jwtUtil.validateToken(token)) {
 
-                        var userDetails = userDetailsService.loadUserByUsername(email);
+                var userDetails = userDetailsService.loadUserByUsername(email);
 
-                        var authToken = new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
+                var authorities = List.of(
+                        new SimpleGrantedAuthority("ROLE_" + role)
+                );
 
-                        authToken.setDetails(
-                                new WebAuthenticationDetailsSource().buildDetails(request)
-                        );
+                var authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, authorities
+                );
 
-                        SecurityContextHolder.getContext().setAuthentication(authToken);
-                    }
+                authToken.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request)
+                );
 
-                } catch (Exception ex) {
-                    System.out.println("JWT Error: " + ex.getMessage());
-                }
+                SecurityContextHolder.getContext().setAuthentication(authToken);
             }
+
+        } catch (Exception ex) {
+            System.out.println("JWT ERROR: " + ex.getMessage());
         }
 
         chain.doFilter(request, response);
     }
-
 }
