@@ -92,7 +92,8 @@ public class AttendanceController {
                     .body(ApiResponse.msg("Unauthorized"));
 
         String jwt = authHeader.substring(7);
-        String email = jwtUtil.getSubject(jwt);
+        String email = jwtUtil.extractEmail(jwt);
+
         attendanceService.checkInWithToken(eventJwtToken, email);
 
         return ResponseEntity.ok(ApiResponse.msg("Checked-in successfully"));
@@ -126,7 +127,8 @@ public class AttendanceController {
                     .body(ApiResponse.msg("Unauthorized"));
 
         String jwt = authHeader.substring(7);
-        String email = jwtUtil.getSubject(jwt);
+        String email = jwtUtil.extractEmail(jwt);
+
         attendanceService.scanEventPhase(qrToken, email);
 
         return ResponseEntity.ok(ApiResponse.msg("✅ Scan success"));
