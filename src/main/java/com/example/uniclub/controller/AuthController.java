@@ -130,12 +130,12 @@ public class AuthController {
         }
 
         // =============================
-        // TÌM USER CHÍNH XÁC TRONG DB
+        // FIND USER IN DB
         // =============================
         User user = userRepo.findByEmail(email).orElse(null);
 
         if (user == null) {
-            // Google user mới → tạo STUDENT
+            // Google new → create STUDENT
             Role studentRole = roleRepo.findByRoleName("STUDENT")
                     .orElseThrow(() -> new RuntimeException("Role STUDENT not found"));
 
@@ -153,7 +153,7 @@ public class AuthController {
         }
 
         // =============================
-        // CẬP NHẬT THIẾU (name/avatar)
+        // UPDATE NAME / AVATAR IF MISSING
         // =============================
         boolean updated = false;
 
@@ -169,7 +169,7 @@ public class AuthController {
         if (updated) userRepo.save(user);
 
         // =============================
-        // TẠO JWT CHỨA ROLE (QUAN TRỌNG)
+        // JWT WITH ROLE
         // =============================
         String jwt = jwtUtil.generateToken(
                 user.getEmail(),
@@ -177,15 +177,18 @@ public class AuthController {
         );
 
         // =============================
-        // LẤY CLB
+        // GET CLUB MEMBERSHIPS
         // =============================
         List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
                 .stream()
                 .map(m -> m.getClub().getClubId())
                 .toList();
 
+        // Leader/staff = 1 CLB → lấy cái đầu
+        Long clubId = clubIds.isEmpty() ? null : clubIds.get(0);
+
         // =============================
-        // CHECK STAFF
+        // CHECK STAFF / LEADER PRIVILEGE
         // =============================
         boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId())
                 .stream()
@@ -196,7 +199,7 @@ public class AuthController {
                 );
 
         // =============================
-        // TRẢ RESPONSE
+        // BUILD RESPONSE (ĐỦ 2 LOẠI CLUB)
         // =============================
         GoogleLoginResponse response = GoogleLoginResponse.builder()
                 .token(jwt)
@@ -205,13 +208,20 @@ public class AuthController {
                 .avatar(user.getAvatarUrl())
                 .userId(user.getUserId())
                 .role(user.getRole().getRoleName())
+
+                // leader/staff dùng
+                .clubId(clubId)
+
+                // student dùng
                 .clubIds(clubIds)
+
                 .staff(isStaff)
                 .newUser(user.isFirstLogin())
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
 
 
     @PostMapping("/complete-profile")
