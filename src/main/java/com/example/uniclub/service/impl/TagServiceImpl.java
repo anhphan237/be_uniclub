@@ -21,11 +21,25 @@ public class TagServiceImpl implements TagService {
 
     @Override
     public Tag createTagIfNotExists(String name) {
-        return tagRepository.findByNameIgnoreCase(name)
-                .orElseGet(() -> tagRepository.save(
-                        Tag.builder().name(name.toLowerCase()).build()
-                ));
+        if (name == null || name.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Tag name is required.");
+        }
+
+        // Normalize
+        String normalized = name.trim().toLowerCase();
+
+        // Check exists
+        if (tagRepository.existsByNameIgnoreCase(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Tag already exists.");
+        }
+
+        Tag tag = Tag.builder()
+                .name(normalized)
+                .build();
+
+        return tagRepository.save(tag);
     }
+
 
     @Override
     public List<Tag> getAllTags() {
@@ -59,21 +73,21 @@ public class TagServiceImpl implements TagService {
         // Nếu tag là core → CHỈ cho chỉnh sửa giá trị core
         if (isCore) {
 
-            // Nếu người dùng cố đổi name → chặn
+            // Không cho đổi name
             if (request.getName() != null && !request.getName().isBlank()
                     && !request.getName().equals(tag.getName())) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
                         "Core tag cannot change name.");
             }
 
-            // Nếu cố đổi description → chặn
+            // Không cho đổi description
             if (request.getDescription() != null
                     && !request.getDescription().equals(tag.getDescription())) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
                         "Core tag cannot change description.");
             }
 
-            // CHỈ cho phép đổi core
+            // CHỈ cho phép đổi core flag
             if (request.getCore() != null) {
                 tag.setCore(request.getCore());
             }
@@ -83,12 +97,16 @@ public class TagServiceImpl implements TagService {
         }
 
         // Nếu KHÔNG phải core → cập nhật như bình thường
-        // Update name
+        // Update name (có normalize)
         if (request.getName() != null && !request.getName().isBlank()) {
-            if (tagRepository.existsByNameIgnoreCaseAndTagIdNot(request.getName(), id)) {
+
+            String normalized = request.getName().trim().toLowerCase();
+
+            if (tagRepository.existsByNameIgnoreCaseAndTagIdNot(normalized, id)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Tag name already exists.");
             }
-            tag.setName(request.getName());
+
+            tag.setName(normalized);
         }
 
         // Update description
@@ -104,5 +122,6 @@ public class TagServiceImpl implements TagService {
         tagRepository.save(tag);
         return TagResponse.from(tag);
     }
+
 
 }
