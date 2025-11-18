@@ -6,9 +6,9 @@ spring:
     name: uniclub
 
   datasource:
-    url: jdbc:postgresql://ep-icy-resonance-a1pfqxdl-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+    url: jdbc:postgresql://ep-frosty-term-a1wkjyzt-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
     username: neondb_owner
-    password: npg_Ov8aHyTuSP0E
+    password: npg_XLoRp9IkDTx0
     driver-class-name: org.postgresql.Driver
 
   data:
