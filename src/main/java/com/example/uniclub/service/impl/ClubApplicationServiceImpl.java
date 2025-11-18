@@ -135,6 +135,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .club(club)
                 .ownerType(WalletOwnerTypeEnum.CLUB)
                 .balancePoints(0L)
+                .status(WalletStatusEnum.ACTIVE)
                 .build();
         walletRepo.save(wallet);
         club.setWallet(wallet);

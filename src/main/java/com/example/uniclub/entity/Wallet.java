@@ -23,6 +23,7 @@ public class Wallet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long walletId;
 
+    @Builder.Default
     @Column(nullable = false)
     private Long balancePoints = 0L;
 
@@ -56,8 +57,11 @@ public class Wallet {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private WalletStatusEnum status = WalletStatusEnum.ACTIVE;
 
     @PrePersist

@@ -21,13 +21,15 @@ public class Club {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "major_id", nullable = false)
     private Major major;
 
-    @Column(name = "vision", length = 500)
+    @Column(columnDefinition = "TEXT")
     private String vision;
 
     // 👤 User làm chủ nhiệm CLB
