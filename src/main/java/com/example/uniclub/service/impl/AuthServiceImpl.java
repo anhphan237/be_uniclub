@@ -45,6 +45,7 @@ public class AuthServiceImpl {
     // 🔹 Đăng nhập
     // ==============================================
     public AuthResponse login(LoginRequest req) {
+
         // === DEBUG LOGIN ===
         System.out.println("🟦 Email input: " + req.email());
         System.out.println("🟦 Password input: " + req.password());
@@ -53,8 +54,8 @@ public class AuthServiceImpl {
             boolean match = passwordEncoder.matches(req.password(), u.getPasswordHash());
             System.out.println("🟩 Password matches (BCrypt): " + match);
         });
-// =====================
 
+        // =====================
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.email(), req.password()));
 
@@ -73,36 +74,22 @@ public class AuthServiceImpl {
         Boolean isClubStaff = null;
 
         // ==============================================
-        // 🔸 CLUB_LEADER → lấy CLB có staff và ACTIVE
+        // 🔸 CLUB_LEADER → lấy CLB ACTIVE + staff = true
         // ==============================================
         if ("CLUB_LEADER".equals(roleName)) {
-            var leaderMembership = membershipRepository.findByUser_UserId(user.getUserId())
-                    .stream()
-                    .filter(Membership::isStaff)
-                    .filter(m -> m.getState() == MembershipStateEnum.ACTIVE) // ✅ So sánh Enum đúng cách
-                    .findFirst()
-                    .orElse(null);
-
-            if (leaderMembership != null) {
-                clubId = leaderMembership.getClub().getClubId();
-            }
+            clubId = membershipRepository.findActiveStaffClubId(user.getUserId());
         }
 
         // ==============================================
-        // 🔸 STUDENT → lấy tất cả CLB có state = ACTIVE
+        // 🔸 STUDENT → lấy tất cả CLB ACTIVE (chỉ ID)
         // ==============================================
         else if ("STUDENT".equals(roleName)) {
-            var memberships = membershipRepository.findByUser_UserId(user.getUserId())
-                    .stream()
-                    .filter(m -> m.getState() == MembershipStateEnum.ACTIVE) // ✅ Lọc ACTIVE
-                    .toList();
 
-            clubIds = memberships.stream()
-                    .map(m -> m.getClub().getClubId())
-                    .toList();
+            // Lấy danh sách CLB ACTIVE của user → chỉ trả về clubId
+            clubIds = membershipRepository.findActiveClubIds(user.getUserId());
 
-            boolean hasStaffRole = memberships.stream().anyMatch(Membership::isStaff);
-            isClubStaff = hasStaffRole;
+            // Kiểm tra xem có CLB nào user là staff không
+            isClubStaff = membershipRepository.findActiveStaffClubId(user.getUserId()) != null;
         }
 
         // ==============================================
@@ -124,6 +111,7 @@ public class AuthServiceImpl {
 
         return responseBuilder.build();
     }
+
 
     // ==============================================
     // 🔹 Đăng ký

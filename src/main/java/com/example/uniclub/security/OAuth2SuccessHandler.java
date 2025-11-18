@@ -2,10 +2,10 @@ package com.example.uniclub.security;
 
 import com.example.uniclub.entity.Role;
 import com.example.uniclub.entity.User;
-import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.UserStatusEnum;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.UserRepository;
+import com.example.uniclub.service.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -31,6 +30,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepo;
     private final MembershipRepository membershipRepo;
+    private final EmailService emailService;
+
     @Value("${app.oauth2.redirect-success}")
     private String redirectSuccessUrl;
 
@@ -54,11 +55,14 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             }
 
             long studentRoleId = 5L;
+
             Optional<User> userOpt = userRepo.findByEmail(email);
             User user;
+            boolean isNewUser = false;
 
             if (userOpt.isEmpty()) {
-                // 🧩 Tạo user mới nếu chưa có
+                // 🧩 Tạo user mới (Google login lần đầu)
+                isNewUser = true;
                 user = User.builder()
                         .email(email)
                         .passwordHash("{noop}-")
@@ -70,9 +74,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                         .isFirstLogin(true)
                         .build();
                 userRepo.save(user);
+
+                // ⭐ Gửi email welcome
+                sendWelcomeEmail(user);
+
             } else {
                 user = userOpt.get();
+
                 boolean updated = false;
+
                 if (name != null && !name.equals(user.getFullName())) {
                     user.setFullName(name);
                     updated = true;
@@ -81,39 +91,33 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                     user.setAvatarUrl(picture);
                     updated = true;
                 }
+
                 if (updated) userRepo.save(user);
             }
 
             // 🔐 Sinh JWT token
             String token = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
+            // ⭐ Tránh load Membership entity → chỉ lấy clubId
+            List<Long> clubIds = membershipRepo.findActiveClubIds(user.getUserId());
 
-            // ✅ Lấy danh sách CLB mà user đang tham gia (ACTIVE hoặc APPROVED)
-            List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
-                    .stream()
-                    .map(m -> m.getClub().getClubId())
-                    .collect(Collectors.toList());
+            boolean isStaff = membershipRepo.findActiveStaffClubId(user.getUserId()) != null;
 
-            // ✅ Kiểm tra user có phải staff (LEADER / VICE_LEADER / STAFF)
-            boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId()).stream()
-                    .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER
-                            || m.getClubRole() == ClubRoleEnum.VICE_LEADER
-                            || m.getClubRole() == ClubRoleEnum.STAFF);
-
-            // ✅ Encode danh sách CLB để truyền qua FE
             String clubIdsParam = clubIds.isEmpty()
                     ? ""
-                    : URLEncoder.encode(clubIds.stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(",")), StandardCharsets.UTF_8);
+                    : URLEncoder.encode(
+                    String.join(",", clubIds.stream().map(String::valueOf).toList()),
+                    StandardCharsets.UTF_8
+            );
 
-            // ✅ Redirect URL trả luôn thông tin cần thiết cho FE
-            String redirect = String.format("%s?token=%s&role=%s&clubIds=%s&staff=%s",
+            String redirect = String.format(
+                    "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s",
                     redirectSuccessUrl,
                     token,
                     user.getRole().getRoleName(),
                     clubIdsParam,
-                    isStaff
+                    isStaff,
+                    isNewUser
             );
 
             response.sendRedirect(redirect);
@@ -124,8 +128,22 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
     }
 
+    // ⭐ Gửi email chào mừng
+    private void sendWelcomeEmail(User user) {
+        String subject = "[UniClub] Welcome to UniClub 🎉";
+        String content = """
+                <h2>Hello %s,</h2>
+                <p>Welcome to <b>UniClub</b>! Your account has been successfully created via Google Login. 🎉</p>
+                <p>You can now explore clubs, join events, and start earning reward points within the system.</p>
+                <p>👉 Access UniClub here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
+                <br>
+                <p>Best regards,<br><b>UniClub Vietnam Team</b></p>
+                """.formatted(user.getFullName() != null ? user.getFullName() : "there");
 
-    // 🧮 Sinh student code ngẫu nhiên hoặc từ email
+        emailService.sendEmail(user.getEmail(), subject, content);
+    }
+
+    // 🧮 Generate student code
     private String generateStudentCode(String email) {
         String prefix = email.split("@")[0];
         if (email.endsWith("@fpt.edu.vn") || email.endsWith("@fe.edu.vn")) {

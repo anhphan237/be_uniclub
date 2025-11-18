@@ -115,5 +115,23 @@ WHERE m.user.userId = :userId
             Long clubId,
             List<MembershipStateEnum> states
     );
+    // Lấy tất cả CLB ACTIVE của user (cho STUDENT)
+    @Query("""
+    SELECT m.club.clubId
+    FROM Membership m
+    WHERE m.user.userId = :userId
+      AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+""")
+    List<Long> findActiveClubIds(@Param("userId") Long userId);
+
+    // Lấy CLB user đang là staff/leader (cho CLUB_LEADER)
+    @Query("""
+    SELECT m.club.clubId
+    FROM Membership m
+    WHERE m.user.userId = :userId
+      AND m.staff = true
+      AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+""")
+    Long findActiveStaffClubId(@Param("userId") Long userId);
 
 }
