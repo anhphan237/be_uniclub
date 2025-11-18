@@ -39,6 +39,8 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private static final Map<String, OtpInfo> otpCache = new ConcurrentHashMap<>();
+    private final OtpTokenRepository otpTokenRepository;
+
     // ============================================================
     // 🟢 1. Sinh viên nộp đơn xin tạo CLB
     // ============================================================
@@ -336,41 +338,48 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
 
     @Override
     public void saveOtp(String email, String otp) {
-        otpCache.put(email, new OtpInfo(otp, LocalDateTime.now().plusHours(48)));
+        // Xóa OTP cũ (nếu có)
+        otpTokenRepository.deleteByEmail(email);
+
+        OtpToken token = OtpToken.builder()
+                .email(email)
+                .otp(otp)
+                .expiresAt(LocalDateTime.now().plusHours(48))
+                .build();
+
+        otpTokenRepository.save(token);
+
+        System.out.println(">>> OTP SAVED TO DB: " + email + " = " + otp);
     }
+
 
     @Override
     public void verifyOtp(String email, String otp) {
 
-        System.out.println("\n===================== OTP DEBUG =====================");
-        System.out.println("Verify request email       = " + email);
-        System.out.println("OTP in cache (keys)        = " + otpCache.keySet());
-        System.out.println("OTP provided by frontend   = " + otp);
-        System.out.println("======================================================");
+        System.out.println("\n========= OTP VERIFY DEBUG ==========");
+        System.out.println("Email to verify = " + email);
+        System.out.println("OTP provided = " + otp);
+        System.out.println("======================================");
 
-        OtpInfo info = otpCache.get(email);
+        OtpToken token = otpTokenRepository.findByEmail(email)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                        "You have not been issued an OTP."));
 
-        if (info == null) {
-            System.out.println(">>> RESULT: NO OTP FOUND for this email!");
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You have not been issued an OTP.");
-        }
-
-        System.out.println("OTP stored for this email  = " + info.getOtp());
-        System.out.println("OTP expires at             = " + info.getExpiresAt());
-
-        if (info.getExpiresAt().isBefore(LocalDateTime.now())) {
-            System.out.println(">>> RESULT: OTP EXPIRED!");
+        if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
+            otpTokenRepository.deleteByEmail(email);
             throw new ApiException(HttpStatus.BAD_REQUEST, "Your OTP has expired.");
         }
 
-        if (!info.getOtp().equals(otp)) {
-            System.out.println(">>> RESULT: OTP DOES NOT MATCH!");
+        if (!token.getOtp().equals(otp)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid OTP code.");
         }
 
-        System.out.println(">>> RESULT: OTP VERIFIED SUCCESSFULLY!");
-        otpCache.remove(email);
+        // OTP hợp lệ → Xóa luôn để tránh reuse
+        otpTokenRepository.deleteByEmail(email);
+
+        System.out.println(">>> OTP VERIFIED SUCCESSFULLY!");
     }
+
 
 
     @Override
