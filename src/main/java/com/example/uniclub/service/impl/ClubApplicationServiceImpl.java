@@ -46,10 +46,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     public ClubApplicationResponse createOnline(Long proposerId, ClubApplicationCreateRequest req) {
         User proposer = userRepo.findById(proposerId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-        if (!proposer.getEmail().equalsIgnoreCase(req.studentEmail())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Student email does not match your account. OTP is invalid for this email.");
-        }
+
         if (appRepo.findByClubName(req.clubName()).isPresent())
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 
@@ -71,6 +68,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         appRepo.save(app);
         return ClubApplicationResponse.fromEntity(app);
     }
+
 
     // ============================================================
     // 🟠 2. UniStaff duyệt đơn (approve / reject)
@@ -343,16 +341,37 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
 
     @Override
     public void verifyOtp(String email, String otp) {
-        OtpInfo info = otpCache.get(email);
-        if (info == null)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You have not been issued an OTP.");
-        if (info.getExpiresAt().isBefore(LocalDateTime.now()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Your OTP has expired.");
-        if (!info.getOtp().equals(otp))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid OTP code.");
 
+        System.out.println("\n===================== OTP DEBUG =====================");
+        System.out.println("Verify request email       = " + email);
+        System.out.println("OTP in cache (keys)        = " + otpCache.keySet());
+        System.out.println("OTP provided by frontend   = " + otp);
+        System.out.println("======================================================");
+
+        OtpInfo info = otpCache.get(email);
+
+        if (info == null) {
+            System.out.println(">>> RESULT: NO OTP FOUND for this email!");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You have not been issued an OTP.");
+        }
+
+        System.out.println("OTP stored for this email  = " + info.getOtp());
+        System.out.println("OTP expires at             = " + info.getExpiresAt());
+
+        if (info.getExpiresAt().isBefore(LocalDateTime.now())) {
+            System.out.println(">>> RESULT: OTP EXPIRED!");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Your OTP has expired.");
+        }
+
+        if (!info.getOtp().equals(otp)) {
+            System.out.println(">>> RESULT: OTP DOES NOT MATCH!");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid OTP code.");
+        }
+
+        System.out.println(">>> RESULT: OTP VERIFIED SUCCESSFULLY!");
         otpCache.remove(email);
     }
+
 
     @Override
     public User findStudentByEmail(String email) {

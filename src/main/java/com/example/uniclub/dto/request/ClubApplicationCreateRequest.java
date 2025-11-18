@@ -8,6 +8,6 @@ public record ClubApplicationCreateRequest(
         String description,
         @NotNull Long majorId,
         String vision,
-        @NotBlank String proposerReason,
-        @NotBlank String studentEmail
+        @NotBlank String proposerReason
+
 ) {}
