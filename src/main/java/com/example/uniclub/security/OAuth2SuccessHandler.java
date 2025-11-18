@@ -70,7 +70,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(picture)
                         .status(UserStatusEnum.ACTIVE.name())
                         .role(Role.builder().roleId(studentRoleId).build())
-                        .studentCode(generateStudentCode(email))
+
                         .isFirstLogin(true)
                         .build();
                 userRepo.save(user);
@@ -143,12 +143,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         emailService.sendEmail(user.getEmail(), subject, content);
     }
 
-    // 🧮 Generate student code
-    private String generateStudentCode(String email) {
-        String prefix = email.split("@")[0];
-        if (email.endsWith("@fpt.edu.vn") || email.endsWith("@fe.edu.vn")) {
-            return prefix.toUpperCase();
-        }
-        return "STU-" + Math.abs(email.hashCode() % 1000000);
-    }
+
 }
