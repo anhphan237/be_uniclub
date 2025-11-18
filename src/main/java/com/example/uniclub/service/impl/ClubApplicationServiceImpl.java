@@ -46,7 +46,10 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     public ClubApplicationResponse createOnline(Long proposerId, ClubApplicationCreateRequest req) {
         User proposer = userRepo.findById(proposerId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-
+        if (!proposer.getEmail().equalsIgnoreCase(req.studentEmail())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Student email does not match your account. OTP is invalid for this email.");
+        }
         if (appRepo.findByClubName(req.clubName()).isPresent())
             throw new ApiException(HttpStatus.CONFLICT, "Club name already exists");
 

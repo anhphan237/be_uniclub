@@ -56,7 +56,7 @@ public class ClubApplicationController {
             @RequestParam String otp
     ) {
         // 🔍 Kiểm tra OTP hợp lệ
-        clubApplicationService.verifyOtp(user.getUsername(), otp);
+        clubApplicationService.verifyOtp(req.studentEmail(), otp);
 
         // ✅ Nếu OTP đúng → tạo đơn
         return ResponseEntity.ok(ApiResponse.ok(
