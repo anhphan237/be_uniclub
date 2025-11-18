@@ -3,6 +3,7 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.WalletOwnerTypeEnum;
+import com.example.uniclub.enums.WalletStatusEnum;
 import com.example.uniclub.enums.WalletTransactionTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.WalletRepository;
@@ -51,8 +52,10 @@ public class WalletServiceImpl implements WalletService {
                         .club(club)
                         .ownerType(WalletOwnerTypeEnum.CLUB)
                         .balancePoints(0L)
+                        .status(WalletStatusEnum.ACTIVE)
                         .build()));
     }
+
 
     @Override
     @Transactional
@@ -62,8 +65,10 @@ public class WalletServiceImpl implements WalletService {
                         .user(user)
                         .ownerType(WalletOwnerTypeEnum.USER)
                         .balancePoints(0L)
+                        .status(WalletStatusEnum.ACTIVE)
                         .build()));
     }
+
 
     // ================================================================
     // 💰 TĂNG / GIẢM ĐIỂM
