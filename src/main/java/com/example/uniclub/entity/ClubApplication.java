@@ -19,8 +19,10 @@ public class ClubApplication {
     private Long applicationId;
 
     // ====== Thông tin CLB ======
+    @Column(length = 255)
     private String clubName;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     // 🔹 Thay String major → ManyToOne Major
@@ -28,7 +30,10 @@ public class ClubApplication {
     @JoinColumn(name = "major_id", nullable = false)
     private Major major;
 
+    @Column(columnDefinition = "TEXT")
     private String vision;
+
+    @Column(columnDefinition = "TEXT")
     private String proposerReason;
 
     @Enumerated(EnumType.STRING)
@@ -48,6 +53,7 @@ public class ClubApplication {
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 
+    @Column(columnDefinition = "TEXT")
     private String rejectReason;
 
     private LocalDateTime createdAt;
