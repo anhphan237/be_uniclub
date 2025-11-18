@@ -118,60 +118,89 @@ public class AuthController {
                     .body(ApiResponse.error("Invalid Google token"));
         }
 
-        String email = payload.getEmail();
+        // =============================
+        // NORMALIZE EMAIL
+        // =============================
+        String email = payload.getEmail().trim().toLowerCase();
         String name = (String) payload.get("name");
         String picture = (String) payload.get("picture");
+
         if (picture == null) {
             picture = "https://res.cloudinary.com/uniclub/image/upload/v1/defaults/default-avatar.png";
         }
-        final String finalEmail = email;
-        final String finalName = name;
-        final String finalPicture = picture;
 
-        // 🔴 flag để biết có phải user mới vừa được tạo hay không
-        AtomicBoolean isNewUser = new AtomicBoolean(false);
+        // =============================
+        // FIND USER IN DB
+        // =============================
+        User user = userRepo.findByEmail(email).orElse(null);
 
-        // ✅ Tìm hoặc tạo user
-        User user = userRepo.findByEmail(finalEmail).orElseGet(() -> {
-            isNewUser.set(true); // đánh dấu là new user
-
+        if (user == null) {
+            // Google new → create STUDENT
             Role studentRole = roleRepo.findByRoleName("STUDENT")
-                    .orElseThrow(() -> new RuntimeException("Role STUDENT not found in database"));
+                    .orElseThrow(() -> new RuntimeException("Role STUDENT not found"));
 
-            User newUser = User.builder()
-                    .email(finalEmail)
-                    .passwordHash("{noop}-") // không cần password cho Google login
-                    .fullName(finalName)
+            user = User.builder()
+                    .email(email)
+                    .fullName(name)
+                    .avatarUrl(picture)
+                    .passwordHash("{noop}-")
                     .status(UserStatusEnum.ACTIVE.name())
                     .role(studentRole)
-                    .avatarUrl(finalPicture)
+                    .isFirstLogin(true)
                     .build();
 
-            return userRepo.save(newUser);
-        });
+            userRepo.save(user);
+        }
 
+        // =============================
+        // UPDATE NAME / AVATAR IF MISSING
+        // =============================
         boolean updated = false;
-        if (user.getFullName() == null) { user.setFullName(name); updated = true; }
-        if (user.getAvatarUrl() == null) { user.setAvatarUrl(picture); updated = true; }
+
+        if (user.getFullName() == null) {
+            user.setFullName(name);
+            updated = true;
+        }
+        if (user.getAvatarUrl() == null) {
+            user.setAvatarUrl(picture);
+            updated = true;
+        }
+
         if (updated) userRepo.save(user);
 
-        // ✅ Generate JWT
-        String jwt = jwtUtil.generateToken(user.getEmail());
+        // =============================
+        // JWT WITH ROLE
+        // =============================
+        String jwt = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().getRoleName()
+        );
 
-        // ✅ Lấy danh sách CLB
+        // =============================
+        // GET CLUB MEMBERSHIPS
+        // =============================
         List<Long> clubIds = membershipRepo.findActiveMembershipsByUserId(user.getUserId())
                 .stream()
                 .map(m -> m.getClub().getClubId())
                 .toList();
 
-        // ✅ Check staff
+        // Leader/staff = 1 CLB → lấy cái đầu
+        Long clubId = clubIds.isEmpty() ? null : clubIds.get(0);
+
+        // =============================
+        // CHECK STAFF / LEADER PRIVILEGE
+        // =============================
         boolean isStaff = membershipRepo.findByUser_UserId(user.getUserId())
                 .stream()
-                .anyMatch(m -> m.getClubRole() == ClubRoleEnum.LEADER
-                        || m.getClubRole() == ClubRoleEnum.VICE_LEADER
-                        || m.getClubRole() == ClubRoleEnum.STAFF);
+                .anyMatch(m ->
+                        m.getClubRole() == ClubRoleEnum.LEADER ||
+                                m.getClubRole() == ClubRoleEnum.VICE_LEADER ||
+                                m.getClubRole() == ClubRoleEnum.STAFF
+                );
 
-        // ✅ Build response
+        // =============================
+        // BUILD RESPONSE (ĐỦ 2 LOẠI CLUB)
+        // =============================
         GoogleLoginResponse response = GoogleLoginResponse.builder()
                 .token(jwt)
                 .email(user.getEmail())
@@ -179,13 +208,30 @@ public class AuthController {
                 .avatar(user.getAvatarUrl())
                 .userId(user.getUserId())
                 .role(user.getRole().getRoleName())
+
+                // leader/staff dùng
+                .clubId(clubId)
+
+                // student dùng
                 .clubIds(clubIds)
+
                 .staff(isStaff)
                 .newUser(user.isFirstLogin())
                 .build();
+// =============================
+// DEBUG LOG — kiểm tra runtime BE
+// =============================
+        System.out.println(">>> DEBUG GOOGLE LOGIN");
+        System.out.println(">>> DEBUG clubId   = " + clubId);
+        System.out.println(">>> DEBUG clubIds  = " + clubIds);
+        System.out.println(">>> DEBUG role     = " + user.getRole().getRoleName());
+        System.out.println(">>> DEBUG email    = " + user.getEmail());
+        System.out.println(">>> DEBUG USING NEW CODE !!!");
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+
 
     @PostMapping("/complete-profile")
     @SecurityRequirement(name = "bearerAuth")

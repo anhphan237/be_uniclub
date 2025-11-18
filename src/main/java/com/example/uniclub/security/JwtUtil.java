@@ -12,6 +12,7 @@ import io.jsonwebtoken.security.WeakKeyException;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.Map;
 import java.util.logging.Logger;
 
 @Component
@@ -23,7 +24,7 @@ public class JwtUtil {
     private final long expirationMs;
 
     @Autowired
-    private UserRepository userRepo; // ✅ Thêm để lấy user từ DB
+    private UserRepository userRepo;
 
     public JwtUtil(
             @Value("${app.jwt.secret}") String secret,
@@ -46,23 +47,50 @@ public class JwtUtil {
         logger.info("JwtUtil initialized successfully. Expiration(ms): " + expirationMs);
     }
 
-    // 🔹 Sinh token JWT
-    public String generateToken(String subject) {
+    // ==============================================================
+    //  🔥  GENERATE TOKEN CHỨA EMAIL + ROLE
+    // ==============================================================
+    public String generateToken(String email, String role) {
         Date now = new Date();
         Date exp = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
-                .setSubject(subject)
+                .setClaims(Map.of("role", role))  // <─ LƯU ROLE VÀO JWT
+                .setSubject(email)                // email
                 .setIssuedAt(now)
                 .setExpiration(exp)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // 🔹 Kiểm tra token hợp lệ
+    // ==============================================================
+    //  ✔ BACKWARD COMPATIBLE: method cũ (1 tham số) vẫn dùng được
+    // ==============================================================
+//    public String generateToken(String email) {
+//        return generateToken(email, "STUDENT");   // fallback
+//    }
+
+    // ==============================================================
+    //  GET EMAIL (subject)
+    // ==============================================================
+    public String extractEmail(String token) {
+        return getClaims(token).getSubject();
+    }
+
+    // ==============================================================
+    //  GET ROLE từ JWT
+    // ==============================================================
+    public String extractRole(String token) {
+        Object roleObj = getClaims(token).get("role");
+        return roleObj != null ? roleObj.toString() : null;
+    }
+
+    // ==============================================================
+    //  VALIDATE TOKEN
+    // ==============================================================
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            getClaims(token); // parse được → hợp lệ
             return true;
         } catch (JwtException e) {
             logger.warning("JWT validation failed: " + e.getMessage());
@@ -70,29 +98,34 @@ public class JwtUtil {
         }
     }
 
-    // 🔹 Lấy subject (email/username) từ token
-    public String getSubject(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody().getSubject();
+    // ==============================================================
+    //  INTERNAL: PARSE FULL CLAIMS
+    // ==============================================================
+    private Claims getClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 
     // ==============================================================
-    // ✅ Helper: Lấy User từ HttpServletRequest (Bearer token)
+    //  ✔ GET USER TỪ REQUEST (giữ nguyên logic cũ)
     // ==============================================================
     public User getUserFromRequest(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return null;
         }
 
         String token = authHeader.substring(7);
+
         if (!validateToken(token)) {
             return null;
         }
 
-        String email = getSubject(token);
-        if (email == null) {
-            return null;
-        }
+        String email = extractEmail(token);
 
         return userRepo.findByEmail(email).orElse(null);
     }

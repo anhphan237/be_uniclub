@@ -15,6 +15,7 @@ public class GoogleLoginResponse {
     private Long userId;
     private String role;
     private boolean staff;
+    private Long clubId;
     private List<Long> clubIds;
     private boolean newUser;
 }

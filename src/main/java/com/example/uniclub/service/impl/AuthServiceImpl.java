@@ -61,7 +61,11 @@ public class AuthServiceImpl {
         var cud = (CustomUserDetails) auth.getPrincipal();
         var user = cud.getUser();
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().getRoleName()
+        );
+
         String roleName = user.getRole().getRoleName();
 
         Long clubId = null;
@@ -167,7 +171,11 @@ public class AuthServiceImpl {
         emailService.sendEmail(user.getEmail(), subject, content);
 
         // 🔹 Tiếp tục phần cũ
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().getRoleName()
+        );
+
 
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)

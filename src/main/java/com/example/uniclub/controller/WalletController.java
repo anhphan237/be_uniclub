@@ -60,7 +60,7 @@ public class WalletController {
         if (token == null || !token.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token");
 
-        String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
+        String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
@@ -96,7 +96,7 @@ public class WalletController {
         if (token == null || !token.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
 
-        String email = jwtUtil.getSubject(token.replace("Bearer ", ""));
+        String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));
         User operator = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Operator not found"));
 
@@ -147,7 +147,7 @@ public class WalletController {
         if (token == null || !token.startsWith("Bearer "))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
 
-        jwtUtil.getSubject(token.replace("Bearer ", "")); // check token hợp lệ
+        String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));// check token hợp lệ
 
         Wallet wallet = walletService.getOrCreateClubWallet(
                 clubRepo.findById(clubId)

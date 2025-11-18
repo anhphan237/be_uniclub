@@ -60,7 +60,7 @@ public class MemberApplicationController {
             HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         String token = authHeader.replace("Bearer ", "");
-        String email = jwtUtil.getSubject(token);
+        String email = jwtUtil.extractEmail(token);
         return ResponseEntity.ok(service.createByEmail(principal.getUsername(), req));
     }
 
