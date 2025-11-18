@@ -9,7 +9,7 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ClubApplicationService;
 import com.example.uniclub.service.EmailService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
