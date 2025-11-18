@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+
 @Service
 @RequiredArgsConstructor
 public class ClubApplicationServiceImpl implements ClubApplicationService {
@@ -85,7 +87,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Staff not found"));
 
         if (app.getStatus() != ClubApplicationStatusEnum.PENDING)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Application already reviewed");
+            throw new ApiException(BAD_REQUEST, "Application already reviewed");
 
         app.setReviewedBy(staff);
         app.setReviewedAt(LocalDateTime.now());
@@ -93,7 +95,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         // ❌ Từ chối
         if (!req.approve()) {
             if (req.rejectReason() == null || req.rejectReason().isBlank())
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Reject reason required");
+                throw new ApiException(BAD_REQUEST, "Reject reason required");
 
             app.setRejectReason(req.rejectReason());
             app.setStatus(ClubApplicationStatusEnum.REJECTED);
@@ -337,8 +339,8 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     }
 
     @Override
+    @Transactional
     public void saveOtp(String email, String otp) {
-        // Xóa OTP cũ (nếu có)
         otpTokenRepository.deleteByEmail(email);
 
         OtpToken token = OtpToken.builder()
@@ -348,37 +350,28 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
                 .build();
 
         otpTokenRepository.save(token);
-
-        System.out.println(">>> OTP SAVED TO DB: " + email + " = " + otp);
     }
+
 
 
     @Override
+    @Transactional
     public void verifyOtp(String email, String otp) {
-
-        System.out.println("\n========= OTP VERIFY DEBUG ==========");
-        System.out.println("Email to verify = " + email);
-        System.out.println("OTP provided = " + otp);
-        System.out.println("======================================");
-
         OtpToken token = otpTokenRepository.findByEmail(email)
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
-                        "You have not been issued an OTP."));
+                .orElseThrow(() -> new ApiException(BAD_REQUEST, "You have not been issued an OTP."));
 
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             otpTokenRepository.deleteByEmail(email);
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Your OTP has expired.");
+            throw new ApiException(BAD_REQUEST, "Your OTP has expired.");
         }
 
         if (!token.getOtp().equals(otp)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid OTP code.");
+            throw new ApiException(BAD_REQUEST, "Invalid OTP code.");
         }
 
-        // OTP hợp lệ → Xóa luôn để tránh reuse
         otpTokenRepository.deleteByEmail(email);
-
-        System.out.println(">>> OTP VERIFIED SUCCESSFULLY!");
     }
+
 
 
 
