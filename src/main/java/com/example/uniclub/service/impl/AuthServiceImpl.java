@@ -44,9 +44,12 @@ public class AuthServiceImpl {
     // ==============================================
     // 🔹 Đăng nhập
     // ==============================================
+    // ==============================================
+// 🔹 Đăng nhập
+// ==============================================
     public AuthResponse login(LoginRequest req) {
 
-        // === DEBUG LOGIN ===
+        // DEBUG
         System.out.println("🟦 Email input: " + req.email());
         System.out.println("🟦 Password input: " + req.password());
         userRepository.findByEmail(req.email()).ifPresent(u -> {
@@ -55,7 +58,7 @@ public class AuthServiceImpl {
             System.out.println("🟩 Password matches (BCrypt): " + match);
         });
 
-        // =====================
+        // AUTH
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.email(), req.password()));
 
@@ -73,28 +76,20 @@ public class AuthServiceImpl {
         List<Long> clubIds = null;
         Boolean isClubStaff = null;
 
-        // ==============================================
-        // 🔸 CLUB_LEADER → lấy CLB ACTIVE + staff = true
-        // ==============================================
+        // CLUB_LEADER → chỉ 1 CLB active + isStaff
         if ("CLUB_LEADER".equals(roleName)) {
             clubId = membershipRepository.findActiveStaffClubId(user.getUserId());
         }
 
-        // ==============================================
-        // 🔸 STUDENT → lấy tất cả CLB ACTIVE (chỉ ID)
-        // ==============================================
+        // STUDENT → nhiều CLB active
         else if ("STUDENT".equals(roleName)) {
-
-            // Lấy danh sách CLB ACTIVE của user → chỉ trả về clubId
             clubIds = membershipRepository.findActiveClubIds(user.getUserId());
-
-            // Kiểm tra xem có CLB nào user là staff không
             isClubStaff = membershipRepository.findActiveStaffClubId(user.getUserId()) != null;
         }
 
-        // ==============================================
-        // 🔸 Build Response
-        // ==============================================
+        boolean firstLogin = user.isFirstLogin();    // ⭐ quan trọng
+
+        // Build response
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
@@ -103,19 +98,30 @@ public class AuthServiceImpl {
                 .role(roleName)
                 .clubId(clubId)
                 .clubIds(clubIds)
-                .requirePasswordChange(user.isFirstLogin());
+                .requirePasswordChange(firstLogin)
+                .firstTimeGoogleLogin(firstLogin);   // ⭐ FE dựa vào đây để show popup welcome
 
         if (isClubStaff != null) {
             responseBuilder.staff(isClubStaff);
+        }
+
+        // ⭐ Reset firstLogin sau lần đầu login
+        if (firstLogin) {
+            user.setFirstLogin(false);
+            userRepository.save(user);
         }
 
         return responseBuilder.build();
     }
 
 
+
     // ==============================================
     // 🔹 Đăng ký
     // ==============================================
+    // ==============================================
+// 🔹 Đăng ký
+// ==============================================
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
@@ -139,38 +145,37 @@ public class AuthServiceImpl {
                                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                                         "Major not found: " + req.majorName()))
                 )
+                .isFirstLogin(true) // ⭐ đăng ký → lần đầu login
                 .build();
 
         user = userRepository.save(user);
 
-        // ✅ Thêm gửi email chào mừng ngay tại đây
+        // ⭐ Gửi mail welcome
         String subject = "[UniClub] Welcome to the system 🎉";
         String content = """
-    <h2>Hello %s,</h2>
-    <p>Congratulations! You’ve successfully registered your <b>UniClub</b> account. 🎉</p>
-    <p>You can now log in to explore clubs, join events, and start earning points within the system.</p>
-    <p>👉 Access here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
-    <br>
-    <p>Best regards,<br><b>The UniClub Vietnam Team</b></p>
-    """.formatted(user.getFullName() != null ? user.getFullName() : "there");
-
-
+            <h2>Hello %s,</h2>
+            <p>Congratulations! You’ve successfully registered your <b>UniClub</b> account. 🎉</p>
+            <p>You can now log in to explore clubs, join events, and start earning points within the system.</p>
+            <p>👉 Access here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
+            <br>
+            <p>Best regards,<br><b>The UniClub Vietnam Team</b></p>
+            """.formatted(user.getFullName() != null ? user.getFullName() : "there");
 
         emailService.sendEmail(user.getEmail(), subject, content);
 
-        // 🔹 Tiếp tục phần cũ
+        // JWT
         String token = jwtUtil.generateToken(
                 user.getEmail(),
                 user.getRole().getRoleName()
         );
-
 
         AuthResponse.AuthResponseBuilder responseBuilder = AuthResponse.builder()
                 .token(token)
                 .userId(user.getUserId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole().getRoleName());
+                .role(user.getRole().getRoleName())
+                .firstTimeGoogleLogin(true);
 
         if ("STUDENT".equalsIgnoreCase(user.getRole().getRoleName())) {
             responseBuilder.staff(false);
@@ -178,6 +183,7 @@ public class AuthServiceImpl {
 
         return responseBuilder.build();
     }
+
 
 
     // ==============================================
