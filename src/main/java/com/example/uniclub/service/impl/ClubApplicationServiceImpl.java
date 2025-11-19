@@ -1,9 +1,8 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.request.*;
-import com.example.uniclub.dto.response.ClubApplicationListResponse;
-import com.example.uniclub.dto.response.ClubApplicationResponse;
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.*;
+import com.example.uniclub.dto.response.ClubApplicationResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -280,37 +279,37 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
     // 🟣 4. Các hàm tiện ích khác
     // ============================================================
     @Override
-    public List<ClubApplicationListResponse> getPending() {
+    public List<ClubApplicationResponse> getPending() {
         return appRepo.findByStatus(ClubApplicationStatusEnum.PENDING)
                 .stream()
-                .map(app -> ClubApplicationListResponse.builder()
-                        .applicationId(app.getApplicationId())
-                        .clubName(app.getClubName())
-                        .majorId(app.getMajor() != null ? app.getMajor().getId() : null)
-                        .majorName(app.getMajor() != null ? app.getMajor().getName() : null)
-                        .status(app.getStatus())
-                        .submittedAt(app.getCreatedAt())
-                        .build()
-                )
+                .map(ClubApplicationResponse::fromEntity)
                 .toList();
     }
-
 
     @Override
-    public List<ClubApplicationListResponse> getByUser(Long userId) {
+    public List<ClubApplicationResponse> getByUser(Long userId) {
         return appRepo.findByProposer_UserId(userId)
                 .stream()
-                .map(app -> ClubApplicationListResponse.builder()
-                        .applicationId(app.getApplicationId())
-                        .clubName(app.getClubName())
-                        .majorId(app.getMajor() != null ? app.getMajor().getId() : null)
-                        .majorName(app.getMajor() != null ? app.getMajor().getName() : null)
-                        .status(app.getStatus())
-                        .submittedAt(app.getCreatedAt())
-                        .build()
-                )
+                .map(ClubApplicationResponse::fromEntity)
                 .toList();
     }
+
+    @Override
+    public List<ClubApplicationResponse> search(String keyword) {
+        return appRepo.searchByKeyword(keyword)
+                .stream()
+                .map(ClubApplicationResponse::fromEntity)
+                .toList();
+    }
+
+    @Override
+    public List<ClubApplicationResponse> getAllApplications() {
+        return appRepo.findAll()
+                .stream()
+                .map(ClubApplicationResponse::fromEntity)
+                .toList();
+    }
+
 
 
     @Override
@@ -335,21 +334,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         return stats;
     }
 
-    @Override
-    public List<ClubApplicationListResponse> search(String keyword) {
-        return appRepo.searchByKeyword(keyword)
-                .stream()
-                .map(app -> ClubApplicationListResponse.builder()
-                        .applicationId(app.getApplicationId())
-                        .clubName(app.getClubName())
-                        .majorId(app.getMajor() != null ? app.getMajor().getId() : null)
-                        .majorName(app.getMajor() != null ? app.getMajor().getName() : null)
-                        .status(app.getStatus())
-                        .submittedAt(app.getCreatedAt())
-                        .build()
-                )
-                .toList();
-    }
+
 
 
     @Override
@@ -359,21 +344,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         appRepo.deleteById(id);
     }
 
-    @Override
-    public List<ClubApplicationListResponse> getAllApplications() {
-        return appRepo.findAll()
-                .stream()
-                .map(app -> ClubApplicationListResponse.builder()
-                        .applicationId(app.getApplicationId())
-                        .clubName(app.getClubName())
-                        .majorId(app.getMajor() != null ? app.getMajor().getId() : null)
-                        .majorName(app.getMajor() != null ? app.getMajor().getName() : null)
-                        .status(app.getStatus())
-                        .submittedAt(app.getCreatedAt())
-                        .build()
-                )
-                .toList();
-    }
+
 
     @Getter
     @Setter
