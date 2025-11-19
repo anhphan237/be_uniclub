@@ -205,7 +205,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         leaderMember.setClub(club);
         leaderMember.setClubRole(ClubRoleEnum.LEADER);
         leaderMember.setState(MembershipStateEnum.ACTIVE);
-        leaderMember.setStaff(true);
+//        leaderMember.setStaff(true);
         leaderMember.setJoinedDate(LocalDate.now());
         // Default tự chạy:
         // memberLevel = BASIC
@@ -218,7 +218,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         viceMember.setClub(club);
         viceMember.setClubRole(ClubRoleEnum.VICE_LEADER);
         viceMember.setState(MembershipStateEnum.ACTIVE);
-        viceMember.setStaff(true);
+//        viceMember.setStaff(true);
         viceMember.setJoinedDate(LocalDate.now());
         membershipRepo.save(viceMember);
 
