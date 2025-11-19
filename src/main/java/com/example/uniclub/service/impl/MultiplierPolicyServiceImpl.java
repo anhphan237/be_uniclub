@@ -57,7 +57,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
 
         MultiplierPolicy p = MultiplierPolicy.builder()
                 .targetType(r.getTargetType())
-                .name(r.getName())
+
                 .levelEvaluation(r.getLevelEvaluation())
                 .activityType(r.getActivityType())
                 .ruleName(r.getRuleName())
@@ -91,7 +91,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                     "A policy with the same ruleName already exists.");
         }
 
-        old.setName(r.getName());
+
         old.setTargetType(r.getTargetType());
         old.setActivityType(r.getActivityType());
         old.setLevelEvaluation(r.getLevelEvaluation());
@@ -149,7 +149,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         return MultiplierPolicyResponse.builder()
                 .id(e.getId())
                 .targetType(e.getTargetType())
-                .name(e.getName())
+
                 .levelEvaluation(e.getLevelEvaluation())
                 .activityType(e.getActivityType())
                 .ruleName(e.getRuleName())

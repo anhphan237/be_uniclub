@@ -13,8 +13,8 @@ public class MultiplierPolicyResponse {
     private Long id;
 
     private PolicyTargetTypeEnum targetType;
-    private String name;
-    private String levelEvaluation;              // ← nằm đúng vị trí ngay sau name
+
+    private String levelEvaluation;
 
     private PolicyActivityTypeEnum activityType;
     private String ruleName;
