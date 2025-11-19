@@ -59,6 +59,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             Optional<User> userOpt = userRepo.findByEmail(email);
             User user;
             boolean isNewUser = false;
+            boolean firstLogin = false;
 
             if (userOpt.isEmpty()) {
                 // 🧩 Tạo user mới (Google login lần đầu)
@@ -70,13 +71,16 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(picture)
                         .status(UserStatusEnum.ACTIVE.name())
                         .role(Role.builder().roleId(studentRoleId).build())
-
                         .isFirstLogin(true)
                         .build();
+
                 userRepo.save(user);
 
                 // ⭐ Gửi email welcome
                 sendWelcomeEmail(user);
+
+                // → FE sẽ hiển thị popup nhờ flag này
+                firstLogin = true;
 
             } else {
                 user = userOpt.get();
@@ -92,15 +96,19 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                     updated = true;
                 }
 
-                if (updated) userRepo.save(user);
+                if (updated) {
+                    userRepo.save(user);
+                }
+
+                // → FE chỉ show popup nếu user.isFirstLogin = true
+                firstLogin = user.isFirstLogin();
             }
 
             // 🔐 Sinh JWT token
             String token = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
-            // ⭐ Tránh load Membership entity → chỉ lấy clubId
+            // ⭐ Chỉ trả về ID CLB để giảm tải entity
             List<Long> clubIds = membershipRepo.findActiveClubIds(user.getUserId());
-
             boolean isStaff = membershipRepo.findActiveStaffClubId(user.getUserId()) != null;
 
             String clubIdsParam = clubIds.isEmpty()
@@ -110,15 +118,23 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                     StandardCharsets.UTF_8
             );
 
+            // ⭐ Redirect kèm thông tin
             String redirect = String.format(
-                    "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s",
+                    "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s&firstLogin=%s",
                     redirectSuccessUrl,
                     token,
                     user.getRole().getRoleName(),
                     clubIdsParam,
                     isStaff,
-                    isNewUser
+                    isNewUser,
+                    firstLogin
             );
+
+            // ⭐ Reset firstLogin sau khi gửi cho FE (chỉ 1 lần duy nhất)
+            if (firstLogin) {
+                user.setFirstLogin(false);
+                userRepo.save(user);
+            }
 
             response.sendRedirect(redirect);
 
@@ -142,6 +158,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         emailService.sendEmail(user.getEmail(), subject, content);
     }
-
 
 }

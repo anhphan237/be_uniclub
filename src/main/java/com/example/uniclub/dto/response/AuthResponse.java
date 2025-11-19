@@ -25,4 +25,7 @@ public class AuthResponse {
 
     // ✅ chỉ xuất hiện khi không null (MEMBER hoặc staff CLB)
     private Boolean staff;
+
+    private Boolean firstTimeGoogleLogin;
+
 }
