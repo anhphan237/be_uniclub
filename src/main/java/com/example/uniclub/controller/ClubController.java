@@ -3,12 +3,14 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubCreateRequest;
 import com.example.uniclub.dto.request.ClubRenameRequest;
+import com.example.uniclub.dto.request.ClubUpdateRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.repository.EventRepository;
+import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -200,6 +202,27 @@ public class ClubController {
             @AuthenticationPrincipal com.example.uniclub.security.CustomUserDetails user
     ) {
         return ResponseEntity.ok(ApiResponse.ok(clubService.renameClub(clubId, req, user.getUserId())));
+    }
+
+
+
+    @PutMapping("/{clubId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            summary = "Cập nhật thông tin CLB",
+            description = """
+        ADMIN / UNIVERSITY_STAFF: được chỉnh toàn bộ thông tin.<br>
+        CLUB_LEADER: chỉ được chỉnh name/description/vision/major.
+        """
+    )
+    public ResponseEntity<ApiResponse<ClubResponse>> updateClub(
+            @PathVariable Long clubId,
+            @RequestBody ClubUpdateRequest req,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                clubService.updateClub(clubId, req, user.getUserId())
+        ));
     }
 
 }

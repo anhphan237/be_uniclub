@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.ClubCreateRequest;
 import com.example.uniclub.dto.request.ClubRenameRequest;
+import com.example.uniclub.dto.request.ClubUpdateRequest;
 import com.example.uniclub.dto.response.ClubResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
@@ -181,6 +182,96 @@ public class ClubServiceImpl implements ClubService {
         return ClubResponse.fromEntity(club);
     }
 
+    @Override
+    @Transactional
+    public ClubResponse updateClub(Long clubId, ClubUpdateRequest req, Long requesterId) {
+
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        User requester = userRepo.findById(requesterId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String roleName = requester.getRole().getRoleName();
+
+        boolean isAdmin = roleName.equals("ADMIN");
+        boolean isStaff = roleName.equals("UNIVERSITY_STAFF");
+
+        boolean isLeader = membershipRepo.findByUser_UserIdAndClub_ClubId(requesterId, clubId)
+                .map(m -> m.getClubRole() == ClubRoleEnum.LEADER)
+                .orElse(false);
+
+        // 🚨 Kiểm tra quyền
+        if (!(isAdmin || isStaff || isLeader)) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only ADMIN, UNIVERSITY_STAFF or CLUB_LEADER can update this club.");
+        }
+
+        // ========= 🎯 LEADER chỉ được chỉnh 3 trường =========
+        if (isLeader && !(isAdmin || isStaff)) {
+            if (req.getName() != null) club.setName(req.getName());
+            if (req.getDescription() != null) club.setDescription(req.getDescription());
+            if (req.getVision() != null) club.setVision(req.getVision());
+
+            if (req.getMajorId() != null) {
+                Major major = majorRepo.findById(req.getMajorId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+                club.setMajor(major);
+            }
+
+            // leader không được đổi leader, multiplier, status
+            club.setUpdatedAt(LocalDateTime.now());
+            clubRepo.save(club);
+            return ClubResponse.fromEntity(club);
+        }
+
+        // ========= 🎯 ADMIN / STAFF được chỉnh full =========
+        if (req.getName() != null) club.setName(req.getName());
+        if (req.getDescription() != null) club.setDescription(req.getDescription());
+        if (req.getVision() != null) club.setVision(req.getVision());
+
+        if (req.getMajorId() != null) {
+            Major m = majorRepo.findById(req.getMajorId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+            club.setMajor(m);
+        }
+
+        if (req.getClubMultiplier() != null) {
+            club.setClubMultiplier(req.getClubMultiplier());
+        }
+
+        if (req.getActivityStatus() != null) {
+            try {
+                club.setActivityStatus(
+                        ClubActivityStatusEnum.valueOf(req.getActivityStatus().toUpperCase())
+                );
+            } catch (IllegalArgumentException e) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid activity status");
+            }
+        }
+
+        // ========= 🧑‍🤝‍🧑 Đổi Leader (Admin/Staff) =========
+        if (req.getNewLeaderId() != null) {
+            Membership leaderMem = membershipRepo
+                    .findByUser_UserIdAndClub_ClubId(req.getNewLeaderId(), clubId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+                            "User is not a member of this club"));
+
+            if (leaderMem.getState() != MembershipStateEnum.ACTIVE) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Leader must be ACTIVE member");
+            }
+
+            leaderMem.setClubRole(ClubRoleEnum.LEADER);
+            membershipRepo.save(leaderMem);
+
+            club.setLeader(leaderMem.getUser());
+        }
+
+        club.setUpdatedAt(LocalDateTime.now());
+        clubRepo.save(club);
+
+        return ClubResponse.fromEntity(club);
+    }
 
 
 }
