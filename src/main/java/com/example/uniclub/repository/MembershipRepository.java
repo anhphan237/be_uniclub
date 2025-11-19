@@ -133,5 +133,14 @@ WHERE m.user.userId = :userId
       AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
 """)
     Long findActiveStaffClubId(@Param("userId") Long userId);
+    @Query("""
+    SELECT m.club.clubId
+    FROM Membership m
+    WHERE m.user.userId = :userId
+      AND m.clubRole = com.example.uniclub.enums.ClubRoleEnum.LEADER
+      AND m.state    = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+""")
+    Long findLeaderClubId(@Param("userId") Long userId);
+
 
 }
