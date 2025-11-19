@@ -21,8 +21,7 @@ public class MultiplierPolicy {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PolicyTargetTypeEnum targetType; // CLUB, MEMBER
-    @Column(nullable = false, length = 255)
-    private String name;   // friendly display name
+
     @Column(length = 255)
     private String levelEvaluation;  // UniStaff / Admin tự nhập
 

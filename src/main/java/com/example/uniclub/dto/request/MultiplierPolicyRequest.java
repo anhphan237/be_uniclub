@@ -11,7 +11,7 @@ import lombok.*;
 public class MultiplierPolicyRequest {
 
     private PolicyTargetTypeEnum targetType;
-    private String name;                         // NEW
+
     private PolicyActivityTypeEnum activityType;
 
     private String ruleName;
