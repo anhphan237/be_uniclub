@@ -37,7 +37,8 @@ public class ClubActivityScheduler {
         List<MultiplierPolicy> policies = policyRepo
                 .findByTargetTypeAndActivityTypeAndActiveTrue(
                         PolicyTargetTypeEnum.CLUB,
-                        PolicyActivityTypeEnum.CLUB_EVENT_ORGANIZATION
+                        PolicyActivityTypeEnum.CLUB_EVENT_ACTIVITY
+
                 );
 
         List<Club> clubs = clubRepo.findAll();

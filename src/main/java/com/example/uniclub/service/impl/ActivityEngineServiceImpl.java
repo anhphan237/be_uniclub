@@ -397,7 +397,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         List<MultiplierPolicy> policies = multiplierPolicyRepo
                 .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
                         PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.MEMBER_ACTIVITY_SCORE
+                        PolicyActivityTypeEnum.STAFF_EVALUATION
+
                 );
 
         for (MultiplierPolicy p : policies) {
@@ -448,7 +449,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         MultiplierPolicy mom = multiplierPolicyRepo
                 .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
                         PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.MEMBER_ACTIVITY_SCORE
+                        PolicyActivityTypeEnum.STAFF_EVALUATION
+
                 ).stream()
                 .filter(p -> "MEMBER_OF_MONTH".equalsIgnoreCase(p.getRuleName()))
                 .findFirst()
@@ -486,7 +488,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         List<MultiplierPolicy> policies = multiplierPolicyRepo
                 .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
                         PolicyTargetTypeEnum.CLUB,
-                        PolicyActivityTypeEnum.CLUB_EVENT_ORGANIZATION
+                        PolicyActivityTypeEnum.STAFF_EVALUATION
+
                 );
 
         for (Club club : clubs) {
