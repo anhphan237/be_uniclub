@@ -58,6 +58,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         MultiplierPolicy p = MultiplierPolicy.builder()
                 .targetType(r.getTargetType())
                 .name(r.getName())
+                .levelEvaluation(r.getLevelEvaluation())
                 .activityType(r.getActivityType())
                 .ruleName(r.getRuleName())
                 .conditionType(r.getConditionType())
@@ -93,6 +94,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         old.setName(r.getName());
         old.setTargetType(r.getTargetType());
         old.setActivityType(r.getActivityType());
+        old.setLevelEvaluation(r.getLevelEvaluation());
         old.setRuleName(r.getRuleName());
         old.setConditionType(r.getConditionType());
         old.setMinThreshold(r.getMinThreshold());
@@ -148,6 +150,7 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
                 .id(e.getId())
                 .targetType(e.getTargetType())
                 .name(e.getName())
+                .levelEvaluation(e.getLevelEvaluation())
                 .activityType(e.getActivityType())
                 .ruleName(e.getRuleName())
                 .conditionType(e.getConditionType())
