@@ -19,6 +19,7 @@ public class MultiplierPolicyRequest {
 
     private Integer minThreshold;
     private Integer maxThreshold;
+    private String levelEvaluation;
 
     private Double multiplier;
 
