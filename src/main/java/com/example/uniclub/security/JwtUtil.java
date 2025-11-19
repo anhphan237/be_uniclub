@@ -129,4 +129,28 @@ public class JwtUtil {
 
         return userRepo.findByEmail(email).orElse(null);
     }
+    public String generateFullToken(
+            Long userId,
+            String email,
+            String role,
+            Long clubId,
+            java.util.List<Long> clubIds,
+            Boolean isStaff
+    ) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + expirationMs);
+
+        return Jwts.builder()
+                .setSubject(email)
+                .claim("userId", userId)
+                .claim("role", role)
+                .claim("clubId", clubId)
+                .claim("clubIds", clubIds)
+                .claim("isStaff", isStaff)
+                .setIssuedAt(now)
+                .setExpiration(exp)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 }
