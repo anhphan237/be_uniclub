@@ -1,94 +1,94 @@
-server:
-  port: 8080
-
-spring:
-  application:
-    name: uniclub
-
-  datasource:
-    url: jdbc:postgresql://ep-frosty-term-a1wkjyzt-pooler.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_XLoRp9IkDTx0
-    driver-class-name: org.postgresql.Driver
-
-  data:
-    redis:
-      host: calm-goose-18765.upstash.io
-      port: 6379
-      password: AUlNAAIncDI4MjIyMGNhM2U0ZmM0NTU1YWRlMTRlZTcxMmYxMzU0ZHAyMTg3NjU
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: uniclub.contacts@gmail.com
-    password: dzhhqdotkvlvxmoi
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: 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
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            scope:
-              - openid
-              - profile
-              - email
-        provider:
-          google:
-            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
-            token-uri: https://oauth2.googleapis.com/token
-            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
-            user-name-attribute: sub
-
-  servlet:
-    multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
-
-jwt:
-  secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
-  expiration: 7776000000  # 90 ngày
-
-app:
-  oauth2:
-    redirect-success: https://uniclub-fpt.vercel.app/auth/callback
-    redirect-fail: https://uniclub-fpt.vercel.app/login?error
-    school-domains: "@fpt.edu.vn,@fe.edu.vn"
-
-  crypto:
-    aes-gcm:
-      key-b64: ${APP_CRYPTO_AES_GCM_KEY_B64}
-
-  jwt:
-    event-secret: "CHANGE_ME_TO_A_32B_SECRET_0123456789ABCDEF"
-
-logging:
-  level:
-    root: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: TRACE
-
-APP_CRYPTO_AES_GCM_KEY_B64: "c2VjcmV0MTIzNDU2Nzg5MGFiY2RlZg=="
+#server:
+#  port: 8080
+#
+#spring:
+#  application:
+#    name: uniclub
+#
+#  datasource:
+#    url: jdbc:postgresql://ep-frosty-term-a1wkjyzt.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+#    username: neondb_owner
+#    password: npg_XLoRp9IkDTx0
+#    driver-class-name: org.postgresql.Driver
+#
+#  data:
+#    redis:
+#      host: calm-goose-18765.upstash.io
+#      port: 6379
+#      password: AUlNAAIncDI4MjIyMGNhM2U0ZmM0NTU1YWRlMTRlZTcxMmYxMzU0ZHAyMTg3NjU
+#
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#    properties:
+#      hibernate:
+#        format_sql: true
+#        dialect: org.hibernate.dialect.PostgreSQLDialect
+#
+#  rabbitmq:
+#    host: localhost
+#    port: 5672
+#    username: guest
+#    password: guest
+#
+#  mail:
+#    host: smtp.gmail.com
+#    port: 587
+#    username: uniclub.contacts@gmail.com
+#    password: dzhhqdotkvlvxmoi
+#    properties:
+#      mail:
+#        smtp:
+#          auth: true
+#          starttls:
+#            enable: true
+#
+#  security:
+#    oauth2:
+#      client:
+#        registration:
+#          google:
+#            client-id: ${GOOGLE_CLIENT_ID}
+#            client-secret: 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
+#            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+#            scope:
+#              - openid
+#              - profile
+#              - email
+#        provider:
+#          google:
+#            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+#            token-uri: https://oauth2.googleapis.com/token
+#            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+#            user-name-attribute: sub
+#
+#  servlet:
+#    multipart:
+#      max-file-size: 100MB
+#      max-request-size: 100MB
+#
+#jwt:
+#  secret: 7f4f03b9f6e6b3e7c1a2b6f8d9e0a1b2
+#  expiration: 7776000000  # 90 ngày
+#
+#app:
+#  oauth2:
+#    redirect-success: https://uniclub-fpt.vercel.app/auth/callback
+#    redirect-fail: https://uniclub-fpt.vercel.app/login?error
+#    school-domains: "@fpt.edu.vn,@fe.edu.vn"
+#
+#  crypto:
+#    aes-gcm:
+#      key-b64: ${APP_CRYPTO_AES_GCM_KEY_B64}
+#
+#  jwt:
+#    event-secret: "CHANGE_ME_TO_A_32B_SECRET_0123456789ABCDEF"
+#
+#logging:
+#  level:
+#    root: INFO
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.type.descriptor.sql: TRACE
+#
+#APP_CRYPTO_AES_GCM_KEY_B64: "c2VjcmV0MTIzNDU2Nzg5MGFiY2RlZg=="

@@ -21,7 +21,7 @@ public class Club {
     @Column(nullable = false, unique = true)
     private String name;
 
-    @Lob
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
