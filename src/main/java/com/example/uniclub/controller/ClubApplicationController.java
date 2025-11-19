@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
+import com.example.uniclub.dto.response.ClubApplicationListResponse;
 import com.example.uniclub.dto.response.ClubApplicationResponse;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.ClubApplicationService;
@@ -160,7 +161,7 @@ public class ClubApplicationController {
     )
     @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/my")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getMyApplications(
+    public ResponseEntity<ApiResponse<List<ClubApplicationListResponse>>> getMyApplications(
             @AuthenticationPrincipal CustomUserDetails user
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
@@ -193,6 +194,7 @@ public class ClubApplicationController {
         ));
     }
 
+
     // ==========================================================
     // ⚪ 6. LẤY TOÀN BỘ ĐƠN
     // ==========================================================
@@ -207,7 +209,7 @@ public class ClubApplicationController {
     )
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/all")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getAllApplications() {
+    public ResponseEntity<ApiResponse<List<ClubApplicationListResponse>>> getAllApplications() {
         return ResponseEntity.ok(ApiResponse.ok(
                 clubApplicationService.getAllApplications()
         ));
@@ -227,7 +229,7 @@ public class ClubApplicationController {
     )
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/pending")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> getPending() {
+    public ResponseEntity<ApiResponse<List<ClubApplicationListResponse>>> getPending() {
         return ResponseEntity.ok(ApiResponse.ok(
                 clubApplicationService.getPending()
         ));
@@ -267,9 +269,7 @@ public class ClubApplicationController {
     )
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
     @GetMapping("/search")
-    public ResponseEntity<ApiResponse<List<ClubApplicationResponse>>> search(
-            @RequestParam String keyword
-    ) {
+    public ResponseEntity<ApiResponse<List<ClubApplicationListResponse>>> search(@RequestParam String keyword) {
         return ResponseEntity.ok(ApiResponse.ok(
                 clubApplicationService.search(keyword)
         ));
