@@ -70,4 +70,22 @@ public class EmailServiceImpl implements EmailService {
             e.printStackTrace();
         }
     }
+    @Override
+    public void sendFeedbackThankYouEmail(String to, String eventName, int rating) {
+
+        String content = String.format("""
+        Hello,
+
+        Thank you for participating in the event: <b>%s</b>.
+        We’ve received your feedback with a rating of ⭐ %d stars.
+
+        Your opinion is valuable and helps UniClub improve future events!
+
+        Best regards,
+        <b>UniClub Vietnam</b>
+        """, eventName, rating);
+
+        sendEmail(to, "Thank You for Your Feedback!", content);
+    }
+
 }

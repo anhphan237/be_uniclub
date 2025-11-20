@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Long> {
     List<EventFeedback> findByEvent_EventId(Long eventId);
@@ -22,5 +23,6 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
 
     List<EventFeedback> findByMembership_User_UserId(Long userId);
 
+    Optional<EventFeedback> findByEvent_EventIdAndMembership_MembershipId(Long eventId, Long membershipId);
 
 }

@@ -6,6 +6,7 @@ import com.example.uniclub.entity.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.EventFeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,26 +22,47 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
     private final EventFeedbackRepository feedbackRepo;
     private final EventRepository eventRepo;
     private final MembershipRepository membershipRepo;
+    private final EmailService emailService;
 
     @Override
     public EventFeedbackResponse createFeedback(Long eventId, EventFeedbackRequest req, CustomUserDetails userDetails) {
+
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         User user = userDetails.getUser();
-        if (user == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        if (user == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        }
 
         Membership membership = membershipRepo.findByUserAndClub(user, event.getHostClub())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not a member of this club"));
 
-        EventFeedback feedback = EventFeedback.builder()
-                .event(event)
-                .membership(membership)
-                .rating(req.getRating())
-                .comment(req.getComment())
-                .build();
+        // ❗ Kiểm tra đã feedback chưa
+        EventFeedback existing = feedbackRepo
+                .findByEvent_EventIdAndMembership_MembershipId(eventId, membership.getMembershipId())
+                .orElse(null);
 
-        feedbackRepo.save(feedback);
+        EventFeedback feedback;
+
+        if (existing != null) {
+            // 🔁 ĐÃ FEEDBACK → UPDATE
+            existing.setRating(req.getRating());
+            existing.setComment(req.getComment());
+            feedback = feedbackRepo.save(existing);
+        } else {
+            // ✨ CHƯA FEEDBACK → CREATE
+            feedback = EventFeedback.builder()
+                    .event(event)
+                    .membership(membership)
+                    .rating(req.getRating())
+                    .comment(req.getComment())
+                    .build();
+            feedbackRepo.save(feedback);
+        }
+
+        // 📩 Gửi email cảm ơn
+        emailService.sendFeedbackThankYouEmail(user.getEmail(), event.getName(), req.getRating());
 
         return EventFeedbackResponse.builder()
                 .feedbackId(feedback.getFeedbackId())
@@ -51,8 +73,11 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .rating(feedback.getRating())
                 .comment(feedback.getComment())
                 .createdAt(feedback.getCreatedAt())
+                .updatedAt(feedback.getUpdatedAt())
                 .build();
     }
+
+
 
 
     @Override
@@ -106,12 +131,14 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .eventName(f.getEvent().getName())
                 .clubName(f.getEvent().getHostClub() != null ? f.getEvent().getHostClub().getName() : null)
                 .membershipId(f.getMembership().getMembershipId())
+                .memberName(f.getMembership().getUser().getFullName())
                 .rating(f.getRating())
                 .comment(f.getComment())
                 .createdAt(f.getCreatedAt())
                 .updatedAt(f.getUpdatedAt())
                 .build();
     }
+
 
     @Override
     public List<EventFeedbackResponse> getFeedbacksByClub(Long clubId) {
