@@ -35,6 +35,7 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final AttendanceService attendanceService;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final RewardService rewardService;
 
     // =========================================================
     // 🔹 REGISTER
@@ -288,6 +289,8 @@ public class EventPointsServiceImpl implements EventPointsService {
         }
 
         long leftover = Optional.ofNullable(eventWallet.getBalancePoints()).orElse(0L);
+        rewardService.autoSettleEvent(event);
+
 
         // 💰 refund leftover → giữ logic cũ
 
