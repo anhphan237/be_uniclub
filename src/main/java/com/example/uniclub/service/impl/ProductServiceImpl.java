@@ -623,5 +623,32 @@ public class ProductServiceImpl implements ProductService {
 
         }).toList();
     }
+    @Override
+    public List<EventProductResponse> listEventProductsByClubAndStatuses(Long clubId, List<EventStatusEnum> statuses) {
+
+        List<Product> list = productRepo.findByClubClubIdAndType(clubId, ProductTypeEnum.EVENT_ITEM);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return list.stream()
+                .filter(p -> p.getEvent() != null && statuses.contains(p.getEvent().getStatus()))
+                .map(p -> {
+                    Event e = p.getEvent();
+                    LocalDateTime eventEnd = LocalDateTime.of(e.getDate(), e.getEndTime());
+
+                    boolean expired = (e.getStatus() == EventStatusEnum.COMPLETED || eventEnd.isBefore(now));
+
+                    return EventProductResponse.builder()
+                            .productId(p.getProductId())
+                            .name(p.getName())
+                            .pointCost(p.getPointCost())
+                            .eventId(e.getEventId())
+                            .eventName(e.getName())
+                            .eventStatus(e.getStatus())
+                            .expired(expired)
+                            .build();
+                })
+                .toList();
+    }
 
 }

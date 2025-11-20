@@ -58,7 +58,7 @@ public class EventController {
     private final EventFeedbackService eventFeedbackService;
     private final EventRepository eventRepo;
     private final StaffPerformanceService staffPerformanceService;
-
+    private final ProductService productService;
     // =========================================================
     // 🔹 1. CRUD
     // =========================================================
@@ -721,6 +721,37 @@ public class EventController {
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+    // ==========================================================
+// 🟢 1. GET EVENT PRODUCTS (ONGOING + APPROVED)
+// ==========================================================
+    @Operation(summary = "Danh sách sản phẩm của sự kiện đang hoặc sắp diễn ra (ONGOING, APPROVED)")
+    @GetMapping("/event-items/active")
+    public ResponseEntity<ApiResponse<?>> listActiveEventProducts(
+            @PathVariable Long clubId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                productService.listEventProductsByClubAndStatuses(
+                        clubId,
+                        List.of(EventStatusEnum.ONGOING, EventStatusEnum.APPROVED)
+                )
+        ));
+    }
+
+    // ==========================================================
+// 🔴 2. GET EVENT PRODUCTS (COMPLETED)
+// ==========================================================
+    @Operation(summary = "Danh sách sản phẩm của sự kiện đã hoàn thành (COMPLETED)")
+    @GetMapping("/event-items/completed")
+    public ResponseEntity<ApiResponse<?>> listCompletedEventProducts(
+            @PathVariable Long clubId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                productService.listEventProductsByClubAndStatuses(
+                        clubId,
+                        List.of(EventStatusEnum.COMPLETED)
+                )
+        ));
     }
 
 

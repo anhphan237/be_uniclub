@@ -6,6 +6,7 @@ import com.example.uniclub.dto.response.EventProductResponse;
 import com.example.uniclub.dto.response.EventValidityResponse;
 import com.example.uniclub.dto.response.ProductResponse;
 import com.example.uniclub.entity.ProductStockHistory;
+import com.example.uniclub.enums.EventStatusEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -39,5 +40,6 @@ public interface ProductService {
 
     EventValidityResponse checkEventValidity(Long productId);
     List<EventProductResponse> listEventProductsByClub(Long clubId);
+    List<EventProductResponse> listEventProductsByClubAndStatuses(Long clubId, List<EventStatusEnum> statuses);
 
 }
