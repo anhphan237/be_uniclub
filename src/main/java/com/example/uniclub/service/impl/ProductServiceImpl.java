@@ -73,6 +73,7 @@ public class ProductServiceImpl implements ProductService {
                 p.getClub() != null ? p.getClub().getClubId() : null,
                 p.getClub() != null ? p.getClub().getName() : null,
                 p.getEvent() != null ? p.getEvent().getEventId() : null,
+                p.getEvent() != null ? p.getEvent().getStatus().name() : null,
                 p.getCreatedAt(),
                 p.getRedeemCount(),
                 media,
@@ -575,6 +576,7 @@ public class ProductServiceImpl implements ProductService {
                 product.getClub().getClubId(),
                 product.getClub().getName(),
                 product.getEvent() != null ? product.getEvent().getEventId() : null,
+                product.getEvent() != null ? product.getEvent().getStatus().name() : null,
                 product.getCreatedAt(),
                 product.getRedeemCount(),
                 product.getMediaList() != null

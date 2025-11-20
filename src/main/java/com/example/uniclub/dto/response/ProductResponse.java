@@ -15,6 +15,7 @@ public record ProductResponse(
         Long clubId,
         String clubName,
         Long eventId,
+        String eventStatus,
         LocalDateTime createdAt,
         Integer redeemCount,
         List<ProductMediaResponse> media,
