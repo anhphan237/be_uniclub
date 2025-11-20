@@ -216,7 +216,7 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found when saving transaction"));
         tx.setWallet(w);
 
-        // ✅ Receiver name
+        // --- Receiver name ---
         if (tx.getReceiverName() == null) {
             if (w.getUser() != null)
                 tx.setReceiverName(w.getUser().getFullName());
@@ -228,39 +228,31 @@ public class WalletServiceImpl implements WalletService {
                 tx.setReceiverName("System");
         }
 
-        // ✅ Sender name
+        // --- Sender name (Auto-fill nếu chưa có) ---
         if (tx.getSenderName() == null) {
-            switch (tx.getType()) {
-                case CLUB_TO_MEMBER -> tx.setSenderName(w.getClub() != null ? w.getClub().getName() : "Club");
-                case UNI_TO_CLUB -> tx.setSenderName("University Staff");
-                case REDEEM_PRODUCT -> tx.setSenderName(w.getUser() != null ? w.getUser().getFullName() : "User");
-                case REFUND_PRODUCT -> tx.setSenderName("System Refund");
-                case TRANSFER -> tx.setSenderName("[System Transfer]");
-                case ADD -> tx.setSenderName("System Add");
-                case REDUCE -> tx.setSenderName("System Reduce");
-                default -> tx.setSenderName("System");
-            }
+            if (w.getUser() != null)
+                tx.setSenderName(w.getUser().getFullName());
+            else if (w.getClub() != null)
+                tx.setSenderName(w.getClub().getName());
+            else
+                tx.setSenderName("System");
         }
 
+        // --- Created time ---
         if (tx.getCreatedAt() == null)
             tx.setCreatedAt(LocalDateTime.now());
 
         txRepo.save(tx);
     }
 
+
     // ================================================================
     // 🧾 MAP TRANSACTION → RESPONSE (có hiển thị + / −)
     // ================================================================
     private WalletTransactionResponse mapToResponse(WalletTransaction tx) {
-        String signed;
-        switch (tx.getType()) {
-            case ADD, UNI_TO_CLUB, CLUB_TO_MEMBER, REFUND_PRODUCT, BONUS_REWARD ->
-                    signed = "+" + tx.getAmount();
-            case REDUCE, TRANSFER, COMMIT_LOCK, REDEEM_PRODUCT ->
-                    signed = "-" + Math.abs(tx.getAmount());
-            default ->
-                    signed = (tx.getAmount() >= 0 ? "+" : "") + tx.getAmount();
-        }
+
+        long amt = tx.getAmount();
+        String signed = (amt > 0 ? "+" : "-") + Math.abs(amt);
 
         return WalletTransactionResponse.builder()
                 .id(tx.getId())
@@ -270,9 +262,10 @@ public class WalletServiceImpl implements WalletService {
                 .createdAt(tx.getCreatedAt())
                 .senderName(tx.getSenderName())
                 .receiverName(tx.getReceiverName())
-                .signedAmount(signed)   // ✅ thêm field hiển thị + hoặc -
+                .signedAmount(signed)
                 .build();
     }
+
 
     // ================================================================
     // 🏫 NẠP ĐIỂM TỪ UNIVERSITY

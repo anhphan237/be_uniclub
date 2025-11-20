@@ -102,21 +102,16 @@ public class UserServiceImpl implements UserService {
 
         userRepo.save(user);
 
+        // ✅ DÙNG EMAIL SERVICE CHUẨN
         try {
-            emailService.sendEmail(
-                    req.email(),
-                    "Welcome to UniClub ",
-                    String.format(
-                            "Hi %s,<br><br>Welcome to UniClub!<br>Your account has been successfully created.<br><br>Best regards,<br>UniClub Team 💌",
-                            req.fullName()
-                    )
-            );
+            emailService.sendWelcomeEmail(req.email(), req.fullName());
         } catch (Exception e) {
             System.err.println(" Failed to send welcome email: " + e.getMessage());
         }
 
         return toResp(user);
     }
+
 
     @Override
     public UserResponse update(Long id, UserUpdateRequest req) {
@@ -187,7 +182,14 @@ public class UserServiceImpl implements UserService {
         emailService.sendEmail(
                 user.getEmail(),
                 "Your UniClub password has been reset",
-                String.format("Hi %s,<br><br>Your password has been reset.<br>— UniClub Support ", user.getFullName())
+                """
+                <h2>Password Reset Successful</h2>
+                <p>Hello <b>%s</b>,</p>
+                <p>Your UniClub account password has been successfully reset by the system.</p>
+                <p>If you did not request this change, please contact UniStaff immediately.</p>
+                <br>
+                <p>Best regards,<br><b>UniClub Support Team</b></p>
+                """.formatted(user.getFullName())
         );
     }
 
@@ -230,7 +232,7 @@ public class UserServiceImpl implements UserService {
 
         WalletResponse wallet = mapWallet(user);
 
-        // ✅ NEW: Tính xem user có cần hoàn tất hồ sơ không
+        //  Tính xem user có cần hoàn tất hồ sơ không
         boolean needComplete = false;
         String roleName = user.getRole() != null ? user.getRole().getRoleName() : null;
         if ("STUDENT".equalsIgnoreCase(roleName)) {
@@ -251,7 +253,7 @@ public class UserServiceImpl implements UserService {
                 .backgroundUrl(user.getBackgroundUrl())
                 .wallet(wallet)
                 .clubs(clubInfos)
-                .needCompleteProfile(needComplete) // 👈 thêm dòng này
+                .needCompleteProfile(needComplete)
                 .build();
     }
 
@@ -281,7 +283,7 @@ public class UserServiceImpl implements UserService {
         if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
             user.setBackgroundUrl(req.getBackgroundUrl());
 
-        // ✅ NEW: Cập nhật studentCode (và kiểm tra trùng)
+        // Cập nhật studentCode (và kiểm tra trùng)
         if (req.getStudentCode() != null && !req.getStudentCode().isBlank()) {
             // chỉ check nếu khác với hiện tại
             if (!req.getStudentCode().equals(user.getStudentCode())) {

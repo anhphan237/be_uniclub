@@ -4,13 +4,17 @@ import com.example.uniclub.dto.request.PointRequestCreateRequest;
 import com.example.uniclub.dto.response.PointRequestResponse;
 import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.PointRequest;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.entity.Wallet;
 import com.example.uniclub.enums.PointRequestStatusEnum;
+import com.example.uniclub.enums.RoleEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.PointRequestRepository;
+import com.example.uniclub.repository.UserRepository;
 import com.example.uniclub.repository.WalletRepository;
 import com.example.uniclub.security.CustomUserDetails;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.PointRequestService;
 import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -30,11 +34,14 @@ public class PointRequestServiceImpl implements PointRequestService {
     private final ClubRepository clubRepo;
     private final PointRequestRepository pointRequestRepo;
     private final WalletService walletService;
-    private final WalletRepository walletRepo;
     private final PointRequestRepository pointRequestRepository;
+    private final EmailService emailService;
+    private final UserRepository userRepo;
+
     @Override
     @Transactional
     public PointRequestResponse createRequest(CustomUserDetails principal, PointRequestCreateRequest req) {
+
         Club club = clubRepo.findById(req.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
@@ -48,8 +55,21 @@ public class PointRequestServiceImpl implements PointRequestService {
 
         pointRequestRepo.save(request);
 
+        List<User> staffList = userRepo.findByRole_RoleNameIgnoreCase(RoleEnum.UNIVERSITY_STAFF.getCode());
+
+        for (User staff : staffList) {
+            emailService.sendPointRequestSubmittedToStaff(
+                    staff.getEmail(),
+                    staff.getFullName(),
+                    club.getName(),
+                    req.getRequestedPoints(),
+                    req.getReason()
+            );
+        }
+
         return mapToResponse(request);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -62,6 +82,7 @@ public class PointRequestServiceImpl implements PointRequestService {
     @Override
     @Transactional
     public String reviewRequest(Long requestId, boolean approve, String note) {
+
         PointRequest req = pointRequestRepo.findById(requestId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Request not found"));
 
@@ -73,18 +94,45 @@ public class PointRequestServiceImpl implements PointRequestService {
         req.setStatus(approve ? PointRequestStatusEnum.APPROVED : PointRequestStatusEnum.REJECTED);
         pointRequestRepo.save(req);
 
-        // 🧩 UPDATED: Không cần ví University — dùng mint trực tiếp
+        // 🟢 APPROVED → topup
         if (approve) {
+
             Wallet clubWallet = walletService.getOrCreateClubWallet(req.getClub());
             walletService.topupPointsFromUniversity(
                     clubWallet,
                     req.getRequestedPoints(),
                     "Approved point request from " + req.getClub().getName()
             );
+
+            // 📩 Email to Club Leader
+            User leader = req.getClub().getLeader();
+            if (leader != null) {
+                emailService.sendPointRequestApproved(
+                        leader.getEmail(),
+                        leader.getFullName(),
+                        req.getClub().getName(),
+                        req.getRequestedPoints(),
+                        note
+                );
+            }
+
+            return "Request approved & points granted.";
         }
 
-        return approve ? " Request approved & points granted." : " Request rejected.";
+        // 🔴 REJECTED → email cho Leader
+        User leader = req.getClub().getLeader();
+        if (leader != null) {
+            emailService.sendPointRequestRejected(
+                    leader.getEmail(),
+                    leader.getFullName(),
+                    req.getClub().getName(),
+                    note
+            );
+        }
+
+        return "Request rejected.";
     }
+
 
 
     @Override

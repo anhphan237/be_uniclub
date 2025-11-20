@@ -101,15 +101,12 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
             app.setStatus(ClubApplicationStatusEnum.REJECTED);
             appRepo.save(app);
 
-            emailService.sendEmail(
+            emailService.sendClubApplicationRejectedEmail(
                     app.getProposer().getEmail(),
-                    "Club creation request rejected",
-                    String.format("""
-            The request to establish the club <b>%s</b> has been rejected.<br>
-            <b>Reason:</b> %s<br><br>
-            Please review and resubmit if necessary.
-            """, app.getClubName(), req.rejectReason())
+                    app.getClubName(),
+                    req.rejectReason()
             );
+
 
 
             return ClubApplicationResponse.fromEntity(app);
@@ -146,20 +143,12 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         appRepo.save(app);
 
         // 📧 Thông báo cho người nộp đơn
-        emailService.sendEmail(
+        emailService.sendClubApplicationApprovedEmail(
                 app.getProposer().getEmail(),
-                "Club creation request approved",
-                String.format("""
-            Hello <b>%s</b>,<br><br>
-            Your club creation request for <b>%s</b> has been successfully approved <br><br>
-            The club has now been created in the UniClub system.<br><br>
-            <b>Note:</b><br>
-            - The school will manually create 2 accounts (President & Vice President).<br>
-            - These accounts will use the domain <b>@uniclub.edu.vn</b> and will be sent to you via email once ready.<br><br>
-            Best regards,<br>
-            <b>UniClub System</b>
-            """, app.getProposer().getFullName(), app.getClubName())
+                app.getProposer().getFullName(),
+                app.getClubName()
         );
+
 
 
         return ClubApplicationResponse.fromEntity(app);
@@ -204,11 +193,7 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         leaderMember.setClub(club);
         leaderMember.setClubRole(ClubRoleEnum.LEADER);
         leaderMember.setState(MembershipStateEnum.ACTIVE);
-//        leaderMember.setStaff(true);
         leaderMember.setJoinedDate(LocalDate.now());
-        // Default tự chạy:
-        // memberLevel = BASIC
-        // memberMultiplier = 1.0
         membershipRepo.save(leaderMember);
 
         // 6️⃣ Membership Vice Leader
@@ -217,7 +202,6 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
         viceMember.setClub(club);
         viceMember.setClubRole(ClubRoleEnum.VICE_LEADER);
         viceMember.setState(MembershipStateEnum.ACTIVE);
-//        viceMember.setStaff(true);
         viceMember.setJoinedDate(LocalDate.now());
         membershipRepo.save(viceMember);
 
@@ -233,46 +217,25 @@ public class ClubApplicationServiceImpl implements ClubApplicationService {
             appRepo.save(app);
         }
 
-        // 9️⃣ Gửi email
+        // 9️⃣ Gửi email COMPLETE cho người đề xuất
         if (app != null && app.getProposer() != null) {
             User proposer = app.getProposer();
-            try {
-                String subject = "[UniClub] Your club " + club.getName() + " has been successfully created";
 
-                String content = String.format("""
-                Hello %s,<br><br>
-                The club <b>%s</b> that you proposed has been approved by UniStaff and successfully created! 🎉<br><br>
-                Below are the details of your club’s two main accounts:<br><br>
-                🔹 <b>President (Leader)</b><br>
-                Full name: %s<br>
-                Email: %s<br><br>
-                🔹 <b>Vice President (Vice Leader)</b><br>
-                Full name: %s<br>
-                Email: %s<br><br>
-                Default password for both accounts: <b>%s</b><br><br>
-                Both accounts can log in at:<br>
-                <a href='https://uniclub.id.vn/login'>https://uniclub.id.vn/login</a><br><br>
-                The status of your club creation request is now: <b>COMPLETE </b><br><br>
-                Best regards,<br>
-                <b>UniClub System</b>
-                """,
-                        proposer.getFullName(),
-                        club.getName(),
-                        req.getLeaderFullName(), req.getLeaderEmail(),
-                        req.getViceFullName(), req.getViceEmail(),
-                        req.getDefaultPassword()
-                );
-
-                emailService.sendEmail(proposer.getEmail(), subject, content);
-                System.out.println("Sent COMPLETE email to proposer: " + proposer.getEmail());
-
-            } catch (Exception e) {
-                System.err.println("Failed to send COMPLETE email: " + e.getMessage());
-            }
+            emailService.sendClubCreationCompletedEmail(
+                    proposer.getEmail(),
+                    proposer.getFullName(),
+                    club.getName(),
+                    req.getLeaderFullName(),
+                    req.getLeaderEmail(),
+                    req.getViceFullName(),
+                    req.getViceEmail(),
+                    req.getDefaultPassword()
+            );
         }
 
         return ApiResponse.ok("Created leader & vice leader successfully, status = COMPLETE");
     }
+
 
 
     // ============================================================

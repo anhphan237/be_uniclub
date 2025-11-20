@@ -6,6 +6,7 @@ import com.example.uniclub.enums.EventStaffStateEnum;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.EventStaffService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ public class EventStaffServiceImpl implements EventStaffService {
     private final EventRepository eventRepository;
     private final MembershipRepository membershipRepository;
     private final EventStaffRepository eventStaffRepository;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -34,13 +36,11 @@ public class EventStaffServiceImpl implements EventStaffService {
         Membership membership = membershipRepository.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        // ❌ Nếu event bị hủy hoặc bị reject
         if (event.getStatus() == EventStatusEnum.CANCELLED || event.getStatus() == EventStatusEnum.REJECTED) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Cannot assign staff to a cancelled or rejected event");
         }
 
-        // ❌ Nếu event đã kết thúc
         boolean eventEnded = event.getDate().isBefore(LocalDate.now())
                 || (event.getDate().isEqual(LocalDate.now()) && event.getEndTime().isBefore(LocalTime.now()));
         if (eventEnded) {
@@ -48,13 +48,11 @@ public class EventStaffServiceImpl implements EventStaffService {
                     "Cannot assign staff to an event that has already ended");
         }
 
-        // ⚠️ Nếu đã gán staff rồi
         boolean alreadyAssigned = eventStaffRepository.existsByEvent_EventIdAndMembership_MembershipId(eventId, membershipId);
         if (alreadyAssigned) {
             throw new ApiException(HttpStatus.CONFLICT, "This member is already assigned as staff for this event");
         }
 
-        // ✅ Tạo staff mới
         EventStaff saved = eventStaffRepository.save(EventStaff.builder()
                 .event(event)
                 .membership(membership)
@@ -63,7 +61,16 @@ public class EventStaffServiceImpl implements EventStaffService {
                 .assignedAt(java.time.LocalDateTime.now())
                 .build());
 
-        // ✅ Map sang DTO
+
+        if (membership.getUser() != null) {
+            emailService.sendEventStaffAssignmentEmail(
+                    membership.getUser().getEmail(),
+                    membership.getUser().getFullName(),
+                    event,
+                    duty
+            );
+        }
+
         return EventStaffResponse.builder()
                 .id(saved.getId())
                 .eventId(event.getEventId())
@@ -76,6 +83,7 @@ public class EventStaffServiceImpl implements EventStaffService {
                 .unassignedAt(saved.getUnassignedAt())
                 .build();
     }
+
 
     @Override
     @Transactional

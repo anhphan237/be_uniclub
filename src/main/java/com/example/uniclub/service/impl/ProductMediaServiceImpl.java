@@ -242,19 +242,48 @@ public class ProductMediaServiceImpl implements ProductMediaService {
     @Override
     @Transactional
     public void setThumbnail(Long productId, Long mediaId) {
+
         Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
         List<ProductMedia> mediaList = mediaRepo.findByProduct(product);
+
         if (mediaList.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "No media found for this product");
         }
 
+        // ✅ CASE 1 — Product chỉ có 1 media → tự set thumbnail
+        if (mediaList.size() == 1) {
+            ProductMedia only = mediaList.get(0);
+            only.setThumbnail(true);
+            mediaRepo.save(only);
+            return;
+        }
+
+        // ✅ CASE 2 — mediaId = null → tự pick media đầu tiên để làm thumbnail
+        if (mediaId == null) {
+            ProductMedia first = mediaList.get(0);
+            for (ProductMedia m : mediaList) {
+                m.setThumbnail(m.getMediaId().equals(first.getMediaId()));
+            }
+            mediaRepo.saveAll(mediaList);
+            return;
+        }
+
+        // ✅ CASE 3 — mediaId hợp lệ → set đúng cái đó làm thumbnail
+        boolean found = false;
         for (ProductMedia m : mediaList) {
-            m.setThumbnail(m.getMediaId().equals(mediaId));
+            boolean isThumb = m.getMediaId().equals(mediaId);
+            m.setThumbnail(isThumb);
+            if (isThumb) found = true;
+        }
+
+        if (!found) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Media not found for this product");
         }
 
         mediaRepo.saveAll(mediaList);
     }
+
 
 }

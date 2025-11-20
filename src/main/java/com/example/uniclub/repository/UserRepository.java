@@ -1,6 +1,7 @@
 package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.User;
+import com.example.uniclub.enums.RoleEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -40,5 +41,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     ORDER BY COUNT(u) DESC
 """)
     List<Object[]> countStudentsByMajor();
+    List<User> findByRole_RoleNameIgnoreCase(String roleName);
+
 
 }

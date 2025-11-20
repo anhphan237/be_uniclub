@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.uniclub.enums.MembershipStateEnum;
-import com.example.uniclub.enums.EventRegistrationStatusEnum;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -31,8 +30,7 @@ public class MembershipServiceImpl implements MembershipService {
     private final ClubRepository clubRepo;
     private final ClubService clubService;
     private final EmailService emailService;
-    private final MajorPolicyRepository majorPolicyRepository;
-    private final MajorPolicyService majorPolicyService;
+
     // ========================== 🔹 Helper: Mapping ==========================
     private MembershipResponse toResp(Membership m) {
         User u = m.getUser();
@@ -166,12 +164,14 @@ public class MembershipServiceImpl implements MembershipService {
                     existing.setEndDate(null);
                     existing.setClubRole(ClubRoleEnum.MEMBER);
 
-                    // Reset fields (NEW SYSTEM)
-                    existing.setMemberMultiplier(1.0);  // mặc định
+                    // Reset fields
+                    existing.setMemberMultiplier(1.0);
                     existing.setStaff(false);
 
                     membershipRepo.save(existing);
-                    notifyClubManagers(club, user);
+
+                    // 🔔 NOTIFY LEADERS & VICE LEADERS
+                    notifyClubManagersUsingEmailService(club, user);
 
                     return toResp(existing);
                 }
@@ -181,7 +181,7 @@ public class MembershipServiceImpl implements MembershipService {
             }
         }
 
-        // ⭐ APPLY MAJOR POLICY HERE ⭐
+        // Check major policies
         validateMajorPolicy(user);
 
         // Create new membership
@@ -191,13 +191,12 @@ public class MembershipServiceImpl implements MembershipService {
         newMembership.setClubRole(ClubRoleEnum.MEMBER);
         newMembership.setState(MembershipStateEnum.PENDING);
         newMembership.setJoinedDate(LocalDate.now());
-
-        // NEW SYSTEM — NO MEMBER LEVEL
         newMembership.setMemberMultiplier(1.0);
         newMembership.setStaff(false);
 
         membershipRepo.save(newMembership);
 
+        // Log action
         eventLogService.logAction(
                 userId,
                 user.getFullName(),
@@ -207,16 +206,18 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        notifyClubManagers(club, user);
+        // 🔔 Notify leaders
+        notifyClubManagersUsingEmailService(club, user);
 
         return toResp(newMembership);
     }
 
 
 
+
 // ===================== 🔔 EMAIL NOTIFICATION FUNC =====================
 
-    private void notifyClubManagers(Club club, User applicant) {
+    private void notifyClubManagersUsingEmailService(Club club, User applicant) {
 
         List<Membership> managers = membershipRepo.findByClub_ClubIdAndClubRoleInAndStateIn(
                 club.getClubId(),
@@ -224,38 +225,22 @@ public class MembershipServiceImpl implements MembershipService {
                 List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
         );
 
-
-
         if (managers.isEmpty()) return;
 
-        String subject = "[UniClub] New membership request for " + club.getName();
-
         for (Membership mgr : managers) {
-
-            String content = """
-            <p>Dear %s,</p>
-            <p>A new member has requested to join your club <b>%s</b>.</p>
-            <p><b>Applicant:</b> %s</p>
-            <p>Please log in to UniClub to review and approve/reject this request.</p>
-            <br>
-            <p>Best regards,<br><b>UniClub System</b></p>
-        """.formatted(
-                    mgr.getUser().getFullName(),
-                    club.getName(),
-                    applicant.getFullName()
-            );
-
             try {
-                emailService.sendEmail(
+                emailService.sendClubNewMembershipRequestEmail(
                         mgr.getUser().getEmail(),
-                        subject,
-                        content
+                        mgr.getUser().getFullName(),
+                        club.getName(),
+                        applicant.getFullName()
                 );
             } catch (Exception e) {
-                log.warn("Failed to send email to club manager: {}", mgr.getUser().getEmail());
+                log.warn("Failed to send membership-join email to {}", mgr.getUser().getEmail());
             }
         }
     }
+
 
 
 
@@ -264,51 +249,154 @@ public class MembershipServiceImpl implements MembershipService {
     @Override
     @Transactional
     public MembershipResponse approveMember(Long membershipId, Long approverId) {
+
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        // Check major policy before approving
+        Club club = m.getClub();
+
+
+        //  1. Approver phải là Leader hoặc Vice Leader
+        Membership approver = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
+
+        if (!(approver.getClubRole() == ClubRoleEnum.LEADER ||
+                approver.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can approve members");
+        }
+
+        //  2. Không approve khi đã ACTIVE
+        if (m.getState() == MembershipStateEnum.ACTIVE) {
+            throw new ApiException(HttpStatus.CONFLICT, "This member is already approved");
+        }
+
+
+        //  3. Kiểm tra Major Policy trước khi duyệt
         validateMajorPolicy(m.getUser());
 
-        // NEW SYSTEM — no memberLevel, chỉ dùng multiplier
+
+        //  4. Reset thông tin cần thiết
         if (m.getMemberMultiplier() == null) {
             m.setMemberMultiplier(1.0);
         }
-
-        // Staff boolean luôn an toàn nhưng giữ lại để đảm bảo rõ ràng
         if (!m.isStaff()) {
             m.setStaff(false);
         }
-
+        // 🟢 5. Approve
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
+        // Cập nhật số lượng thành viên
+        clubService.updateMemberCount(club.getClubId());
+        //✉ 6. Gửi email qua EmailService CHUẨN
+        emailService.sendMemberApplicationResult(
+                m.getUser().getEmail(),
+                m.getUser().getFullName(),
+                m.getClub().getName(),
+                true // approved
+        );
 
-        clubService.updateMemberCount(m.getClub().getClubId());
         return toResp(m);
     }
+
 
 
 
     @Override
     @Transactional
     public MembershipResponse rejectMember(Long membershipId, Long approverId, String reason) {
+
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        Club club = m.getClub();
+
+        //  1. Approver must be Leader or Vice Leader
+        Membership approver = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
+
+        if (!(approver.getClubRole() == ClubRoleEnum.LEADER ||
+                approver.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can reject members");
+        }
+
+        // ✔ 2. Cannot reject if already decided
+        if (m.getState() == MembershipStateEnum.REJECTED) {
+            throw new ApiException(HttpStatus.CONFLICT, "This member has already been rejected");
+        }
+
+        if (m.getState() == MembershipStateEnum.ACTIVE) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot reject an already approved member");
+        }
+
+        // 3. Reject the application
         m.setState(MembershipStateEnum.REJECTED);
         membershipRepo.save(m);
-        clubService.updateMemberCount(m.getClub().getClubId());
+
+        // cập nhật member count (optional nhưng an toàn)
+        clubService.updateMemberCount(club.getClubId());
+
+        // 4. Email using new EmailService format
+        emailService.sendMemberApplicationResult(
+                m.getUser().getEmail(),
+                m.getUser().getFullName(),
+                club.getName(),
+                false // rejected
+        );
+
         return toResp(m);
     }
+
+
 
     @Override
     @Transactional
     public void removeMember(Long membershipId, Long approverId) {
+
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        Club club = m.getClub();
+
+
+        //  1. Check approver belongs to the same club
+        Membership approver = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
+
+        //  2. Only Leader or Vice Leader can remove
+        if (!(approver.getClubRole() == ClubRoleEnum.LEADER
+                || approver.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can remove members");
+        }
+
+        //  3. Cannot remove Leader or Vice Leader
+        if (m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot remove a Leader or Vice Leader");
+        }
+
+        //  4. Cannot remove yourself
+        if (Objects.equals(m.getUser().getUserId(), approverId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove yourself");
+        }
+
+        //  5. Remove member
         m.setState(MembershipStateEnum.INACTIVE);
+        m.setEndDate(LocalDate.now());
         membershipRepo.save(m);
-        clubService.updateMemberCount(m.getClub().getClubId());
+
+        clubService.updateMemberCount(club.getClubId());
+
+        // ✉ 6. Send email using unified EmailService
+        emailService.sendMemberKickedEmail(
+                m.getUser().getEmail(),
+                m.getUser().getFullName(),
+                club.getName(),
+                approver.getUser().getFullName()
+        );
     }
+
 
     // ========================== 🔹 3. Role Management ==========================
     @Override
@@ -398,127 +486,119 @@ public class MembershipServiceImpl implements MembershipService {
     @Override
     @Transactional
     public String kickMember(CustomUserDetails principal, Long membershipId) {
+
         Membership membership = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
         Club club = membership.getClub();
-        Membership actorMembership = membershipRepo
+        Membership actor = membershipRepo
                 .findByUser_UserIdAndClub_ClubId(principal.getUser().getUserId(), club.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
 
-        if (!(actorMembership.getClubRole() == ClubRoleEnum.LEADER
-                || actorMembership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+        // ✔ Only Leader or Vice Leader can remove
+        if (!(actor.getClubRole() == ClubRoleEnum.LEADER ||
+                actor.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the Leader or Vice Leader can remove members");
         }
 
+        // ✔ Cannot remove yourself
         if (Objects.equals(membership.getUser().getUserId(), principal.getUser().getUserId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove yourself");
         }
 
-        if (membership.getClubRole() == ClubRoleEnum.LEADER
-                || membership.getClubRole() == ClubRoleEnum.VICE_LEADER) {
+        // ✔ Cannot remove Leader/Vice Leader
+        if (membership.getClubRole() == ClubRoleEnum.LEADER ||
+                membership.getClubRole() == ClubRoleEnum.VICE_LEADER) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove the Club Leader or Vice Leader");
         }
 
+        // ✔ Perform removal
         membership.setState(MembershipStateEnum.KICKED);
+        membership.setEndDate(LocalDate.now());
         membershipRepo.save(membership);
 
-        String kickerName = principal.getUser().getFullName();
-        String receiverName = membership.getUser().getFullName();
-        String clubName = club.getName();
+        // ✔ Update club member count
+        clubService.updateMemberCount(club.getClubId());
 
-        String subject = "You have been removed from " + clubName + " by " + kickerName;
-
-        String body = """
-        <p>Dear %s,</p>
-        <p>You have been <b>removed</b> from the club <b>%s</b> by <b>%s</b>.</p>
-        <p>If you believe this was a mistake, please contact your Club Leader or University Staff.</p>
-        <br><p>Best regards,<br>%s<br>%s Club<br>UniClub Platform</p>
-        """.formatted(receiverName, clubName, kickerName, kickerName, clubName);
-
-        try {
-            emailService.sendEmail(membership.getUser().getEmail(), subject, body);
-        } catch (Exception e) {
-            log.warn("⚠Failed to send email to {}", membership.getUser().getEmail());
-        }
-        eventLogService.logAction(
-                membership.getUser().getUserId(),
+        // ✔ Unified EmailService
+        emailService.sendMemberKickedEmail(
+                membership.getUser().getEmail(),
                 membership.getUser().getFullName(),
-                null,
-                null,
-                UserActionEnum.LEAVE_CLUB,
-                "User left club " + membership.getClub().getName()
+                club.getName(),
+                actor.getUser().getFullName()
         );
-        return "Member " + receiverName + " has been removed from " + clubName + " by " + kickerName;
+
+        return "Member " + membership.getUser().getFullName() +
+                " has been removed from " + club.getName() +
+                " by " + actor.getUser().getFullName();
     }
+
 
     @Override
     @Transactional
     public String requestLeave(Long userId, Long clubId, String reason) {
+
         Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubIdAndState(
                 userId, clubId, MembershipStateEnum.ACTIVE
         ).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "You are not an active member of this club."));
 
         if (membership.getClubRole() == ClubRoleEnum.LEADER) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Leader cannot leave the club. Please transfer your role first.");
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Leader cannot leave the club. Please transfer your role first.");
         }
 
         if (leaveRequestRepo.existsByMembershipAndStatus(membership, LeaveRequestStatusEnum.PENDING)) {
-            throw new ApiException(HttpStatus.CONFLICT, "You already have a pending leave request.");
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "You already have a pending leave request.");
         }
 
-        var req = ClubLeaveRequestEntity.builder()
+        ClubLeaveRequestEntity req = ClubLeaveRequestEntity.builder()
                 .membership(membership)
                 .status(LeaveRequestStatusEnum.PENDING)
                 .reason(reason)
                 .createdAt(java.time.LocalDateTime.now())
                 .build();
+
         leaveRequestRepo.save(req);
 
-        // 📧 Send email to Club Leader
+        // ✔ Notify only the Leader of the club
         User leader = membership.getClub().getLeader();
         if (leader != null) {
-            String subject = "[UniClub] Member submitted a club leave request";
-            String body = """
-                <p>Dear %s,</p>
-                <p>Member <b>%s</b> has submitted a request to leave the club <b>%s</b>.</p>
-                <p><b>Reason:</b> %s</p>
-                <p>Please log in to the UniClub platform to review this request.</p>
-                <br>
-                <p>Regards,<br><b>UniClub System</b></p>
-                """.formatted(
+            emailService.sendLeaveRequestSubmittedToLeader(
+                    leader.getEmail(),
                     leader.getFullName(),
                     membership.getUser().getFullName(),
                     membership.getClub().getName(),
-                    (reason == null || reason.isBlank()) ? "No reason provided." : reason
+                    (reason == null || reason.isBlank()) ? "No reason provided" : reason
             );
-            emailService.sendEmail(leader.getEmail(), subject, body);
         }
 
         return "Leave request submitted successfully. Please wait for Leader approval.";
     }
 
+
     @Override
     @Transactional
     public String reviewLeaveRequest(Long requestId, Long approverId, String action) {
-        var req = leaveRequestRepo.findById(requestId)
+
+        ClubLeaveRequestEntity req = leaveRequestRepo.findById(requestId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Leave request not found."));
 
         Membership membership = req.getMembership();
         Club club = membership.getClub();
 
-        // ✅ Verify approver is club leader
-        Membership approver = membershipRepo.findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
+        Membership approver = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
+
         if (approver.getClubRole() != ClubRoleEnum.LEADER) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the Club Leader can review leave requests.");
         }
 
-        // ✅ Convert action safely (Swagger Enum → string → Enum)
         LeaveRequestStatusEnum newStatus;
         try {
             newStatus = LeaveRequestStatusEnum.valueOf(action.toUpperCase());
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid action. Must be APPROVED or REJECTED.");
         }
 
@@ -526,46 +606,39 @@ public class MembershipServiceImpl implements MembershipService {
         req.setProcessedAt(java.time.LocalDateTime.now());
         leaveRequestRepo.save(req);
 
+        User member = membership.getUser();
+
+        // ***********************************************
+        // ✔ If APPROVED → set member inactive + email
+        // ***********************************************
         if (newStatus == LeaveRequestStatusEnum.APPROVED) {
             membership.setState(MembershipStateEnum.INACTIVE);
-            membership.setEndDate(java.time.LocalDate.now());
+            membership.setEndDate(LocalDate.now());
             membershipRepo.save(membership);
+
             clubService.updateMemberCount(club.getClubId());
+
+            emailService.sendLeaveRequestApprovedToMember(
+                    member.getEmail(),
+                    member.getFullName(),
+                    club.getName()
+            );
         }
-
-        // ✅ Email notify member
-        User member = membership.getUser();
-        String subject;
-        String body;
-
-        if (newStatus == LeaveRequestStatusEnum.APPROVED) {
-            subject = "[UniClub] Your club leave request has been approved";
-            body = """
-            <p>Dear %s,</p>
-            <p>Your request to leave the club <b>%s</b> has been <b>approved</b>.</p>
-            <p>You are no longer a member of this club.</p>
-            <br>
-            <p>Thank you for being part of UniClub,<br><b>UniClub Team</b></p>
-            """.formatted(member.getFullName(), club.getName());
-        } else {
-            subject = "[UniClub] Your club leave request has been rejected";
-            body = """
-            <p>Dear %s,</p>
-            <p>Your request to leave the club <b>%s</b> has been <b>rejected</b> by Leader <b>%s</b>.</p>
-            <p>Please contact your Club Leader directly if you need further clarification.</p>
-            <br>
-            <p>Regards,<br><b>UniClub Team</b></p>
-            """.formatted(member.getFullName(), club.getName(), approver.getUser().getFullName());
-        }
-
-        try {
-            emailService.sendEmail(member.getEmail(), subject, body);
-        } catch (Exception e) {
-            log.warn("Failed to send leave request email to {}", member.getEmail(), e);
+        else {
+            // ***********************************************
+            // ✔ REJECTED
+            // ***********************************************
+            emailService.sendLeaveRequestRejectedToMember(
+                    member.getEmail(),
+                    member.getFullName(),
+                    club.getName(),
+                    approver.getUser().getFullName()
+            );
         }
 
         return "Leave request " + newStatus.name().toLowerCase() + " successfully.";
     }
+
     @Override
     public Map<String, Object> getMemberOverview(Long userId) {
         Map<String, Object> result = new HashMap<>();

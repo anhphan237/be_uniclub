@@ -77,7 +77,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 userRepo.save(user);
 
                 // ⭐ Gửi email welcome
-                sendWelcomeEmail(user);
+                emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
                 // → FE sẽ hiển thị popup nhờ flag này
                 firstLogin = true;
@@ -144,19 +144,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
     }
 
-    // ⭐ Gửi email chào mừng
-    private void sendWelcomeEmail(User user) {
-        String subject = "[UniClub] Welcome to UniClub 🎉";
-        String content = """
-                <h2>Hello %s,</h2>
-                <p>Welcome to <b>UniClub</b>! Your account has been successfully created via Google Login. 🎉</p>
-                <p>You can now explore clubs, join events, and start earning reward points within the system.</p>
-                <p>👉 Access UniClub here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
-                <br>
-                <p>Best regards,<br><b>UniClub Vietnam Team</b></p>
-                """.formatted(user.getFullName() != null ? user.getFullName() : "there");
 
-        emailService.sendEmail(user.getEmail(), subject, content);
-    }
 
 }

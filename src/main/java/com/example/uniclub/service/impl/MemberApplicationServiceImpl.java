@@ -9,8 +9,8 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MemberApplicationService;
-import com.example.uniclub.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -32,7 +32,8 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final MembershipRepository membershipRepo;
-    private final NotificationService notificationService;
+    private final EmailService emailService;
+
 
     // =====================================================================================
     //  STUDENT SUBMITS APPLICATION
@@ -84,11 +85,11 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         MemberApplication saved = appRepo.save(app);
 
-        try {
-            notificationService.sendApplicationSubmitted(user.getEmail(), club.getName());
-        } catch (Exception e) {
-            log.warn("Email send failed for {}", user.getEmail(), e);
-        }
+        emailService.sendMemberApplicationSubmitted(
+                user.getEmail(),
+                user.getFullName(),
+                club.getName()
+        );
 
         return mapToResponse(saved);
     }
@@ -176,8 +177,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 membershipRepo.save(m);
             }
 
-            notificationService.sendApplicationResult(
+            emailService.sendMemberApplicationResult(
                     app.getApplicant().getEmail(),
+                    app.getApplicant().getFullName(),
                     app.getClub().getName(),
                     true
             );
@@ -185,8 +187,10 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         // Reject application
         if (newStatus == MemberApplicationStatusEnum.REJECTED) {
-            notificationService.sendApplicationResult(
+
+            emailService.sendMemberApplicationResult(
                     app.getApplicant().getEmail(),
+                    app.getApplicant().getFullName(),
                     app.getClub().getName(),
                     false
             );
@@ -296,6 +300,12 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         if (app.getStatus() != MemberApplicationStatusEnum.PENDING)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only pending applications can be cancelled");
 
+        emailService.sendMemberApplicationCancelled(
+                app.getApplicant().getEmail(),
+                app.getApplicant().getFullName(),
+                app.getClub().getName()
+        );
+
         appRepo.delete(app);
     }
 
@@ -389,8 +399,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
             }
         }
 
-        notificationService.sendApplicationResult(
+        emailService.sendMemberApplicationResult(
                 app.getApplicant().getEmail(),
+                app.getApplicant().getFullName(),
                 app.getClub().getName(),
                 true
         );
@@ -421,8 +432,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         appRepo.save(app);
 
-        notificationService.sendApplicationResult(
+        emailService.sendMemberApplicationResult(
                 app.getApplicant().getEmail(),
+                app.getApplicant().getFullName(),
                 app.getClub().getName(),
                 false
         );
@@ -509,8 +521,9 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         appRepo.save(oldApp);
 
-        notificationService.sendApplicationSubmitted(
-                principal.getUsername(),
+        emailService.sendMemberApplicationSubmitted(
+                principal.getUser().getEmail(),
+                principal.getUser().getFullName(),
                 oldApp.getClub().getName()
         );
 

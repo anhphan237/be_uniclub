@@ -41,19 +41,12 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        String formattedEarned = formatPoints(pointsEarned);
-        String formattedTotal = formatPoints(totalPoints);
-
-        emailService.sendEmail(
+        emailService.sendCheckInRewardEmail(
                 user.getEmail(),
-                "You’ve Earned UniPoints for Attending " + eventName + "!",
-                """
-                <p>Dear <b>%s</b>,</p>
-                <p>Thank you for attending <b>%s</b>!</p>
-                <p>You’ve just earned <b>%s UniPoints</b>.</p>
-                <p>Your current total is <b>%s UniPoints</b>.</p>
-                <p>Keep participating in events to earn more rewards.</p>
-                """.formatted(user.getFullName(), eventName, formattedEarned, formattedTotal)
+                user.getFullName(),
+                eventName,
+                pointsEarned,
+                totalPoints
         );
     }
 
@@ -62,19 +55,12 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        String formattedBonus = formatPoints(bonusPoints);
-        String formattedTotal = formatPoints(totalPoints);
-        String r = (reason == null || reason.isBlank()) ? "your contribution" : reason;
-
-        emailService.sendEmail(
+        emailService.sendManualBonusEmail(
                 user.getEmail(),
-                "You’ve Received Extra UniPoints!",
-                """
-                <p>Dear <b>%s</b>,</p>
-                <p>Good news! You’ve received <b>%s UniPoints</b> for <b>%s</b>.</p>
-                <p>Your total balance is now <b>%s UniPoints</b>.</p>
-                <p>Keep up the great work and continue to shine in UniClub!</p>
-                """.formatted(user.getFullName(), formattedBonus, r, formattedTotal)
+                user.getFullName(),
+                bonusPoints,
+                reason,
+                totalPoints
         );
     }
 
@@ -83,17 +69,10 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        String formattedMilestone = formatPoints(milestone);
-
-        emailService.sendEmail(
+        emailService.sendMilestoneEmail(
                 user.getEmail(),
-                "Congratulations! You’ve Reached " + formattedMilestone + " UniPoints!",
-                """
-                <p>Dear <b>%s</b>,</p>
-                <p>Congratulations on reaching <b>%s UniPoints</b>!</p>
-                <p>This milestone reflects your consistent engagement with UniClub.</p>
-                <p>Keep exploring more clubs and events to earn even greater rewards!</p>
-                """.formatted(user.getFullName(), formattedMilestone)
+                user.getFullName(),
+                milestone
         );
     }
 
@@ -192,50 +171,26 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String subject = "[UniClub] Your club just received points 🎉";
-
-        String formattedPoints = formatPoints(points);
-
-        String html = """
-    <h2>Hello %s,</h2>
-    <p>Your club <b>%s</b> has just received <b>%s points</b>.</p>
-    <p><b>Reason:</b> %s</p>
-    <br>
-    <p>Best regards,<br>UniClub System</p>
-    """.formatted(
+        emailService.sendClubTopUpEmail(
+                user.getEmail(),
                 user.getFullName(),
                 clubName,
-                formattedPoints,
+                points,
                 reason
         );
-
-        emailService.sendEmail(user.getEmail(), subject, html);
     }
 
     public void sendClubWalletDeductionEmail(Long userId, String clubName, long points, String reason) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String subject = "[UniClub] Your club wallet has been used";
-
-        String formattedPoints = formatPoints(points);
-
-        String html = """
-    <h2>Hello %s,</h2>
-    <p>Your club <b>%s</b> has just spent <b>%s points</b> from the club wallet.</p>
-    <p><b>Reason:</b> %s</p>
-    <br>
-    <p>If this action was not performed by you or your club's management team, please contact the university staff.</p>
-    <br>
-    <p>Best regards,<br>UniClub System</p>
-    """.formatted(
+        emailService.sendClubWalletDeductionEmail(
+                user.getEmail(),
                 user.getFullName(),
                 clubName,
-                formattedPoints,
+                points,
                 reason
         );
-
-        emailService.sendEmail(user.getEmail(), subject, html);
     }
 
 
@@ -243,27 +198,14 @@ public class RewardServiceImpl implements RewardService {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String subject = "[UniClub] Club wallet used for member rewards";
-
-        String formattedTotal = formatPoints(totalPoints);
-
-        String html = """
-    <h2>Hello %s,</h2>
-    <p>Your club <b>%s</b> has just spent <b>%s points</b> from the club wallet to reward <b>%d members</b>.</p>
-    <p><b>Reason:</b> %s</p>
-    <br>
-    <p>You can check the detailed transactions in the UniClub system.</p>
-    <br>
-    <p>Best regards,<br>UniClub System</p>
-    """.formatted(
+        emailService.sendClubBatchDeductionSummaryEmail(
+                user.getEmail(),
                 user.getFullName(),
                 clubName,
-                formattedTotal,
+                totalPoints,
                 memberCount,
                 reason
         );
-
-        emailService.sendEmail(user.getEmail(), subject, html);
     }
 
 

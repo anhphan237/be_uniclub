@@ -19,40 +19,73 @@ public class TagServiceImpl implements TagService {
 
     private final TagRepository tagRepository;
 
+    // =====================================================
+    // 1) AUTO-CREATE (system only)
+    // =====================================================
     @Override
     public Tag createTagIfNotExists(String name) {
+
         if (name == null || name.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Tag name is required.");
         }
 
-        // Normalize
         String normalized = name.trim().toLowerCase();
 
-        // Check exists
         if (tagRepository.existsByNameIgnoreCase(normalized)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Tag already exists.");
+            return tagRepository.findByNameIgnoreCase(normalized).get();
         }
 
         Tag tag = Tag.builder()
                 .name(normalized)
+                .core(false)
                 .build();
 
         return tagRepository.save(tag);
     }
 
+    // =====================================================
+    // 2) CREATE TAG (admin / staff)
+    // =====================================================
+    @Override
+    public Tag createTag(TagRequest request) {
 
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Tag name is required.");
+        }
+
+        String normalized = request.getName().trim().toLowerCase();
+
+        if (tagRepository.existsByNameIgnoreCase(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Tag name already exists.");
+        }
+
+        Tag tag = Tag.builder()
+                .name(normalized)
+                .description(request.getDescription())
+                .core(request.getCore() != null ? request.getCore() : false)
+                .build();
+
+        return tagRepository.save(tag);
+    }
+
+    // =====================================================
+    // 3) GET ALL TAGS
+    // =====================================================
     @Override
     public List<Tag> getAllTags() {
         return tagRepository.findAll();
     }
 
+    // =====================================================
+    // 4) DELETE TAG
+    // =====================================================
     @Override
     @Transactional
     public void deleteTag(Long tagId) {
+
         Tag tag = tagRepository.findById(tagId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Tag not found."));
 
-        // Do not allow deletion of core tags
         if (tag.isCore()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Cannot delete core tag: " + tag.getName());
@@ -61,6 +94,9 @@ public class TagServiceImpl implements TagService {
         tagRepository.delete(tag);
     }
 
+    // =====================================================
+    // 5) UPDATE TAG
+    // =====================================================
     @Override
     @Transactional
     public TagResponse updateTag(Long id, TagRequest request) {
@@ -70,36 +106,29 @@ public class TagServiceImpl implements TagService {
 
         boolean isCore = tag.isCore();
 
-        // Nếu tag là core → CHỈ cho chỉnh sửa giá trị core
+        // ===== RULE: core tag cannot change name or description =====
         if (isCore) {
 
-            // Không cho đổi name
-            if (request.getName() != null && !request.getName().isBlank()
-                    && !request.getName().equals(tag.getName())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST,
-                        "Core tag cannot change name.");
+            if (request.getName() != null && !request.getName().equals(tag.getName())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Core tag cannot change name.");
             }
 
-            // Không cho đổi description
-            if (request.getDescription() != null
-                    && !request.getDescription().equals(tag.getDescription())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST,
-                        "Core tag cannot change description.");
+            if (request.getDescription() != null &&
+                    !request.getDescription().equals(tag.getDescription())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Core tag cannot change description.");
             }
 
-            // CHỈ cho phép đổi core flag
             if (request.getCore() != null) {
                 tag.setCore(request.getCore());
             }
 
-            tagRepository.save(tag);
-            return TagResponse.from(tag);
+            return TagResponse.from(tagRepository.save(tag));
         }
 
-        // Nếu KHÔNG phải core → cập nhật như bình thường
-        // Update name (có normalize)
-        if (request.getName() != null && !request.getName().isBlank()) {
+        // ===== NORMAL TAG UPDATE =====
 
+        // Update name
+        if (request.getName() != null && !request.getName().isBlank()) {
             String normalized = request.getName().trim().toLowerCase();
 
             if (tagRepository.existsByNameIgnoreCaseAndTagIdNot(normalized, id)) {
@@ -114,14 +143,11 @@ public class TagServiceImpl implements TagService {
             tag.setDescription(request.getDescription());
         }
 
-        // Optional: update core flag
+        // Update core flag
         if (request.getCore() != null) {
             tag.setCore(request.getCore());
         }
 
-        tagRepository.save(tag);
-        return TagResponse.from(tag);
+        return TagResponse.from(tagRepository.save(tag));
     }
-
-
 }

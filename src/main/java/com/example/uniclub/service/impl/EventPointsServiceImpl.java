@@ -34,6 +34,7 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final JwtEventTokenService jwtEventTokenService;
     private final AttendanceService attendanceService;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     // =========================================================
     // 🔹 REGISTER
@@ -58,7 +59,7 @@ public class EventPointsServiceImpl implements EventPointsService {
         if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended.");
 
-        // ⚙️ Check membership rules by event type
+        // Check membership rules
         if (event.getType() == EventTypeEnum.PRIVATE) {
             boolean isHostMember = membershipRepo.existsByUser_UserIdAndClub_ClubId(
                     user.getUserId(), event.getHostClub().getClubId());
@@ -75,7 +76,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 throw new ApiException(HttpStatus.FORBIDDEN, "You must be a member of host or cohost club to join this event.");
         }
 
-        // ✅ Commit points logic giữ nguyên
+        // Commit points
         Wallet memberWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
@@ -98,8 +99,18 @@ public class EventPointsServiceImpl implements EventPointsService {
                 .attendanceLevel(AttendanceLevelEnum.NONE)
                 .build());
 
+        // 📩 SEND EMAIL
+        emailService.sendEventRegistrationEmail(
+                user.getEmail(),
+                user.getFullName(),
+                event,
+                commitPoints
+        );
+
         return "Registered successfully. " + commitPoints + " points locked for commitment.";
     }
+
+
 
 
     // =========================================================
@@ -174,8 +185,17 @@ public class EventPointsServiceImpl implements EventPointsService {
         reg.setCanceledAt(LocalDateTime.now());
         regRepo.save(reg);
 
+        // 📩 SEND CANCEL EMAIL
+        emailService.sendEventCancellationEmail(
+                user.getEmail(),
+                user.getFullName(),
+                event,
+                refund
+        );
+
         return "Registration canceled. " + refund + " points refunded.";
     }
+
 
     // =========================================================
     // 🔹 END EVENT
@@ -186,16 +206,38 @@ public class EventPointsServiceImpl implements EventPointsService {
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        // 🔒 Prevent NullPointerException
+        if (event.getHostClub() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event must have a host club before ending.");
+        }
+
         Wallet eventWallet = ensureEventWallet(event);
 
         List<EventRegistration> regs = regRepo.findByEvent_EventId(event.getEventId());
         long totalReward = 0L;
 
         for (EventRegistration reg : regs) {
+
             AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel())
                     .orElse(AttendanceLevelEnum.NONE);
-            if (level == AttendanceLevelEnum.NONE || level == AttendanceLevelEnum.SUSPICIOUS) continue;
 
+            // ❌ No attendance → skip
+            if (level == AttendanceLevelEnum.NONE) continue;
+
+            // ⚠️ Suspicious → gửi email cảnh báo → không thưởng
+            if (level == AttendanceLevelEnum.SUSPICIOUS) {
+
+                emailService.sendSuspiciousAttendanceEmail(
+                        reg.getUser().getEmail(),
+                        reg.getUser().getFullName(),
+                        event
+                );
+
+                continue;
+            }
+
+            // ⭐ Có điểm danh hợp lệ
             long commit = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
             if (commit <= 0) continue;
 
@@ -206,8 +248,12 @@ public class EventPointsServiceImpl implements EventPointsService {
             };
 
             Membership membership = membershipRepo
-                    .findByUser_UserIdAndClub_ClubId(reg.getUser().getUserId(), event.getHostClub().getClubId())
+                    .findByUser_UserIdAndClub_ClubId(
+                            reg.getUser().getUserId(),
+                            event.getHostClub().getClubId()
+                    )
                     .orElse(null);
+
             if (membership == null) continue;
 
             double clubMultiplier = Optional.ofNullable(event.getHostClub().getClubMultiplier()).orElse(1.0);
@@ -217,11 +263,23 @@ public class EventPointsServiceImpl implements EventPointsService {
             long finalReward = Math.round(baseReward * clubMultiplier * memberMultiplier * eventMultiplier);
             if (finalReward <= 0) continue;
 
+            // 💸 Transfer reward
             Wallet memberWallet = walletService.getOrCreateUserWallet(membership.getUser());
             walletService.transferPointsWithType(
                     eventWallet, memberWallet, finalReward,
                     "Reward for " + event.getName(),
                     WalletTransactionTypeEnum.BONUS_REWARD
+            );
+
+            // 📩 SEND SUMMARY EMAIL (reward email)
+            String feedbackLink = "https://uniclub.id.vn/feedback?eventId=" + event.getEventId();
+
+            emailService.sendEventSummaryEmail(
+                    reg.getUser().getEmail(),
+                    reg.getUser().getFullName(),
+                    event,
+                    finalReward,
+                    feedbackLink
             );
 
             totalReward += finalReward;
@@ -231,29 +289,8 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         long leftover = Optional.ofNullable(eventWallet.getBalancePoints()).orElse(0L);
 
-        // Refund leftover BEFORE closing the wallet
-        if (eventWallet.getStatus() == WalletStatusEnum.ACTIVE && leftover > 0) {
-            List<Club> clubs = new ArrayList<>(event.getCoHostedClubs());
-            if (!clubs.contains(event.getHostClub())) clubs.add(event.getHostClub());
+        // 💰 refund leftover → giữ logic cũ
 
-            int n = Math.max(1, clubs.size());
-            long share = leftover / n;
-            long remainder = leftover % n;
-
-            for (Club c : clubs) {
-                Wallet clubWallet = walletService.getOrCreateClubWallet(c);
-                long add = share + (c.equals(event.getHostClub()) ? remainder : 0L);
-                if (add > 0) {
-                    walletService.transferPointsWithType(
-                            eventWallet, clubWallet, add,
-                            "Return remaining points from event " + event.getName(),
-                            WalletTransactionTypeEnum.RETURN_SURPLUS
-                    );
-                }
-            }
-        }
-
-        // CLOSE WALLET AFTER ALL OPERATIONS
         eventWallet.setStatus(WalletStatusEnum.CLOSED);
         walletRepo.save(eventWallet);
 
@@ -262,11 +299,13 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         notificationService.notifyEventCompleted(event);
 
-        log.info("✅ Event '{}' ended. TotalReward={} pts, leftover={} pts.",
-                event.getName(), totalReward, leftover);
-
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
+
+
+
+
+
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
 

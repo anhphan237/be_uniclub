@@ -38,8 +38,8 @@ public class TagController {
             summary = "Tạo tag mới",
             description = "ADMIN hoặc UNIVERSITY_STAFF có thể tạo tag mới."
     )
-    public ResponseEntity<ApiResponse<Tag>> createTag(@RequestParam String name) {
-        Tag tag = tagService.createTagIfNotExists(name);
+    public ResponseEntity<ApiResponse<Tag>> createTag(@RequestBody TagRequest request) {
+        Tag tag = tagService.createTag(request);
         return ResponseEntity.ok(ApiResponse.ok(tag));
     }
 

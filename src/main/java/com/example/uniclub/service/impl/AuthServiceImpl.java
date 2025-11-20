@@ -139,17 +139,7 @@ public class AuthServiceImpl {
         user = userRepository.save(user);
 
         // Send Email
-        String subject = "[UniClub] Welcome to the system 🎉";
-        String content = """
-                <h2>Hello %s,</h2>
-                <p>Congratulations! You’ve successfully registered your <b>UniClub</b> account. 🎉</p>
-                <p>You can now log in to explore clubs, join events, and start earning points within the system.</p>
-                <p>👉 Access here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
-                <br>
-                <p>Best regards,<br><b>The UniClub Vietnam Team</b></p>
-                """.formatted(user.getFullName());
-
-        emailService.sendEmail(user.getEmail(), subject, content);
+        emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
         // Create JWT
         String token = jwtUtil.generateToken(
@@ -174,35 +164,32 @@ public class AuthServiceImpl {
     // 🔹 Send Reset Password Email
     // ==============================================
     public void sendResetPasswordEmail(String email) {
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "No account found with this email."));
 
         tokenRepository.deleteByUser_UserId(user.getUserId());
 
         String token = UUID.randomUUID().toString();
+
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .token(token)
                 .user(user)
                 .expiryDate(LocalDateTime.now().plusMinutes(15))
                 .build();
+
         tokenRepository.save(resetToken);
 
         String resetLink = "https://uniclub-fpt.vercel.app/reset-password?token=" + token + "&email=" + email;
-        String subject = "Reset your UniClub password";
-        String content = """
-                Hi %s,<br><br>
-                We received a request to reset your UniClub password.<br>
-                Click the button below to set a new password:<br><br>
-                <a href="%s" style="display:inline-block;padding:10px 20px;
-                background-color:#1E88E5;color:white;border-radius:6px;text-decoration:none;">
-                Reset Password</a><br><br>
-                This link will expire in 15 minutes.<br><br>
-                Best regards,<br>
-                <b>UniClub Vietnam</b> 
-                """.formatted(user.getFullName(), resetLink);
 
-        emailService.sendEmail(email, subject, content);
+        // 📩 SEND EMAIL USING EMAIL SERVICE
+        emailService.sendResetPasswordEmail(
+                user.getEmail(),
+                user.getFullName(),
+                resetLink
+        );
     }
+
 
 
 
@@ -210,6 +197,7 @@ public class AuthServiceImpl {
     // 🔹 Reset Password
     // ==============================================
     public void resetPassword(String email, String token, String newPassword) {
+
         PasswordResetToken resetToken = tokenRepository.findByToken(token)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid or expired token."));
 
@@ -226,6 +214,7 @@ public class AuthServiceImpl {
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
         tokenRepository.delete(resetToken);
     }
 }
