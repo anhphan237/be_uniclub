@@ -2,6 +2,8 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.ProductCreateRequest;
 import com.example.uniclub.dto.request.ProductUpdateRequest;
+import com.example.uniclub.dto.response.EventProductResponse;
+import com.example.uniclub.dto.response.EventValidityResponse;
 import com.example.uniclub.dto.response.ProductResponse;
 import com.example.uniclub.entity.ProductStockHistory;
 import org.springframework.data.domain.Page;
@@ -34,5 +36,8 @@ public interface ProductService {
     List<ProductStockHistory> getStockHistory(Long productId);
 
     ProductResponse activateProduct(Long productId);
+
+    EventValidityResponse checkEventValidity(Long productId);
+    List<EventProductResponse> listEventProductsByClub(Long clubId);
 
 }

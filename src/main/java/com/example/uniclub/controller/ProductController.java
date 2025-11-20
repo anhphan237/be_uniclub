@@ -420,6 +420,56 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
+    // ==========================================================
+//  🔍 CHECK PRODUCT EVENT VALIDITY
+// ==========================================================
+    @Operation(
+            summary = "Kiểm tra sản phẩm EVENT_ITEM còn hạn hay không",
+            description = """
+            Dùng cho FE để xác định sản phẩm gắn với sự kiện 
+            còn khả dụng hay đã hết hạn.<br><br>
+            🔹 Chỉ áp dụng cho sản phẩm loại EVENT_ITEM.<br>
+            🔹 Một Product hết hạn khi Event của nó có status = COMPLETED
+               hoặc đã quá thời gian endTime.<br>
+            """,
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Product không tồn tại")
+            }
+    )
+    @GetMapping("/{productId}/is-event-valid")
+    public ResponseEntity<ApiResponse<?>> checkEventValidity(
+            @PathVariable Long clubId,
+            @PathVariable Long productId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                productService.checkEventValidity(productId)
+        ));
+    }
+    @Operation(
+            summary = "Lấy danh sách sản phẩm sự kiện (EVENT_ITEM) của CLB",
+            description = """
+            API này trả về **toàn bộ sản phẩm thuộc loại EVENT_ITEM** của một CLB.<br><br>
+            
+            Mỗi sản phẩm bao gồm:
+            🔹 Thông tin sản phẩm<br>
+            🔹 Event mà sản phẩm thuộc về (eventId, eventName, eventStatus)<br>
+            🔹 Trạng thái sự kiện: UPCOMING / ONGOING / COMPLETED<br>
+            🔹 Auto tính `expired = true/false` dựa trên endTime + status của event<br><br>
+            
+            Dùng để FE hiển thị danh sách quà trong sự kiện của CLB, 
+            đồng thời biết event đó còn hạn hay đã kết thúc.
+            """
+    )
+    @GetMapping("/event-items")
+    public ResponseEntity<ApiResponse<?>> listEventProductsByClub(
+            @PathVariable Long clubId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                productService.listEventProductsByClub(clubId)
+        ));
+    }
+
 
 
 }

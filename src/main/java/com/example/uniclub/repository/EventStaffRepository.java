@@ -44,6 +44,19 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
     );
 
     long countByMembership_MembershipIdAndState(Long membershipId, EventStaffStateEnum state);
+
     List<EventStaff> findByEvent_EventIdAndState(Long eventId, EventStaffStateEnum state);
+    @Query("""
+    SELECT COUNT(es) > 0
+    FROM EventStaff es
+    WHERE es.membership.membershipId = :membershipId
+      AND es.state IN :states
+""")
+    boolean isMemberStaff(
+            @Param("membershipId") Long membershipId,
+            @Param("states") List<EventStaffStateEnum> states
+    );
+    boolean existsByMembership_MembershipIdAndStateIn(Long membershipId, List<EventStaffStateEnum> states);
+
 
 }

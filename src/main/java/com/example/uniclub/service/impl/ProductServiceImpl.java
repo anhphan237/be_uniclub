@@ -2,9 +2,12 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.ProductCreateRequest;
 import com.example.uniclub.dto.request.ProductUpdateRequest;
+import com.example.uniclub.dto.response.EventProductResponse;
+import com.example.uniclub.dto.response.EventValidityResponse;
 import com.example.uniclub.dto.response.ProductMediaResponse;
 import com.example.uniclub.dto.response.ProductResponse;
 import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.ProductStatusEnum;
 import com.example.uniclub.enums.ProductTypeEnum;
 import com.example.uniclub.exception.ApiException;
@@ -22,6 +25,7 @@ import com.example.uniclub.repository.TagRepository;
 import com.example.uniclub.repository.ProductTagRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 @Slf4j
@@ -506,6 +510,40 @@ public class ProductServiceImpl implements ProductService {
         productRepo.save(product);
         return toResp(product);
     }
+    @Override
+    public EventValidityResponse checkEventValidity(Long productId) {
+
+        Product p = productRepo.findById(productId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        // ❗ Chỉ áp dụng cho EVENT_ITEM
+        if (p.getType() != ProductTypeEnum.EVENT_ITEM) {
+            return EventValidityResponse.notEventProduct(p.getProductId());
+        }
+
+        // ❗ Sản phẩm EVENT_ITEM nhưng không có event
+        if (p.getEvent() == null) {
+            return EventValidityResponse.noEventLinked(p.getProductId());
+        }
+
+        Event ev = p.getEvent();
+
+        // Tính thời điểm kết thúc sự kiện
+        LocalDateTime eventEnd = LocalDateTime.of(ev.getDate(), ev.getEndTime());
+        LocalDateTime now = LocalDateTime.now();
+
+        boolean expired =
+                ev.getStatus() == EventStatusEnum.COMPLETED ||
+                        eventEnd.isBefore(now);
+
+        return EventValidityResponse.ok(
+                p.getProductId(),
+                ev.getEventId(),
+                ev.getStatus(),
+                expired,
+                eventEnd
+        );
+    }
 
     @Override
     @Transactional
@@ -551,4 +589,37 @@ public class ProductServiceImpl implements ProductService {
                         : List.of()
         );
     }
+    @Override
+    public List<EventProductResponse> listEventProductsByClub(Long clubId) {
+
+        List<Product> list = productRepo.findByClub_ClubIdAndType(clubId, ProductTypeEnum.EVENT_ITEM);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return list.stream().map(p -> {
+
+            Event e = p.getEvent();
+
+            LocalDateTime eventEnd = LocalDateTime.of(
+                    e.getDate(),
+                    e.getEndTime()
+            );
+
+            boolean expired =
+                    e.getStatus() == EventStatusEnum.COMPLETED ||
+                            eventEnd.isBefore(now);
+
+            return EventProductResponse.builder()
+                    .productId(p.getProductId())
+                    .name(p.getName())
+                    .pointCost(p.getPointCost())
+                    .eventId(e.getEventId())
+                    .eventName(e.getName())
+                    .eventStatus(e.getStatus())
+                    .expired(expired)
+                    .build();
+
+        }).toList();
+    }
+
 }

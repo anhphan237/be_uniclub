@@ -25,17 +25,25 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepo;
-    private final RoleRepository roleRepo;
     private final MajorRepository majorRepo;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final MembershipRepository membershipRepo;
-    private final ClubRepository clubRepo;
     private final WalletService walletService;
+    private final EventStaffRepository eventStaffRepository;
 
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
+
         List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(u.getUserId());
+
+        // ⭐ Xác định user đã từng làm staff chưa
+        boolean isStaff = memberships.stream()
+                .anyMatch(m -> eventStaffRepository.existsByMembership_MembershipIdAndStateIn(
+                        m.getMembershipId(),
+                        List.of(EventStaffStateEnum.ACTIVE, EventStaffStateEnum.EXPIRED)
+                ));
+
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
                 .map(m -> new UserResponse.ClubInfo(
                         m.getClub().getClubId(),
@@ -56,10 +64,14 @@ public class UserServiceImpl implements UserService {
                 .backgroundUrl(u.getBackgroundUrl())
                 .avatarUrl(u.getAvatarUrl())
                 .clubs(clubInfos)
+
+                // ⭐ Trả về staff = true/false
+                .staff(isStaff)
+
                 .build();
     }
 
-    // ✅ Helper: map ví từ membership sang WalletResponse an toàn
+    // ===================== Helper: Wallet =====================
     private WalletResponse mapWallet(User user) {
         Wallet wallet = walletService.getOrCreateUserWallet(user);
         return WalletResponse.builder()
@@ -102,16 +114,12 @@ public class UserServiceImpl implements UserService {
 
         userRepo.save(user);
 
-        // ✅ DÙNG EMAIL SERVICE CHUẨN
         try {
             emailService.sendWelcomeEmail(req.email(), req.fullName());
-        } catch (Exception e) {
-            System.err.println(" Failed to send welcome email: " + e.getMessage());
-        }
+        } catch (Exception ignored) {}
 
         return toResp(user);
     }
-
 
     @Override
     public UserResponse update(Long id, UserUpdateRequest req) {
@@ -134,6 +142,7 @@ public class UserServiceImpl implements UserService {
     public void delete(Long id) {
         if (!userRepo.existsById(id))
             throw new ApiException(HttpStatus.NOT_FOUND, "User not found");
+
         userRepo.deleteById(id);
     }
 
@@ -149,7 +158,7 @@ public class UserServiceImpl implements UserService {
         return userRepo.findAll(pageable).map(this::toResp);
     }
 
-    // ===================== Search & Statistics =====================
+    // ===================== Search =====================
     @Override
     public Page<UserResponse> search(String keyword, Pageable pageable) {
         String kw = (keyword == null) ? "" : keyword.trim();
@@ -164,6 +173,7 @@ public class UserServiceImpl implements UserService {
     public UserResponse updateStatus(Long id, boolean active) {
         User user = userRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
         user.setStatus(active ? UserStatusEnum.ACTIVE.name() : UserStatusEnum.INACTIVE.name());
         return toResp(userRepo.save(user));
     }
@@ -185,10 +195,7 @@ public class UserServiceImpl implements UserService {
                 """
                 <h2>Password Reset Successful</h2>
                 <p>Hello <b>%s</b>,</p>
-                <p>Your UniClub account password has been successfully reset by the system.</p>
-                <p>If you did not request this change, please contact UniStaff immediately.</p>
-                <br>
-                <p>Best regards,<br><b>UniClub Support Team</b></p>
+                <p>Your UniClub account password has been successfully reset.</p>
                 """.formatted(user.getFullName())
         );
     }
@@ -197,7 +204,9 @@ public class UserServiceImpl implements UserService {
     public Page<UserResponse> getByRole(String roleName, Pageable pageable) {
         if (roleName == null || roleName.isBlank())
             throw new ApiException(HttpStatus.BAD_REQUEST, "roleName is required");
-        return userRepo.findByRole_RoleNameIgnoreCase(roleName.trim(), pageable).map(this::toResp);
+
+        return userRepo.findByRole_RoleNameIgnoreCase(roleName.trim(), pageable)
+                .map(this::toResp);
     }
 
     @Override
@@ -213,16 +222,25 @@ public class UserServiceImpl implements UserService {
             byRole.put((String) row[0], (Long) row[1]);
         }
         stats.put("byRole", byRole);
+
         return stats;
     }
 
-    // ===================== Profile Response =====================
+    // ===================== Profile =====================
     @Override
     public UserResponse getProfileResponse(String email) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
         List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(user.getUserId());
+
+        // ⭐ Check đã từng làm staff chưa
+        boolean isStaff = memberships.stream()
+                .anyMatch(m -> eventStaffRepository.existsByMembership_MembershipIdAndStateIn(
+                        m.getMembershipId(),
+                        List.of(EventStaffStateEnum.ACTIVE, EventStaffStateEnum.EXPIRED)
+                ));
+
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
                 .map(m -> new UserResponse.ClubInfo(
                         m.getClub().getClubId(),
@@ -232,7 +250,6 @@ public class UserServiceImpl implements UserService {
 
         WalletResponse wallet = mapWallet(user);
 
-        //  Tính xem user có cần hoàn tất hồ sơ không
         boolean needComplete = false;
         String roleName = user.getRole() != null ? user.getRole().getRoleName() : null;
         if ("STUDENT".equalsIgnoreCase(roleName)) {
@@ -254,9 +271,12 @@ public class UserServiceImpl implements UserService {
                 .wallet(wallet)
                 .clubs(clubInfos)
                 .needCompleteProfile(needComplete)
+
+                // ⭐ ADD staff field
+                .staff(isStaff)
+
                 .build();
     }
-
 
     @Override
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {
@@ -283,9 +303,7 @@ public class UserServiceImpl implements UserService {
         if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
             user.setBackgroundUrl(req.getBackgroundUrl());
 
-        // Cập nhật studentCode (và kiểm tra trùng)
         if (req.getStudentCode() != null && !req.getStudentCode().isBlank()) {
-            // chỉ check nếu khác với hiện tại
             if (!req.getStudentCode().equals(user.getStudentCode())) {
                 if (userRepo.existsByStudentCode(req.getStudentCode())) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Student code already in use");
@@ -302,7 +320,6 @@ public class UserServiceImpl implements UserService {
         return resp;
     }
 
-
     @Override
     public UserResponse updateAvatarResponse(String email, String avatarUrl) {
         if (avatarUrl == null || avatarUrl.isBlank())
@@ -315,6 +332,7 @@ public class UserServiceImpl implements UserService {
         WalletResponse wallet = mapWallet(user);
         UserResponse resp = toResp(user);
         resp.setWallet(wallet);
+
         return resp;
     }
 
@@ -333,7 +351,7 @@ public class UserServiceImpl implements UserService {
         return resp;
     }
 
-    // ===================== Internal use =====================
+    // ===================== Internal =====================
     @Override
     public User getByEmail(String email) {
         return userRepo.findByEmail(email)

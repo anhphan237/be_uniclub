@@ -22,6 +22,7 @@ public class UserResponse {
     private String avatarUrl;
     private String backgroundUrl;
     private Boolean needCompleteProfile;
+    private Boolean staff;
 
     private List<ClubInfo> clubs;
     private WalletResponse wallet;
