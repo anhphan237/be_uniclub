@@ -44,5 +44,6 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
     );
 
     long countByMembership_MembershipIdAndState(Long membershipId, EventStaffStateEnum state);
+    List<EventStaff> findByEvent_EventIdAndState(Long eventId, EventStaffStateEnum state);
 
 }

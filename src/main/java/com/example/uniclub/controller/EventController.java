@@ -3,10 +3,7 @@ package com.example.uniclub.controller;
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.*;
-import com.example.uniclub.entity.Event;
-import com.example.uniclub.entity.StaffPerformance;
-import com.example.uniclub.entity.User;
-import com.example.uniclub.entity.WalletTransaction;
+import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.PerformanceLevelEnum;
 import com.example.uniclub.exception.ApiException;
@@ -704,5 +701,27 @@ public class EventController {
         var summary = staffPerformanceService.getClubStaffMonthlySummary(clubId, year, month);
         return ResponseEntity.ok(ApiResponse.ok(summary));
     }
+
+    @Operation(
+            summary = "Lấy danh sách staff sau khi sự kiện kết thúc",
+            description = """
+            Chỉ dùng khi event đã COMPLETED.
+            Tự động chuyển staff ACTIVE → EXPIRED, sau đó trả về danh sách EXPIRED.
+        """
+    )
+    @GetMapping("/{eventId}/staffs/completed")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<List<EventStaffResponse>>> getCompletedEventStaffs(
+            @PathVariable Long eventId
+    ) {
+        List<EventStaff> expired = eventStaffService.expireStaffOfCompletedEvent(eventId);
+
+        List<EventStaffResponse> response = expired.stream()
+                .map(EventStaffResponse::from)
+                .toList();
+
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
 
 }
