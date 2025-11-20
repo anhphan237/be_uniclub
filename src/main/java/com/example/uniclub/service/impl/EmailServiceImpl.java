@@ -27,7 +27,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
             // ✅ Cẩn thận: setFrom có 2 tham số cần encoding chuẩn
-            helper.setFrom("uniclub.contacts@gmail.com", "UniClub System");
+            helper.setFrom("noreply@uniclub.id.vn", "UniClub Vietnam");
             helper.setTo(to);
             helper.setSubject(subject);
 
