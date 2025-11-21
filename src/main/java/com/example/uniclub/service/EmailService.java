@@ -1,6 +1,12 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.EventCoClub;
+import com.example.uniclub.entity.User;
+
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 public interface EmailService {
 
@@ -98,7 +104,65 @@ public interface EmailService {
     void sendClubBatchDeductionSummaryEmail(String to, String fullName, String clubName,
                                             long totalPoints, int memberCount, String reason);
 
-    void sendMemberRewardEmail(String to, String fullName,
-                               long points, String reason, long totalBalance);
+
+    void sendUpcomingEventReminderEmail(
+            String to,
+            String fullName,
+            String eventName,
+            String eventTime,
+            String location
+    );
+
+    void sendPublicEventCheckinEmail(
+            String to,
+            String fullName,
+            String eventName,
+            LocalTime startTime,
+            String location
+    );
+
+    void sendEventAwaitingUniStaffReviewEmail(
+            String to,
+            String eventName,
+            String eventDate
+    );
+
+
+    void sendCoHostInviteEmail(
+            String to,
+            String clubName,
+            String eventName
+    );
+
+
+
+    void sendEventWaitingUniStaffEmail(
+            String to,
+            String eventName
+    );
+    void sendHostEventRejectedByCoHostEmail(
+            String to,
+            String eventName,
+            String rejectedClubName
+    );
+
+
+
+
+    void sendEventApprovedEmail(
+            String to,
+            String eventName,
+            long approvedPoints
+    );
+
+
+    void sendEventRejectedEmail(
+            String to,
+            String eventName,
+            String reason,
+            String staffName
+    );
+
+
 
 }

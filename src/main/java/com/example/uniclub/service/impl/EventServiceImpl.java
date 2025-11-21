@@ -41,7 +41,6 @@ public class EventServiceImpl implements EventService {
     private final ClubRepository clubRepo;
     private final LocationRepository locationRepo;
     private final MembershipRepository membershipRepo;
-    private final NotificationService notificationService;
     private final WalletRepository walletRepo;
     private final EventStaffRepository eventStaffRepo;
     private final EventRegistrationRepository eventRegistrationRepo;
@@ -49,7 +48,7 @@ public class EventServiceImpl implements EventService {
     private final ProductRepository productRepo;
     private final EventRegistrationRepository regRepo;
     private final EventPointsService eventPointsService;
-
+    private final EmailService emailService;
 
 
     // =================================================================
@@ -95,19 +94,15 @@ public class EventServiceImpl implements EventService {
     public EventResponse create(EventCreateRequest req) {
         LocalDate today = LocalDate.now();
 
-        // ✅ 1. Validate date
         if (req.date().isBefore(today))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event date cannot be in the past.");
 
-        // ✅ 2. Validate start & end time
         if (req.startTime() != null && req.endTime() != null && req.endTime().isBefore(req.startTime()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time.");
 
-        // ✅ 3. If today, start must be after now
         if (req.date().isEqual(today) && req.startTime() != null && req.startTime().isBefore(LocalTime.now()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "Start time must be after the current time.");
 
-        // ✅ 4. Validate location
         Location location = locationRepo.findById(req.locationId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Location not found."));
 
@@ -119,20 +114,16 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "This location can only accommodate up to " + location.getCapacity() + " people.");
 
-        // ✅ 5. Validate host club
         Club hostClub = clubRepo.findById(req.hostClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club not found."));
 
-        // ✅ 6. Validate co-hosts (optional)
         List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
 
-        // ✅ 7. Determine commit points
         int commitCost = (req.type() == EventTypeEnum.PUBLIC) ? 0 :
                 (req.commitPointCost() != null ? req.commitPointCost() : 0);
 
-        // ✅ 8. Tạo sự kiện
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
@@ -146,24 +137,22 @@ public class EventServiceImpl implements EventService {
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .maxCheckInCount(maxCheckIn)
                 .commitPointCost(commitCost)
-                .budgetPoints(0L) // UniStaff sẽ cấp sau
+                .budgetPoints(0L)
                 .rewardMultiplierCap(2)
                 .currentCheckInCount(0)
                 .registrationDeadline(req.registrationDeadline())
                 .build();
 
-        // ✅ 8.1 Validate theo loại sự kiện
         if (req.type() == EventTypeEnum.PUBLIC) {
             event.setCommitPointCost(0);
             event.setRegistrationDeadline(null);
         } else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
             if (req.commitPointCost() == null || req.commitPointCost() <= 0)
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Commit points required for SPECIAL/PRIVATE events.");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Commit points required.");
             if (req.registrationDeadline() == null)
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline required for SPECIAL/PRIVATE events.");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline required.");
         }
 
-        // ✅ 9. Tạo quan hệ Co-host
         if (!coHosts.isEmpty()) {
             List<EventCoClub> coRelations = coHosts.stream()
                     .map(c -> EventCoClub.builder()
@@ -171,12 +160,12 @@ public class EventServiceImpl implements EventService {
                             .club(c)
                             .status(EventCoHostStatusEnum.PENDING)
                             .build())
-                    .collect(Collectors.toCollection(ArrayList::new));
+                    .toList();
             event.setCoHostRelations(coRelations);
         }
 
-        // ✅ 10. Lưu sự kiện
         eventRepo.save(event);
+
         Wallet wallet = Wallet.builder()
                 .ownerType(WalletOwnerTypeEnum.EVENT)
                 .event(event)
@@ -188,19 +177,41 @@ public class EventServiceImpl implements EventService {
         event.setWallet(wallet);
         eventRepo.save(event);
 
-        // ✅ 11. Gửi thông báo
+        // ============================
+        // 📧 EMAIL THÔNG BÁO
+        // ============================
         if (coHosts.isEmpty()) {
-            notificationService.notifyUniStaffReadyForReview(event);
-        } else {
-            coHosts.forEach(c -> notificationService.notifyCoHostInvite(c, event));
-            notificationService.notifyUniStaffWaiting(event);
-        }
 
-        log.info("🎉 Event '{}' created successfully (type={}, capacity={}, commitCost={})",
-                event.getName(), event.getType(), event.getMaxCheckInCount(), event.getCommitPointCost());
+            // Notify UniStaff: event waiting for review
+            emailService.sendEventAwaitingUniStaffReviewEmail(
+                    "unistaff@uniclub.id.vn", // hoặc lấy từ DB
+                    event.getName(),
+                    event.getDate().toString()
+            );
+
+        } else {
+            // Send invite email to each co-host leader
+            for (Club c : coHosts) {
+                String leaderEmail = membershipRepo.findLeaderEmailByClubId(c.getClubId());
+                if (leaderEmail != null) {
+                    emailService.sendCoHostInviteEmail(
+                            leaderEmail,
+                            c.getName(),
+                            event.getName()
+                    );
+                }
+            }
+
+            // Notify UniStaff: waiting for co-host responses
+            emailService.sendEventWaitingUniStaffEmail(
+                    "unistaff@uniclub.id.vn",
+                    event.getName()
+            );
+        }
 
         return mapToResponse(event);
     }
+
 
 
 
@@ -211,93 +222,106 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted) {
-        // 🔹 1. Retrieve the event
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event could not be found."));
 
-        // 🔹 DEBUG: Initial log
-        log.info("DEBUG >>> userId={}, role=LEADER, state=ACTIVE", principal.getUser().getUserId());
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
         Long userId = principal.getUser().getUserId();
 
-        // 🔹 2. Find the membership where user is an ACTIVE LEADER
         Membership leaderMembership = membershipRepo
                 .findByUser_UserIdAndClubRoleAndState(
                         userId,
                         ClubRoleEnum.LEADER,
                         MembershipStateEnum.ACTIVE
                 )
-                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a valid leader of any club."));
-
-        // 🔹 DEBUG: Confirm membership
-        log.info("DEBUG >>> LeaderMembership found: clubId={}", leaderMembership.getClub().getClubId());
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a valid leader."));
 
         Club coClub = leaderMembership.getClub();
 
-        // 🔹 DEBUG: List of co-host clubs in this event
-        log.info("DEBUG >>> Event {} coHostRelations: {}", eventId,
-                event.getCoHostRelations().stream().map(r -> r.getClub().getClubId()).toList());
-
-        // 🔹 3. Check if this club is actually a co-host of the event
         boolean isCoHost = event.getCoHostRelations().stream()
                 .anyMatch(r -> Objects.equals(r.getClub().getClubId(), coClub.getClubId()));
 
-        if (!isCoHost) {
+        if (!isCoHost)
             throw new ApiException(HttpStatus.FORBIDDEN, "You are not a co-host of this event.");
-        }
 
-        // 🔹 4. Retrieve the specific EventCoClub relation
         EventCoClub relation = event.getCoHostRelations().stream()
                 .filter(r -> Objects.equals(r.getClub().getClubId(), coClub.getClubId()))
                 .findFirst()
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Co-host relationship not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Relation not found."));
 
-        // 🔹 5. Update response status
         relation.setStatus(accepted ? EventCoHostStatusEnum.APPROVED : EventCoHostStatusEnum.REJECTED);
         relation.setRespondedAt(LocalDateTime.now());
 
-        // 🔹 6. Log debug response result
-        log.info("CoHostRespond >>> eventId={}, coClub={}, accepted={}", eventId, coClub.getName(), accepted);
 
-        // 🔹 7. Handle event status after response
         long approved = event.getCoHostRelations().stream()
                 .filter(r -> r.getStatus() == EventCoHostStatusEnum.APPROVED).count();
         long rejected = event.getCoHostRelations().stream()
                 .filter(r -> r.getStatus() == EventCoHostStatusEnum.REJECTED).count();
         long total = event.getCoHostRelations().size();
 
+
+        // 1️⃣ only one co-host & they rejected → cancel event
         if (total == 1 && rejected == 1) {
             event.setStatus(EventStatusEnum.REJECTED);
             eventRepo.save(event);
-            notificationService.notifyHostEventRejectedByCoHost(event, coClub);
-            return "The only co-host '" + coClub.getName() + "' has rejected. The event has been cancelled.";
+
+            String hostLeaderEmail =
+                    membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
+
+            emailService.sendHostEventRejectedByCoHostEmail(
+                    hostLeaderEmail,
+                    event.getName(),
+                    coClub.getName()
+            );
+
+            return "The only co-host rejected. Event cancelled.";
         }
 
+
+        // 2️⃣ at least one approved, and all responded
         if (approved > 0 && (approved + rejected == total)) {
             event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
 
-            // ✅ Keep orphanRemoval; only remove unapproved co-hosts instead of replacing the list
-            event.getCoHostRelations().removeIf(r -> r.getStatus() != EventCoHostStatusEnum.APPROVED);
+            event.getCoHostRelations()
+                    .removeIf(r -> r.getStatus() != EventCoHostStatusEnum.APPROVED);
 
             eventRepo.save(event);
-            notificationService.notifyUniStaffReadyForReview(event);
-            return "Some co-hosts have approved. The event has been submitted for UniStaff review.";
+
+            emailService.sendEventAwaitingUniStaffReviewEmail(
+                    "unistaff@uniclub.id.vn",
+                    event.getName(),
+                    event.getDate().toString()
+            );
+
+            return "Event submitted to UniStaff review.";
         }
 
-        if (approved + rejected < total)
-            return accepted
-                    ? "Co-host '" + coClub.getName() + "' has approved. Waiting for other co-hosts to respond."
-                    : "Co-host '" + coClub.getName() + "' has rejected. Waiting for other co-hosts to respond.";
 
+        // 3️⃣ waiting for other co-hosts
+        if (approved + rejected < total) {
+            return accepted
+                    ? "Approved. Waiting for others."
+                    : "Rejected. Waiting for others.";
+        }
+
+
+        // 4️⃣ all approved
         if (approved == total) {
             event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
             eventRepo.save(event);
-            notificationService.notifyUniStaffReadyForReview(event);
-            return "All co-hosts have approved. The event is now pending UniStaff review.";
+
+            emailService.sendEventAwaitingUniStaffReviewEmail(
+                    "unistaff@uniclub.id.vn",
+                    event.getName(),
+                    event.getDate().toString()
+            );
+
+            return "All co-hosts approved. Event pending UniStaff.";
         }
 
-        return "Co-host response has been recorded.";
+        return "Response recorded.";
     }
+
 
 
 
@@ -593,26 +617,22 @@ public class EventServiceImpl implements EventService {
     @Transactional
     public EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff) {
 
-        // 1️⃣ Lấy event
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
-        // 2️⃣ Kiểm tra trạng thái
         if (event.getStatus() == EventStatusEnum.REJECTED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already been rejected.");
 
         if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF
                 && event.getStatus() != EventStatusEnum.APPROVED)
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Only events pending UniStaff review or approved can be granted budget.");
+                    "Only pending/approved events can be granted budget.");
 
-        // 3️⃣ Validate ngân sách
         if (req.getApprovedBudgetPoints() == null || req.getApprovedBudgetPoints() <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Approved budget points must be greater than 0.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Budget must be > 0.");
 
         long approvedPoints = req.getApprovedBudgetPoints();
 
-        // 4️⃣ Lấy ví của event (luôn tồn tại từ lúc create)
         Wallet eventWallet = event.getWallet();
         if (eventWallet == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -620,21 +640,18 @@ public class EventServiceImpl implements EventService {
 
         if (eventWallet.getStatus() == WalletStatusEnum.CLOSED)
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "This event wallet is already closed.");
+                    "Event wallet already closed.");
 
-        // 5️⃣ Nạp ngân sách vào ví
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
 
-        // 6️⃣ Cập nhật thông tin duyệt
         event.setApprovedBy(staff.getUser());
         event.setApprovedAt(LocalDateTime.now());
         event.setStatus(EventStatusEnum.APPROVED);
         event.setBudgetPoints(approvedPoints);
         eventRepo.save(event);
 
-        // 7️⃣ Ghi transaction lịch sử
         WalletTransaction tx = WalletTransaction.builder()
                 .wallet(eventWallet)
                 .amount(approvedPoints)
@@ -647,14 +664,18 @@ public class EventServiceImpl implements EventService {
 
         walletTransactionRepo.save(tx);
 
-        // 8️⃣ Notify
-        notificationService.notifyEventApproved(event);
+        // EMAIL
+        String leaderEmail = membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
 
-        log.info("💰 Event '{}' budget approved by {} with {} points",
-                event.getName(), staff.getUser().getEmail(), approvedPoints);
+        emailService.sendEventApprovedEmail(
+                leaderEmail,
+                event.getName(),
+                approvedPoints
+        );
 
         return mapToResponse(event);
     }
+
 
 
 
@@ -767,11 +788,19 @@ public class EventServiceImpl implements EventService {
         event.setApprovedBy(staff.getUser());
         eventRepo.save(event);
 
-        // Gửi thông báo cho CLB chủ trì
-        notificationService.notifyEventRejected(event, staff.getUser());
+        String hostLeaderEmail =
+                membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
+
+        emailService.sendEventRejectedEmail(
+                hostLeaderEmail,
+                event.getName(),
+                reason,
+                staff.getUser().getFullName()
+        );
 
         return "Event has been rejected successfully";
     }
+
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventAttendanceSummary(Long eventId) {

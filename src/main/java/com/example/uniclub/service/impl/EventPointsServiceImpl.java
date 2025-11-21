@@ -33,7 +33,6 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final MembershipRepository membershipRepo;
     private final JwtEventTokenService jwtEventTokenService;
     private final AttendanceService attendanceService;
-    private final NotificationService notificationService;
     private final EmailService emailService;
     private final RewardService rewardService;
 
@@ -204,10 +203,10 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Override
     @Transactional
     public String endEvent(CustomUserDetails principal, EventEndRequest req) {
+
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        // 🔒 Prevent NullPointerException
         if (event.getHostClub() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Event must have a host club before ending.");
@@ -223,10 +222,10 @@ public class EventPointsServiceImpl implements EventPointsService {
             AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel())
                     .orElse(AttendanceLevelEnum.NONE);
 
-            // ❌ No attendance → skip
+            // ❌ Skip if no attendance
             if (level == AttendanceLevelEnum.NONE) continue;
 
-            // ⚠️ Suspicious → gửi email cảnh báo → không thưởng
+            // ⚠️ Suspicious → send warning email → skip reward
             if (level == AttendanceLevelEnum.SUSPICIOUS) {
 
                 emailService.sendSuspiciousAttendanceEmail(
@@ -238,7 +237,6 @@ public class EventPointsServiceImpl implements EventPointsService {
                 continue;
             }
 
-            // ⭐ Có điểm danh hợp lệ
             long commit = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
             if (commit <= 0) continue;
 
@@ -272,7 +270,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                     WalletTransactionTypeEnum.BONUS_REWARD
             );
 
-            // 📩 SEND SUMMARY EMAIL (reward email)
+            // 📩 Summary email
             String feedbackLink = "https://uniclub.id.vn/feedback?eventId=" + event.getEventId();
 
             emailService.sendEventSummaryEmail(
@@ -288,23 +286,23 @@ public class EventPointsServiceImpl implements EventPointsService {
             regRepo.save(reg);
         }
 
-        long leftover = Optional.ofNullable(eventWallet.getBalancePoints()).orElse(0L);
+        // =======================================================
+        // 💰 AUTO-SETTLEMENT: chia đều leftover cho host + cohost
+        // =======================================================
         rewardService.autoSettleEvent(event);
 
-
-        // 💰 refund leftover → giữ logic cũ
-
+        // =======================================================
+        // 🔚 CLOSE WALLET & COMPLETE EVENT
+        // =======================================================
         eventWallet.setStatus(WalletStatusEnum.CLOSED);
         walletRepo.save(eventWallet);
 
+        event.setStatus(EventStatusEnum.COMPLETED);
         event.setCompletedAt(LocalDateTime.now());
         eventRepo.save(event);
 
-        notificationService.notifyEventCompleted(event);
-
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
-
 
 
 

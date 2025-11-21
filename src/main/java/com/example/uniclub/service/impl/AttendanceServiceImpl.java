@@ -28,15 +28,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final JwtUtil jwtUtil;
     private final WalletService walletService;
     private final RewardService rewardService;
-    private final MultiplierPolicyService multiplierPolicyService;
-    private final MembershipRepository membershipRepo;
     private final EventRepository eventRepo;
     private final UserRepository userRepo;
     private final EventRegistrationRepository regRepo;
     private final AttendanceRecordRepository attendanceRepo;
     private final QRTokenRepository qrTokenRepo;
     private final JwtEventTokenService jwtEventTokenService;
-    private final NotificationService notificationService;
+    private final EmailService emailService;
     private static final int QR_EXP_SECONDS = 120;
 
     // =========================================================
@@ -369,13 +367,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
             reg.setCheckinAt(LocalDateTime.now());
-            reg.setStatus(RegistrationStatusEnum.CHECKED_IN); // ✅ thay vì REFUNDED
+            reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
             regRepo.save(reg);
         } else {
             regRepo.save(EventRegistration.builder()
                     .event(event)
                     .user(user)
-                    .status(RegistrationStatusEnum.CHECKED_IN) // ✅
+                    .status(RegistrationStatusEnum.CHECKED_IN)
                     .attendanceLevel(AttendanceLevelEnum.FULL)
                     .checkinAt(LocalDateTime.now())
                     .committedPoints(0)
@@ -385,7 +383,15 @@ public class AttendanceServiceImpl implements AttendanceService {
         event.setCurrentCheckInCount(current + 1);
         eventRepo.save(event);
 
-        notificationService.notifyEventPublicCheckin(event, user);
+        emailService.sendPublicEventCheckinEmail(
+                user.getEmail(),
+                user.getFullName(),
+                event.getName(),
+                event.getStartTime(),
+                event.getLocation() != null ? event.getLocation().getName() : "Unknown"
+        );
+
+
     }
 
 

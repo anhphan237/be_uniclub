@@ -142,5 +142,13 @@ WHERE m.user.userId = :userId
 """)
     Long findLeaderClubId(@Param("userId") Long userId);
 
+    @Query("""
+    SELECT m.user.email
+    FROM Membership m
+    WHERE m.club.clubId = :clubId
+      AND m.clubRole = com.example.uniclub.enums.ClubRoleEnum.LEADER
+      AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+""")
+    String findLeaderEmailByClubId(@Param("clubId") Long clubId);
 
 }

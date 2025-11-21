@@ -1,6 +1,9 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.entity.Club;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.EventCoClub;
+import com.example.uniclub.entity.User;
 import com.example.uniclub.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -11,6 +14,8 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Service
 @RequiredArgsConstructor
@@ -737,21 +742,186 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] Batch Points Distributed", body);
     }
+
     @Override
-    public void sendMemberRewardEmail(String to, String fullName,
-                                      long points, String reason, long totalBalance) {
+    public void sendPublicEventCheckinEmail(
+            String to,
+            String fullName,
+            String eventName,
+            LocalTime startTime,
+            String location
+    ) {
 
-        String html = """
-        <h2>🎉 Reward Received</h2>
-        <p>Hello <b>%s</b>,</p>
-        <p>You have received <b>%d UniPoints</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <p>Your new total balance is: <b>%d pts</b></p>
-        <br>
-        <p>Best regards,<br><b>UniClub Vietnam</b></p>
-        """.formatted(fullName, points, reason, totalBalance);
+        String subject = "Successfully Checked In: " + eventName;
 
-        sendEmail(to, "[UniClub] You received UniPoints!", html);
+        // Format LocalTime → "HH:mm"
+        String formattedTime = (startTime != null)
+                ? startTime.toString()   // hoặc dùng DateTimeFormatter nếu bạn muốn kiểu đẹp hơn
+                : "Not specified";
+
+        String htmlBody = """
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #0066cc;">Check-in Successful</h2>
+
+            <p>Hello <b>%s</b>,</p>
+
+            <p>You have successfully checked in to the event:</p>
+
+            <h3>%s</h3>
+
+            <p>
+                ⏰ <b>Time:</b> %s<br>
+                📍 <b>Location:</b> %s
+            </p>
+
+            <p>We hope you enjoy the event! 🎉</p>
+
+            <hr style="margin: 25px 0;">
+            <p style="font-size: 12px; color: gray;">
+                This is an automated email. Please do not reply.<br>
+                UniClub — Smart Student Community Platform.
+            </p>
+        </div>
+        """.formatted(
+                fullName,
+                eventName,
+                formattedTime,
+                location != null ? location : "Not specified"
+        );
+
+        sendEmail(to, subject, htmlBody);
     }
+
+
+    @Override
+    public void sendUpcomingEventReminderEmail(
+            String to,
+            String fullName,
+            String eventName,
+            String eventTime,
+            String location
+    ) {
+
+        String subject = "Reminder: Upcoming Event - " + eventName;
+
+        String htmlBody = """
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #1E88E5;">Event Reminder</h2>
+
+            <p>Hello <b>%s</b>,</p>
+
+            <p>This is a friendly reminder that the event below is happening soon:</p>
+
+            <h3>%s</h3>
+
+            <p>
+                ⏰ <b>Time:</b> %s<br>
+                📍 <b>Location:</b> %s
+            </p>
+
+            <p>We look forward to seeing you!</p>
+
+            <hr style="margin: 25px 0;">
+            <p style="font-size: 12px; color: gray;">
+                This is an automated email, please do not reply.<br>
+                UniClub — Smart Student Community Platform.
+            </p>
+        </div>
+        """.formatted(
+                fullName,
+                eventName,
+                eventTime != null ? eventTime : "Not specified",
+                location != null ? location : "Not specified"
+        );
+
+        sendEmail(to, subject, htmlBody);
+    }
+    @Override
+    public void sendEventAwaitingUniStaffReviewEmail(
+            String to,
+            String eventName,
+            String eventDate
+    ) {
+        String subject = "[UniClub] Event awaiting UniStaff review";
+
+        String body = """
+        <h2>📌 Event Pending Review</h2>
+        <p>The event <b>%s</b> has been submitted for UniStaff approval.</p>
+        <p><b>Date:</b> %s</p>
+    """.formatted(eventName, eventDate);
+
+        sendEmail(to, subject, body);
+    }
+
+    @Override
+    public void sendCoHostInviteEmail(String to, String clubName, String eventName) {
+        String subject = "[UniClub] You are invited to co-host an event";
+
+        String body = """
+        <h2>🤝 Co-host Invitation</h2>
+        <p>Your club <b>%s</b> has been invited to co-host the event:</p>
+        <h3>%s</h3>
+        <p>Please log in to UniClub to accept or reject the invitation.</p>
+    """.formatted(clubName, eventName);
+
+        sendEmail(to, subject, body);
+    }
+
+
+
+    @Override
+    public void sendEventWaitingUniStaffEmail(String to, String eventName) {
+        String subject = "[UniClub] Event waiting for co-host responses";
+
+        String body = """
+        <h2>⏳ Awaiting Co-Host Actions</h2>
+        <p>The event <b>%s</b> is still waiting for some co-hosts to respond.</p>
+    """.formatted(eventName);
+
+        sendEmail(to, subject, body);
+    }
+
+    @Override
+    public void sendHostEventRejectedByCoHostEmail(String to, String eventName, String rejectedClubName) {
+        String subject = "[UniClub] Co-host rejected your event";
+
+        String body = """
+        <h2>❌ Co-host Rejected Event</h2>
+        <p>The co-host <b>%s</b> has rejected the event:</p>
+        <h3>%s</h3>
+    """.formatted(rejectedClubName, eventName);
+
+        sendEmail(to, subject, body);
+    }
+
+
+
+    @Override
+    public void sendEventApprovedEmail(String to, String eventName, long approvedPoints) {
+        String subject = "[UniClub] Your event has been approved";
+
+        String body = """
+        <h2>🎉 Event Approved</h2>
+        <p>Your event <b>%s</b> has been approved by UniStaff!</p>
+        <p><b>Allocated Budget:</b> %d points</p>
+    """.formatted(eventName, approvedPoints);
+
+        sendEmail(to, subject, body);
+    }
+
+    @Override
+    public void sendEventRejectedEmail(String to, String eventName, String reason, String staffName) {
+        String subject = "[UniClub] Event Rejected";
+
+        String body = """
+        <h2>❌ Event Rejected</h2>
+        <p>Your event <b>%s</b> was rejected by <b>%s</b>.</p>
+        <p><b>Reason:</b> %s</p>
+    """.formatted(eventName, staffName, reason);
+
+        sendEmail(to, subject, body);
+    }
+
+
 
 }
