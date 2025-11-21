@@ -10,8 +10,10 @@ import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.repository.EventStaffRepository;
 import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.EventStaffService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EventStaffServiceImpl implements EventStaffService {
@@ -26,6 +29,7 @@ public class EventStaffServiceImpl implements EventStaffService {
     private final EventRepository eventRepository;
     private final MembershipRepository membershipRepository;
     private final EventStaffRepository eventStaffRepository;
+    private final EmailService emailService;
 
     // ==========================================================
     // 1) ASSIGN STAFF
@@ -63,6 +67,18 @@ public class EventStaffServiceImpl implements EventStaffService {
                         .build()
         );
 
+        // Gửi email – tránh rollback nếu lỗi
+        try {
+            emailService.sendEventStaffAssignmentEmail(
+                    membership.getUser().getEmail(),
+                    membership.getUser().getFullName(),
+                    event,
+                    duty
+            );
+        } catch (Exception e) {
+            log.error("Failed to send staff assignment email", e);
+        }
+
         return EventStaffResponse.from(saved);
     }
 
@@ -81,19 +97,21 @@ public class EventStaffServiceImpl implements EventStaffService {
                     "Event must be COMPLETED");
         }
 
-        // Lấy staff ACTIVE
+        // Lấy staff đang ACTIVE
         List<EventStaff> activeStaff =
                 eventStaffRepository.findByEvent_EventIdAndState(eventId, EventStaffStateEnum.ACTIVE);
 
-        // Nếu ACTIVE = 0 → đã expire rồi → trả về EXPIRED
+        // Nếu ACTIVE = 0 → đã chuyển EXPIRED từ lần trước → trả danh sách EXPIRED
         if (activeStaff.isEmpty()) {
             return eventStaffRepository.findByEvent_EventIdAndState(eventId, EventStaffStateEnum.EXPIRED);
         }
 
         // ACTIVE → EXPIRED
+        LocalDateTime now = LocalDateTime.now();
+
         activeStaff.forEach(es -> {
             es.setState(EventStaffStateEnum.EXPIRED);
-            es.setUnassignedAt(LocalDateTime.now());
+            es.setUnassignedAt(now);
         });
 
         return eventStaffRepository.saveAll(activeStaff);
@@ -109,6 +127,14 @@ public class EventStaffServiceImpl implements EventStaffService {
         EventStaff staff = eventStaffRepository.findById(eventStaffId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EventStaff not found"));
 
+        Event event = staff.getEvent();
+
+        // ⭐ Không cho remove staff nếu event đã hoàn thành
+        if (event.getStatus() == EventStatusEnum.COMPLETED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot remove staff from a COMPLETED event");
+        }
+
         staff.setState(EventStaffStateEnum.REMOVED);
         staff.setUnassignedAt(LocalDateTime.now());
 
@@ -116,7 +142,7 @@ public class EventStaffServiceImpl implements EventStaffService {
     }
 
     // ==========================================================
-    // 4) COUNT PARTICIPATION
+    // 4) COUNT FINISHED PARTICIPATION
     // ==========================================================
     @Override
     public long countStaffParticipation(Long membershipId) {
