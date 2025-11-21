@@ -193,27 +193,29 @@ public class EmailServiceImpl implements EmailService {
     public void sendEventRegistrationEmail(String to, String fullName, Event event, long commitPoints) {
 
         String content = """
-            Hello %s,<br><br>
-            You have successfully registered for the event <b>%s</b> 🎉<br><br>
-            
-            🔹 Event Date: %s<br>
-            🔹 Location: %s<br>
-            🔹 Commitment Points Locked: <b>%d</b><br><br>
+        Hello %s,<br><br>
+        You have successfully registered for the event <b>%s</b> 🎉<br><br>
+        
+        🔹 Event Date: %s<br>
+        🔹 Location: %s<br>
+        🔹 Commitment Points Locked: <b>%d</b><br><br>
 
-            Please remember to check-in during the event to earn rewards.<br><br>
+        Please remember to check-in during the event to earn rewards.<br><br>
 
-            Best regards,<br>
-            <b>UniClub Vietnam</b>
-            """.formatted(
+        Best regards,<br>
+        <b>UniClub Vietnam</b>
+        """.formatted(
                 fullName,
                 event.getName(),
                 event.getDate(),
-                event.getLocation(),
+                event.getLocation().getName(),
                 commitPoints
         );
 
         sendEmail(to, "[UniClub] Event Registration Confirmation", content);
     }
+
+
     @Override
     public void sendEventSummaryEmail(
             String to,
