@@ -151,4 +151,13 @@ WHERE m.user.userId = :userId
 """)
     String findLeaderEmailByClubId(@Param("clubId") Long clubId);
 
+
+
+    @Query("""
+    SELECT m.user FROM Membership m
+    WHERE m.club.clubId IN :clubIds
+      AND m.state = 'ACTIVE'
+""")
+    List<User> findActiveUsersByClubIds(List<Long> clubIds);
+
 }

@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -104,5 +105,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             LocalDate start,
             LocalDate end
     );
+    @Query("""
+    SELECT e FROM Event e
+    WHERE e.status = 'APPROVED'
+      AND e.registrationDeadline BETWEEN :now AND :threshold
+""")
+    List<Event> findEventsWithUpcomingRegistrationDeadline(
+            @Param("now") LocalDateTime now,
+            @Param("threshold") LocalDateTime threshold
+    );
+    List<Event> findByStatus(EventStatusEnum status);
 
 }

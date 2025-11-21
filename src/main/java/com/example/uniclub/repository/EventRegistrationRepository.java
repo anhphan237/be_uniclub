@@ -49,6 +49,11 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     int countByEvent_EventId(Long eventId);
 
     long countByUser_UserIdAndStatus(Long userId, RegistrationStatusEnum status);
+    @Query("""
+    SELECT r.user.userId FROM EventRegistration r
+    WHERE r.event.eventId = :eventId
+""")
+    List<Long> findUserIdsByEventId(Long eventId);
 
 
 }
