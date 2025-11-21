@@ -722,38 +722,45 @@ public class EventController {
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
-    // ==========================================================
-// 🟢 1. GET EVENT PRODUCTS (ONGOING + APPROVED)
-// ==========================================================
-    @Operation(summary = "Danh sách sản phẩm của sự kiện đang hoặc sắp diễn ra (ONGOING, APPROVED)")
+
+
+    @Operation(
+            summary = "Danh sách sản phẩm sự kiện đang diễn ra hoặc sắp diễn ra",
+            description = """
+        Trả về tất cả sản phẩm thuộc loại EVENT_ITEM của CLB, 
+        có sự kiện đang ở trạng thái:
+        - ONGOING (đang diễn ra)
+        - APPROVED (đã duyệt và sắp diễn ra)
+
+        Mỗi sản phẩm được trả về theo dạng ProductResponse và có trường eventStatus.
+        """
+    )
     @GetMapping("/clubs/{clubId}/event-items/active")
-    public ResponseEntity<ApiResponse<?>> listActiveEventProducts(
-            @PathVariable Long clubId
-    ) {
+    public ResponseEntity<ApiResponse<?>> listActiveEventProducts(@PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(
-                productService.listEventProductsByClubAndStatuses(
-                        clubId,
-                        List.of(EventStatusEnum.ONGOING, EventStatusEnum.APPROVED)
+                productService.getEventProductsByStatuses(
+                        clubId, List.of(EventStatusEnum.ONGOING, EventStatusEnum.APPROVED)
                 )
         ));
     }
 
-    // ==========================================================
-// 🔴 2. GET EVENT PRODUCTS (COMPLETED)
-// ==========================================================
-    @Operation(summary = "Danh sách sản phẩm của sự kiện đã hoàn thành (COMPLETED)")
+    @Operation(
+            summary = "Danh sách sản phẩm sự kiện đã hoàn thành",
+            description = """
+        Trả về tất cả sản phẩm EVENT_ITEM thuộc các event của CLB
+        đã kết thúc với trạng thái COMPLETED.
+
+        Dùng để xem thống kê / báo cáo sản phẩm sau sự kiện.
+        Mỗi sản phẩm trả về có trường eventStatus.
+        """
+    )
     @GetMapping("/clubs/{clubId}/event-items/completed")
-    public ResponseEntity<ApiResponse<?>> listCompletedEventProducts(
-            @PathVariable Long clubId
-    ) {
+    public ResponseEntity<ApiResponse<?>> listCompletedEventProducts(@PathVariable Long clubId) {
         return ResponseEntity.ok(ApiResponse.ok(
-                productService.listEventProductsByClubAndStatuses(
-                        clubId,
-                        List.of(EventStatusEnum.COMPLETED)
+                productService.getEventProductsByStatuses(
+                        clubId, List.of(EventStatusEnum.COMPLETED)
                 )
         ));
     }
-
-
 
 }

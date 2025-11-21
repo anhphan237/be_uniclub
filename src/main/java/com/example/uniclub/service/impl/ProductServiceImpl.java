@@ -650,5 +650,16 @@ public class ProductServiceImpl implements ProductService {
                 })
                 .toList();
     }
+    @Override
+    public List<ProductResponse> getEventProductsByStatuses(Long clubId, List<EventStatusEnum> statuses) {
+
+        List<Product> products = productRepo.findByClub_ClubIdAndType(clubId, ProductTypeEnum.EVENT_ITEM);
+
+        return products.stream()
+                .filter(p -> p.getEvent() != null && statuses.contains(p.getEvent().getStatus()))
+                .map(this::toResp)
+                .toList();
+    }
+
 
 }

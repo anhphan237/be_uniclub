@@ -41,5 +41,6 @@ public interface ProductService {
     EventValidityResponse checkEventValidity(Long productId);
     List<EventProductResponse> listEventProductsByClub(Long clubId);
     List<EventProductResponse> listEventProductsByClubAndStatuses(Long clubId, List<EventStatusEnum> statuses);
+    List<ProductResponse> getEventProductsByStatuses(Long clubId, List<EventStatusEnum> statuses);
 
 }
