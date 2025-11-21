@@ -2,11 +2,9 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.StaffPerformanceRequest;
 import com.example.uniclub.dto.response.StaffPerformanceMonthlySummaryResponse;
-import com.example.uniclub.dto.response.StaffPerformanceResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.EventStatusEnum;
-import com.example.uniclub.enums.PerformanceLevelEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ActivityEngineService;
@@ -28,18 +26,6 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
     private final EventStaffRepository eventStaffRepo;
     private final StaffPerformanceRepository staffPerformanceRepo;
     private final ActivityEngineService activityEngineService;
-
-    /**
-     * Map enum → điểm số dùng để ranking
-     */
-    private double mapScore(PerformanceLevelEnum level) {
-        return switch (level) {
-            case POOR -> 0.0;
-            case AVERAGE -> 0.4;
-            case GOOD -> 0.8;
-            case EXCELLENT -> 1.0;
-        };
-    }
 
     // ============================================================================
     // 1) CREATE STAFF EVALUATION
@@ -66,7 +52,8 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
 
         // 2) Staff membership
         Membership membership = membershipRepo.findById(request.membershipId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "Membership not found."));
 
         if (!membership.getClub().getClubId().equals(clubId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
@@ -75,7 +62,8 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
 
         // 3) Event validation
         Event event = eventRepo.findById(request.eventId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "Event not found."));
 
         if (!event.getHostClub().getClubId().equals(clubId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
@@ -87,12 +75,18 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
                     "Cannot evaluate staff until the event is COMPLETED.");
         }
 
-        // 4) Staff must be ACTIVE in event
-        EventStaff es = eventStaffRepo.findActiveByEventAndMembership(
+        // 4) Get staff (ACTIVE or EXPIRED allowed)
+        EventStaff es = eventStaffRepo.findByEvent_EventIdAndMembership_MembershipId(
                         event.getEventId(),
                         membership.getMembershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
-                        "This member is not an active staff of this event."));
+                        "This member did not participate as staff."));
+
+        // Block REMOVED
+        if (es.getState().name().equals("REMOVED")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "This member was removed from the event.");
+        }
 
         // 5) Prevent duplicate evaluation
         if (staffPerformanceRepo.existsByMembership_MembershipIdAndEvent_EventId(

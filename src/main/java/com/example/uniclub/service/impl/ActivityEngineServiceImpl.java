@@ -304,22 +304,26 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         return clamp01(sum / list.size());
     }
 
-
-    /**
-     * Bám bảng:
-     * POOR      -> 0
-     * AVERAGE   -> 0.4
-     * GOOD      -> 0.8
-     * EXCELLENT -> 1.0
-     */
     private double mapPerformanceLevelToScore(PerformanceLevelEnum level) {
-        if (level == null) return 0.0;
-        return switch (level) {
-            case POOR -> 0.0;
-            case AVERAGE -> 0.4;
-            case GOOD -> 0.8;
-            case EXCELLENT -> 1.0;
-        };
+
+        if (level == null)
+            return 0.0;
+
+        // lấy đúng rule theo enum
+        String rule = level.name(); // POOR, AVERAGE, GOOD, EXCELLENT
+
+        return multiplierPolicyRepo
+                .findByTargetTypeAndActivityTypeAndRuleNameAndActiveTrue(
+                        PolicyTargetTypeEnum.MEMBER,
+                        PolicyActivityTypeEnum.STAFF_EVALUATION,
+                        rule
+                )
+                .map(MultiplierPolicy::getMultiplier)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Missing STAFF_EVALUATION policy for level=" + rule +
+                                ". Please insert multiplier into DB."
+                ));
     }
 
     // ==========================================================
@@ -397,7 +401,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         List<MultiplierPolicy> policies = multiplierPolicyRepo
                 .findByTargetTypeAndActivityTypeAndActiveIsTrueOrderByMinThresholdAsc(
                         PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.STAFF_EVALUATION
+                        PolicyActivityTypeEnum.CLUB_EVENT_ACTIVITY
 
                 );
 

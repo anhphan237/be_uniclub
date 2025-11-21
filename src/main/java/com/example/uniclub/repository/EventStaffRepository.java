@@ -59,4 +59,10 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
     boolean existsByMembership_MembershipIdAndStateIn(Long membershipId, List<EventStaffStateEnum> states);
 
 
+    Optional<EventStaff> findByEvent_EventIdAndMembership_MembershipId(
+            Long eventId,
+            Long membershipId
+    );
+
+
 }
