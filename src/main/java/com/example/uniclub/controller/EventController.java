@@ -726,7 +726,7 @@ public class EventController {
 // 🟢 1. GET EVENT PRODUCTS (ONGOING + APPROVED)
 // ==========================================================
     @Operation(summary = "Danh sách sản phẩm của sự kiện đang hoặc sắp diễn ra (ONGOING, APPROVED)")
-    @GetMapping("/event-items/active")
+    @GetMapping("/clubs/{clubId}/event-items/active")
     public ResponseEntity<ApiResponse<?>> listActiveEventProducts(
             @PathVariable Long clubId
     ) {
@@ -742,7 +742,7 @@ public class EventController {
 // 🔴 2. GET EVENT PRODUCTS (COMPLETED)
 // ==========================================================
     @Operation(summary = "Danh sách sản phẩm của sự kiện đã hoàn thành (COMPLETED)")
-    @GetMapping("/event-items/completed")
+    @GetMapping("/clubs/{clubId}/event-items/completed")
     public ResponseEntity<ApiResponse<?>> listCompletedEventProducts(
             @PathVariable Long clubId
     ) {
@@ -753,6 +753,7 @@ public class EventController {
                 )
         ));
     }
+
 
 
 }
