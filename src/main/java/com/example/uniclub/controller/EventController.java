@@ -5,6 +5,7 @@ import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.enums.EventTypeEnum;
 import com.example.uniclub.enums.PerformanceLevelEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.EventRepository;
@@ -103,6 +104,35 @@ public class EventController {
     // =========================================================
     // 🔹 2. PARTICIPATION
     // =========================================================
+    @Operation(
+            summary = "Sinh viên check-in sự kiện PUBLIC (không dùng START/MID/END)",
+            description = """
+            Check-in dành riêng cho sự kiện PUBLIC.<br>
+            - Không yêu cầu đăng ký trước.<br>
+            - Mỗi người chỉ check-in 1 lần.<br>
+            - Điểm thưởng dựa theo giới hạn maxCheckInCount của event.<br>
+            - QR chứa `checkInCode` của event.
+            """
+    )
+    @PostMapping("/public/checkin")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<String>> publicCheckin(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String code
+    ) {
+        Event event = eventRepo.findByCheckInCode(code)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Invalid public check-in code"));
+
+        if (event.getType() != EventTypeEnum.PUBLIC) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "This event is not PUBLIC. Use normal check-in.");
+        }
+
+        attendanceService.handlePublicCheckin(principal.getUser(), event);
+
+        return ResponseEntity.ok(ApiResponse.msg("Public event check-in successful"));
+    }
+
     @Operation(
             summary = "Sinh viên đăng ký tham gia sự kiện",
             description = """

@@ -331,6 +331,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public String finishEvent(Long eventId, CustomUserDetails principal) {
+
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
@@ -348,28 +349,16 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to finish this event.");
         }
 
-        // 🔥 1. Đóng ví sự kiện
-        Wallet wallet = event.getWallet();
-        if (wallet == null) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event wallet missing unexpectedly.");
-        }
 
-        wallet.setStatus(WalletStatusEnum.CLOSED);
-        walletRepo.save(wallet);
-
-        // 🔥 2. Đánh dấu COMPLETED
-        event.setStatus(EventStatusEnum.COMPLETED);
-        event.setApprovedAt(LocalDateTime.now());
-        eventRepo.save(event);
-
-        // 🔥 3. Gọi service xử lý reward / refund / notify
         String result = eventPointsService.endEvent(principal, new EventEndRequest(eventId));
 
-        log.info("🏁 Event '{}' completed by {} ({}) – Wallet CLOSED",
+        log.info("🏁 Event '{}' completed by {} ({}) – Settlement executed",
                 event.getName(), user.getEmail(), roleName);
 
         return result;
     }
+
+
 
 
 

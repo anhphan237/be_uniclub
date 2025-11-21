@@ -346,43 +346,66 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public void handlePublicCheckin(User user, Event event) {
-        // (Tuỳ chọn) đảm bảo đúng loại
+
         if (event.getType() != EventTypeEnum.PUBLIC) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Public check-in only for PUBLIC events.");
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Public check-in only for PUBLIC events.");
         }
 
         int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
         int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(Integer.MAX_VALUE);
-        if (current >= max) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event has reached its maximum check-in capacity.");
-        }
 
-        Optional<EventRegistration> existing =
+        // 🔹 Kiểm tra đã check-in chưa
+        Optional<EventRegistration> opt =
                 regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId());
 
-        if (existing.isPresent()) {
-            EventRegistration reg = existing.get();
-            if (reg.getAttendanceLevel() != null && reg.getAttendanceLevel() != AttendanceLevelEnum.NONE) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in for this event.");
+        if (opt.isPresent()) {
+            EventRegistration reg = opt.get();
+            if (reg.getCheckinAt() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
             }
-            reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
+
             reg.setCheckinAt(LocalDateTime.now());
+            reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
             reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
             regRepo.save(reg);
+
         } else {
+            // tạo registration mới
             regRepo.save(EventRegistration.builder()
                     .event(event)
                     .user(user)
-                    .status(RegistrationStatusEnum.CHECKED_IN)
                     .attendanceLevel(AttendanceLevelEnum.FULL)
+                    .status(RegistrationStatusEnum.CHECKED_IN)
                     .checkinAt(LocalDateTime.now())
                     .committedPoints(0)
                     .build());
         }
 
-        event.setCurrentCheckInCount(current + 1);
+        // 🔢 Cập nhật tổng lượt check-in
+        int newCount = current + 1;
+        event.setCurrentCheckInCount(newCount);
         eventRepo.save(event);
 
+        // ===========================================
+        // 🏆 THƯỞNG DỰA THEO maxCheckInCount
+        // ===========================================
+        boolean eligibleForReward = (current < max);
+
+        if (eligibleForReward) {
+            long rewardPoints = 10; // <— sửa số này nếu bạn muốn
+
+            Wallet userWallet = walletService.getOrCreateUserWallet(user);
+            walletService.increase(userWallet, rewardPoints);
+
+            walletService.logClubToMemberReward(
+                    userWallet,
+                    rewardPoints,
+                    "Reward for PUBLIC event: " + event.getName()
+            );
+        }
+
+        // 📩 Email check-in thành công
         emailService.sendPublicEventCheckinEmail(
                 user.getEmail(),
                 user.getFullName(),
@@ -391,8 +414,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 event.getLocation() != null ? event.getLocation().getName() : "Unknown"
         );
 
-
+        log.info("User {} checked in for PUBLIC event {} (rewarded: {})",
+                user.getEmail(), event.getName(), eligibleForReward);
     }
+
 
 
 }
