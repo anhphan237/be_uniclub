@@ -19,6 +19,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class RewardServiceImpl implements RewardService {
+    private final EventRepository eventRepo;
 
     private final EmailService emailService;
     private final UserRepository userRepo;
@@ -83,90 +84,109 @@ public class RewardServiceImpl implements RewardService {
     @Transactional
     @Override
     public void autoSettleEvent(Event event) {
-        Wallet eventWallet = event.getWallet();
+
+        // 🔥 Load full event with co-host relations
+        Event eventFull = eventRepo.findByIdWithCoHostRelations(event.getEventId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        Wallet eventWallet = eventFull.getWallet();
         if (eventWallet == null) {
-            log.warn("Event '{}' has no wallet, skipping settlement.", event.getName());
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Event wallet missing. Cannot settle event.");
+        }
+
+        if (eventWallet.getStatus() == WalletStatusEnum.CLOSED) {
+            log.warn("Event wallet already closed → skip settlement.");
             return;
         }
 
-        long budget = event.getBudgetPoints();
-        long remaining = eventWallet.getBalancePoints(); // lấy trực tiếp điểm còn dư thực tế
-
+        long remaining = eventWallet.getBalancePoints();
         if (remaining <= 0) {
-            log.info("No remaining points to refund for event '{}'.", event.getName());
+            log.info("No remaining points to refund for event '{}'.", eventFull.getName());
             return;
         }
 
-        // 1️⃣ Giảm điểm dư khỏi ví sự kiện
-        eventWallet.setBalancePoints(0L);
-        walletRepo.save(eventWallet);
-
-        // 2️⃣ Xác định các CLB được hoàn (host + co-host APPROVED)
+        // ============================================
+        // 🔹 1) Build list of destination club wallets
+        // ============================================
         List<Wallet> destinationWallets = new ArrayList<>();
 
-        if (event.getHostClub() != null) {
-            Wallet hostWallet = walletRepo.findByClub_ClubId(event.getHostClub().getClubId())
-                    .orElseGet(() -> {
-                        Wallet w = Wallet.builder()
-                                .club(event.getHostClub())
+        // --- HOST CLUB ---
+        Wallet hostWallet = walletRepo.findByClub_ClubId(eventFull.getHostClub().getClubId())
+                .orElseGet(() -> walletRepo.save(
+                        Wallet.builder()
+                                .club(eventFull.getHostClub())
                                 .ownerType(WalletOwnerTypeEnum.CLUB)
                                 .balancePoints(0L)
-                                .build();
-                        walletRepo.save(w);
-                        return w;
-                    });
-            destinationWallets.add(hostWallet);
-        }
+                                .status(WalletStatusEnum.ACTIVE)
+                                .build()
+                ));
+        destinationWallets.add(hostWallet);
 
-        if (event.getCoHostRelations() != null) {
-            event.getCoHostRelations().stream()
-                    .filter(rel -> rel.getStatus() == EventCoHostStatusEnum.APPROVED)
-                    .map(EventCoClub::getClub)
-                    .forEach(c -> {
-                        Wallet coWallet = walletRepo.findByClub_ClubId(c.getClubId())
-                                .orElseGet(() -> {
-                                    Wallet w = Wallet.builder()
-                                            .club(c)
-                                            .ownerType(WalletOwnerTypeEnum.CLUB)
-                                            .balancePoints(0L)
-                                            .build();
-                                    walletRepo.save(w);
-                                    return w;
-                                });
-                        destinationWallets.add(coWallet);
-                    });
+        // --- CO-HOST CLUBS (APPROVED ONLY) ---
+        List<EventCoClub> rels = Optional.ofNullable(eventFull.getCoHostRelations()).orElse(List.of());
+        for (EventCoClub rel : rels) {
+            if (rel.getStatus() != EventCoHostStatusEnum.APPROVED) continue;
+
+            Club coClub = rel.getClub();
+            if (coClub == null) continue;
+
+            Wallet coWallet = walletRepo.findByClub_ClubId(coClub.getClubId())
+                    .orElseGet(() -> walletRepo.save(
+                            Wallet.builder()
+                                    .club(coClub)
+                                    .ownerType(WalletOwnerTypeEnum.CLUB)
+                                    .balancePoints(0L)
+                                    .status(WalletStatusEnum.ACTIVE)
+                                    .build()
+                    ));
+
+            destinationWallets.add(coWallet);
         }
 
         if (destinationWallets.isEmpty()) {
-            log.warn("No destination wallets found for refund in event '{}'.", event.getName());
-            return;
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "No club wallets found to receive leftover points.");
         }
 
-        // 3️⃣ Chia đều phần điểm dư
-        long perWalletRefund = remaining / destinationWallets.size();
+        // ============================================
+        // 🔹 2) Split leftover evenly + host gets remainder
+        // ============================================
+        int walletCount = destinationWallets.size();
+        long baseRefund = remaining / walletCount;
+        long leftover = remaining % walletCount;
 
-        for (Wallet destWallet : destinationWallets) {
-            destWallet.setBalancePoints(destWallet.getBalancePoints() + perWalletRefund);
-            walletRepo.save(destWallet);
+        for (int i = 0; i < walletCount; i++) {
+            Wallet w = destinationWallets.get(i);
 
-            // 4️⃣ Ghi lịch sử giao dịch
-            WalletTransaction tx = WalletTransaction.builder()
-                    .wallet(destWallet)
-                    .amount(perWalletRefund)
+            long refundAmount = baseRefund + (i == 0 ? leftover : 0);
+
+            w.setBalancePoints(w.getBalancePoints() + refundAmount);
+            walletRepo.save(w);
+
+            txRepo.save(WalletTransaction.builder()
+                    .wallet(w)
+                    .amount(refundAmount)
                     .type(WalletTransactionTypeEnum.RETURN_SURPLUS)
-                    .description(String.format(
-                            "Refund %,d points from event '%s' (shared remaining budget)",
-                            perWalletRefund, event.getName()))
-                    .senderName(event.getName())
-                    .receiverName(destWallet.getDisplayName())
-                    .build();
-
-            txRepo.save(tx);
+                    .description("Refund " + refundAmount + " leftover points from event '" + eventFull.getName() + "'")
+                    .senderName(eventFull.getName())
+                    .receiverName(w.getDisplayName())
+                    .build());
         }
 
-        log.info("✅ {} points refunded from event '{}' to {} club wallet(s).",
-                remaining, event.getName(), destinationWallets.size());
+        // ============================================
+        // 🔹 3) Reset event wallet to 0
+        // ============================================
+        eventWallet.setBalancePoints(0L);
+        walletRepo.save(eventWallet);
+
+        log.info("🎉 Settlement COMPLETE for event '{}' – {} pts refunded to {} club wallets.",
+                eventFull.getName(), remaining, walletCount);
     }
+
+
+
+
     public void sendClubTopUpEmail(Long userId, String clubName, long points, String reason) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
