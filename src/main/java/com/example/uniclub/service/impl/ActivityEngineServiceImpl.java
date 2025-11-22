@@ -169,7 +169,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         monthly.setAvgStaffPerformance(avgStaffPerf);
         monthly.setTotalPenaltyPoints(penaltyStats.totalPoints);
         monthly.setBaseScore(baseScore);
-        monthly.setBaseScorePercent(basePercent);
         monthly.setActivityLevel(level);
         monthly.setAppliedMultiplier(appliedMultiplier);
         monthly.setFinalScore(finalScore);
