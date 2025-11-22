@@ -1,19 +1,18 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.UpdateBaseScoreRequest;
 import com.example.uniclub.dto.response.ClubMonthlyActivitySummaryResponse;
 import com.example.uniclub.dto.response.MemberMonthlyActivityResponse;
 import com.example.uniclub.entity.*;
-import com.example.uniclub.enums.ClubRoleEnum;
-import com.example.uniclub.enums.MemberActivityLevelEnum;
-import com.example.uniclub.enums.MembershipStateEnum;
-import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -243,4 +242,78 @@ public class ActivityReportController {
             throw new ApiException(HttpStatus.FORBIDDEN, "Your membership is not active.");
         }
     }
+
+    @PutMapping("/clubs/{clubId}/members/activity/base-score")
+    @Operation(summary = "Leader nhập điểm phát (baseScore) cho member")
+    public ResponseEntity<ApiResponse<Void>> updateBaseScore(
+            @PathVariable Long clubId,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            @RequestBody @Valid UpdateBaseScoreRequest req,
+            HttpServletRequest request
+    ) {
+        User current = jwtUtil.getUserFromRequest(request);
+        ensureLeaderRights(current, clubId);
+
+        MemberMonthlyActivity act = monthlyActivityRepo
+                .findByMembership_MembershipIdAndYearAndMonth(req.getMembershipId(), year, month)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Monthly activity not found"));
+
+        act.setBaseScore(req.getBaseScore());
+        monthlyActivityRepo.save(act);
+
+        return ResponseEntity.ok(ApiResponse.ok());
+    }
+
+    @PostMapping("/clubs/{clubId}/members/activity/calculate")
+    @Operation(summary = "Tính toán finalScore cho toàn bộ member trong tháng")
+    public ResponseEntity<ApiResponse<Void>> calculateMonthlyFinalScore(
+            @PathVariable Long clubId,
+            @RequestParam Integer year,
+            @RequestParam Integer month,
+            HttpServletRequest request
+    ) {
+        User current = jwtUtil.getUserFromRequest(request);
+        ensureLeaderRights(current, clubId);
+
+        List<MemberMonthlyActivity> list = monthlyActivityRepo
+                .findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+
+        for (MemberMonthlyActivity m : list) {
+
+            // Tính attendance score
+            double attendanceRate =
+                    safeRate(m.getTotalClubPresent(), m.getTotalClubSessions());
+            double attendanceScore = attendanceRate * 100;
+
+            // Tính staff score
+            double staffScore = switch (m.getStaffEvaluation()) {
+                case POOR -> 10;
+                case AVERAGE -> 20;
+                case GOOD -> 30;
+                case EXCELLENT -> 40;
+                default -> 0;
+            };
+
+            // Multiplier từ enum
+            double attendanceMul = ActivityMultiplierEnum.SESSION_ATTENDANCE.value;
+            double staffMul = ActivityMultiplierEnum.STAFF_EVALUATION.value;
+
+            double finalScore = m.getBaseScore()
+                    + attendanceScore * attendanceMul
+                    + staffScore * staffMul;
+
+            m.setAppliedMultiplier(attendanceMul + staffMul);
+            m.setFinalScore(finalScore);
+        }
+
+        monthlyActivityRepo.saveAll(list);
+
+        return ResponseEntity.ok(ApiResponse.ok());
+    }
+
+    private double safeRate(int a, int b) {
+        return b == 0 ? 0 : (a * 1.0 / b);
+    }
+
 }

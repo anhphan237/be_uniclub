@@ -1,6 +1,7 @@
 package com.example.uniclub.entity;
 
 import com.example.uniclub.enums.MemberActivityLevelEnum;
+import com.example.uniclub.enums.StaffEvaluationEnum;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,15 +49,21 @@ public class MemberMonthlyActivity {
     @Column(nullable = false)
     private double avgStaffPerformance;   // 0.0 – 1.0
 
+    // NEW: số lần làm staff
+    @Column(nullable = false)
+    private int totalStaffCount;
+
+    // NEW: đánh giá staff
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private StaffEvaluationEnum staffEvaluation;  // POOR, AVERAGE, GOOD, EXCELLENT
+
     @Column(nullable = false)
     private int totalPenaltyPoints;
 
     // ====== NORMALIZED SCORES ======
     @Column(nullable = false)
     private double baseScore;      // 0.0 – 1.0
-
-    @Column(nullable = false)
-    private int baseScorePercent;  // 0 – 100
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

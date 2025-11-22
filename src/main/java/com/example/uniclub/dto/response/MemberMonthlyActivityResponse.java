@@ -3,6 +3,7 @@ package com.example.uniclub.dto.response;
 import com.example.uniclub.entity.MemberMonthlyActivity;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.MemberActivityLevelEnum;
+import com.example.uniclub.enums.StaffEvaluationEnum;
 import lombok.*;
 
 @Getter
@@ -34,43 +35,46 @@ public class MemberMonthlyActivityResponse {
     private int totalPenaltyPoints;
 
     private double baseScore;
-    private int baseScorePercent;
+
+    // NEW
+    private int totalStaffCount;
+    private StaffEvaluationEnum staffEvaluation;
 
     private MemberActivityLevelEnum activityLevel;
     private double appliedMultiplier;
     private double finalScore;
 
     public static MemberMonthlyActivityResponse from(MemberMonthlyActivity m) {
-        Membership membership = m.getMembership();
-
         return MemberMonthlyActivityResponse.builder()
-                .membershipId(membership.getMembershipId())
-                .userId(membership.getUser().getUserId())
-                .fullName(membership.getUser().getFullName())
-                .studentCode(membership.getUser().getStudentCode())
-                .clubId(membership.getClub().getClubId())
-                .clubName(membership.getClub().getName())
+                .membershipId(m.getMembership().getMembershipId())
+                .userId(m.getMembership().getUser().getUserId())
+                .fullName(m.getMembership().getUser().getFullName())
+                .studentCode(m.getMembership().getUser().getStudentCode())
+                .clubId(m.getMembership().getClub().getClubId())
+                .clubName(m.getMembership().getClub().getName())
 
                 .year(m.getYear())
                 .month(m.getMonth())
 
                 .totalEventRegistered(m.getTotalEventRegistered())
                 .totalEventAttended(m.getTotalEventAttended())
-                .eventAttendanceRate(m.getEventAttendanceRate())
+                .eventAttendanceRate(calcRate(m.getTotalEventAttended(), m.getTotalEventRegistered()))
 
                 .totalClubSessions(m.getTotalClubSessions())
                 .totalClubPresent(m.getTotalClubPresent())
-                .sessionAttendanceRate(m.getSessionAttendanceRate())
+                .sessionAttendanceRate(calcRate(m.getTotalClubPresent(), m.getTotalClubSessions()))
 
-                .avgStaffPerformance(m.getAvgStaffPerformance())
-                .totalPenaltyPoints(m.getTotalPenaltyPoints())
+                .totalStaffCount(m.getTotalStaffCount())
+                .staffEvaluation(m.getStaffEvaluation())
 
                 .baseScore(m.getBaseScore())
-                .baseScorePercent(m.getBaseScorePercent())
-
-                .activityLevel(m.getActivityLevel())
                 .appliedMultiplier(m.getAppliedMultiplier())
                 .finalScore(m.getFinalScore())
+
                 .build();
+    }
+
+    private static double calcRate(int a, int b) {
+        return b == 0 ? 0 : (a * 1.0 / b);
     }
 }
