@@ -24,6 +24,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             String name, EventStatusEnum status, Pageable pageable
     );
 
+    List<Event> findByHostClub_ClubIdAndDateBetween(
+            Long clubId, LocalDate start, LocalDate end
+    );
+
     Page<Event> findByNameContainingIgnoreCase(
             String name, Pageable pageable
     );

@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.response.ClubActivityMonthlyResponse;
+import com.example.uniclub.dto.response.ClubEventMonthlyActivityResponse;
 import com.example.uniclub.dto.response.MemberActivityDetailResponse;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.entity.User;
@@ -12,6 +13,7 @@ import com.example.uniclub.repository.MembershipRepository;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.MemberActivityQueryService;
 import com.example.uniclub.service.MemberActivityService;
+import com.example.uniclub.service.impl.ClubEventActivityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +34,7 @@ public class ClubActivityController {
     private final JwtUtil jwtUtil;
     private final MembershipRepository membershipRepo;
     private final MemberActivityService memberActivityService;
+    private final ClubEventActivityService clubEventActivityService;
     private final MemberActivityQueryService memberActivityQueryService;
 
     // ==================== LEADER: Xem activity của member trong CLB ====================
@@ -139,4 +142,37 @@ public class ClubActivityController {
             throw new ApiException(HttpStatus.FORBIDDEN, "Your membership is not active.");
         }
     }
+
+    @GetMapping("/{clubId}/event-activity/monthly")
+    @Operation(
+            summary = "UniStaff xem hoạt động event của CLB trong 1 tháng",
+            description = """
+                Bao gồm tổng event, completed, rejected và multiplier CLUB_EVENT_ACTIVITY.
+                Dùng cho UNIVERSITY_STAFF hoặc ADMIN.
+                """
+    )
+    public ResponseEntity<ApiResponse<ClubEventMonthlyActivityResponse>> getClubEventActivity(
+            @PathVariable Long clubId,
+            @RequestParam(required = false) String month,
+            HttpServletRequest request
+    ) {
+        User current = jwtUtil.getUserFromRequest(request);
+
+        // Chỉ Admin hoặc UniStaff mới xem được hoạt động toàn CLB
+        String roleName = current.getRole().getRoleName();
+        boolean allowed = "ADMIN".equalsIgnoreCase(roleName)
+                || "UNIVERSITY_STAFF".equalsIgnoreCase(roleName);
+
+        if (!allowed) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only UniStaff/Admin can view club event activity.");
+        }
+
+        YearMonth ym = (month == null || month.isBlank())
+                ? YearMonth.now()
+                : YearMonth.parse(month);
+
+        ClubEventMonthlyActivityResponse data = clubEventActivityService.getClubEventActivity(clubId, ym);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
 }
