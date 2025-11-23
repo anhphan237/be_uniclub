@@ -47,5 +47,10 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     List<ClubPointsRankingDTO> findClubPointsRanking();
 
     Optional<Wallet> findByUser_UserId(Long userId);
+    @Query("""
+    SELECT w FROM Wallet w
+    WHERE w.ownerType = com.example.uniclub.enums.WalletOwnerTypeEnum.UNIVERSITY
+""")
+    Optional<Wallet> findUniversityWallet();
 
 }

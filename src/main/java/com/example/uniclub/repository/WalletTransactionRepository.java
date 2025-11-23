@@ -43,15 +43,14 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
 
     @Query("""
-        SELECT t FROM WalletTransaction t
-        JOIN t.wallet w
-        WHERE w.ownerType = com.example.uniclub.enums.WalletOwnerTypeEnum.UNIVERSITY
-          AND t.receiverClub IS NULL
-          AND t.receiverUser IS NULL
-          AND t.receiverMembership IS NULL
-        ORDER BY t.createdAt DESC
-    """)
+    SELECT t FROM WalletTransaction t
+    JOIN t.wallet w
+    WHERE w.ownerType = com.example.uniclub.enums.WalletOwnerTypeEnum.UNIVERSITY
+      AND t.type = com.example.uniclub.enums.WalletTransactionTypeEnum.EVENT_BUDGET_GRANT
+    ORDER BY t.createdAt DESC
+""")
     List<WalletTransaction> findAllUniToEventTransactions();
+
 
 
 

@@ -67,16 +67,24 @@ public class Wallet {
     @PrePersist
     @PreUpdate
     private void validateOwnerConsistency() {
+
+        // Cho phép ví UNIVERSITY không thuộc user/club/event
+        if (this.ownerType == WalletOwnerTypeEnum.UNIVERSITY) {
+            return;
+        }
+
         int count = 0;
         if (user != null) count++;
         if (club != null) count++;
         if (event != null) count++;
+
         if (count != 1) {
             throw new IllegalStateException(
                     "Wallet must belong to exactly one owner (club, event, or user)"
             );
         }
     }
+
     // ================================================================
 // 🏷️ Helper hiển thị tên ví (dùng cho log)
 // ================================================================

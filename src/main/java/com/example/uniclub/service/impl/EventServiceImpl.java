@@ -631,27 +631,44 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Event wallet already closed.");
 
+        // ============================================================
+        // 1) UPDATE EVENT WALLET BALANCE
+        // ============================================================
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
 
-        event.setApprovedBy(staff.getUser());
-        event.setApprovedAt(LocalDateTime.now());
-        event.setStatus(EventStatusEnum.APPROVED);
-        event.setBudgetPoints(approvedPoints);
-        eventRepo.save(event);
+        // ============================================================
+        // 2) GET UNIVERSITY WALLET – ví nguồn cho giao dịch
+        // ============================================================
+        Wallet uniWallet = walletRepo.findUniversityWallet()
+                .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "University wallet not found."));
 
+        // ============================================================
+        // 3) CREATE TRANSACTION – nguồn là ví UNIVERSITY
+        // ============================================================
         WalletTransaction tx = WalletTransaction.builder()
-                .wallet(eventWallet)
+                .wallet(uniWallet) // ✅ ví của UNIVERSITY, không phải ví EVENT
                 .amount(approvedPoints)
                 .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
                 .description("UniStaff approved " + approvedPoints + " points for event: " + event.getName())
                 .senderName(staff.getUser().getFullName())
                 .receiverName(event.getName())
+                .receiverClub(event.getHostClub())   // optional but recommended
                 .createdAt(LocalDateTime.now())
                 .build();
 
         walletTransactionRepo.save(tx);
+
+        // ============================================================
+        // UPDATE EVENT INFO
+        // ============================================================
+        event.setApprovedBy(staff.getUser());
+        event.setApprovedAt(LocalDateTime.now());
+        event.setStatus(EventStatusEnum.APPROVED);
+        event.setBudgetPoints(approvedPoints);
+        eventRepo.save(event);
 
         // EMAIL
         String leaderEmail = membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
@@ -664,6 +681,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
 
 
