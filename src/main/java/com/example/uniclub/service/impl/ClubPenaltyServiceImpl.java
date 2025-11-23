@@ -37,73 +37,72 @@ public class ClubPenaltyServiceImpl implements ClubPenaltyService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Membership does not belong to this club.");
         }
 
-        // 2. Lấy event (optional)
+        // 2. Event (optional)
         Event event = null;
         if (request.eventId() != null) {
             event = eventRepo.findById(request.eventId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
         }
 
-        // 3. Lấy rule
+        // 3. Rule
         PenaltyRule rule = ruleRepo.findById(request.ruleId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Penalty rule not found"));
 
-        long points = rule.getPenaltyPoints(); // luôn âm
+        long points = -Math.abs(rule.getPenaltyPoints());  // Member trừ điểm → âm
+        long required = Math.abs(points);
         String reason = request.reason() != null ? request.reason() : rule.getDescription();
 
-        // ==========================
-        // 4. LẤY WALLET MEMBER
-        // ==========================
+        // 4. Wallet member
         Wallet memberWallet = walletRepo.findByUser_UserId(membership.getUser().getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Member wallet not found"));
 
-        // ==========================
-        // 5. LẤY WALLET CLUB
-        // ==========================
+        // 5. Wallet club
         Wallet clubWallet = walletRepo.findByClub_ClubId(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club wallet not found"));
 
-        // ==========================
-        // 6. TRỪ ĐIỂM MEMBER
-        // ==========================
-        memberWallet.setBalancePoints(memberWallet.getBalancePoints() + points);
+        // 6. Check balance
+        if (memberWallet.getBalancePoints() < required) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Member does not have enough points to deduct.");
+        }
+
+        // ==========================================================
+        // 7. TRỪ ĐIỂM MEMBER
+        // ==========================================================
+        memberWallet.setBalancePoints(memberWallet.getBalancePoints() - required);
         walletRepo.save(memberWallet);
 
         txRepo.save(
                 WalletTransaction.builder()
                         .wallet(memberWallet)
                         .type(WalletTransactionTypeEnum.MEMBER_PENALTY)
-                        .amount(points) // âm
+                        .amount(-required)
                         .description("Penalty applied: " + rule.getName())
-                        .receiverClub(membership.getClub())
                         .senderName(memberWallet.getDisplayName())
                         .receiverName(membership.getClub().getName())
                         .build()
         );
 
-        // ==========================
-        // 7. CỘNG ĐIỂM CHO CLUB
-        // ==========================
-        long clubGain = Math.abs(points);
-
-        clubWallet.setBalancePoints(clubWallet.getBalancePoints() + clubGain);
+        // ==========================================================
+        // 8. CỘNG ĐIỂM CHO CLUB
+        // ==========================================================
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() + required);
         walletRepo.save(clubWallet);
 
         txRepo.save(
                 WalletTransaction.builder()
                         .wallet(clubWallet)
                         .type(WalletTransactionTypeEnum.CLUB_FROM_PENALTY)
-                        .amount(clubGain) // dương
+                        .amount(required)
                         .description("Penalty income from member: " + memberWallet.getDisplayName())
-                        .receiverClub(membership.getClub())
                         .senderName(memberWallet.getDisplayName())
                         .receiverName(membership.getClub().getName())
                         .build()
         );
 
-        // ==========================
-        // 8. LƯU RECORD PENALTY
-        // ==========================
+        // ==========================================================
+        // 9. Lưu bảng club_penalties
+        // ==========================================================
         ClubPenalty penalty = ClubPenalty.builder()
                 .membership(membership)
                 .event(event)

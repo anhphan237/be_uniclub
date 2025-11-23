@@ -3,7 +3,8 @@ package com.example.uniclub.dto.request;
 import com.example.uniclub.enums.ViolationLevelEnum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Negative;
+
+import jakarta.validation.constraints.Positive;
 
 public record PenaltyRuleRequest(
 
@@ -16,7 +17,8 @@ public record PenaltyRuleRequest(
         ViolationLevelEnum level,
 
         @NotNull
-        @Negative
+        @Positive
         Integer penaltyPoints
+
 
 ) {}
