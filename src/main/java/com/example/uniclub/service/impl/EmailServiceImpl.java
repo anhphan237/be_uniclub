@@ -1,9 +1,6 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Event;
-import com.example.uniclub.entity.EventCoClub;
-import com.example.uniclub.entity.User;
+import com.example.uniclub.entity.*;
 import com.example.uniclub.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -924,6 +921,77 @@ public class EmailServiceImpl implements EmailService {
         sendEmail(to, subject, body);
     }
 
+
+    @Override
+    public void sendPenaltyNotificationEmail(User user, Club club, PenaltyRule rule, ClubPenalty penalty) {
+
+        String subject = "[UniClub] Penalty Notice from " + club.getName();
+
+        String body = """
+        <div style="font-family: Arial, sans-serif; background: #F4F7FB; padding: 30px; border-radius: 10px;">
+
+            <div style="text-align: center; margin-bottom: 25px;">
+                <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 120px;'>
+            </div>
+
+            <div style="
+                background: white; 
+                padding: 25px; 
+                border-radius: 12px; 
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                max-width: 650px; 
+                margin:auto;
+            ">
+            
+                <h2 style="color:#D84315; text-align:center; margin-top:0;">
+                    ⚠ Penalty Notification
+                </h2>
+
+                <p>Hello <b>%s</b>,</p>
+                <p>
+                    You have received a penalty from <b>%s</b>. Please review the penalty details below:
+                </p>
+
+                <div style="
+                    border: 1px solid #e0e0e0; 
+                    border-radius: 10px; 
+                    padding: 18px; 
+                    margin-top: 18px;
+                    background:#FAFAFA;
+                ">
+                    <p style="margin: 6px 0;"><b>📌 Violation:</b> %s</p>
+                    <p style="margin: 6px 0;"><b>🏷 Reason:</b> %s</p>
+                    <p style="margin: 6px 0;"><b>➖ Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
+                    <p style="margin: 6px 0;"><b>👤 Issued by:</b> %s</p>
+                    <p style="margin: 6px 0;"><b>🕒 Issued at:</b> %s</p>
+                </div>
+
+                <p style="margin-top:20px;">
+                    If you have any concerns or believe this penalty was issued in error, 
+                    please contact your club’s management team.
+                </p>
+
+                <p style="text-align:center; margin-top:28px; font-size:14px; color:#777;">
+                    Best regards,<br>
+                    <b>UniClub Vietnam</b><br>
+                    Digitalizing Student Communities ✨
+                </p>
+
+            </div>
+
+        </div>
+        """.formatted(
+                user.getFullName(),
+                club.getName(),
+                rule.getName(),
+                penalty.getReason(),
+                rule.getPenaltyPoints(),
+                penalty.getCreatedBy().getFullName(),
+                penalty.getCreatedAt().toString()
+        );
+
+        sendEmail(user.getEmail(), subject, body);
+    }
 
 
 }

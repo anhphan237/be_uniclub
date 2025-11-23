@@ -1,9 +1,6 @@
 package com.example.uniclub.service;
 
-import com.example.uniclub.entity.Club;
-import com.example.uniclub.entity.Event;
-import com.example.uniclub.entity.EventCoClub;
-import com.example.uniclub.entity.User;
+import com.example.uniclub.entity.*;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -163,6 +160,7 @@ public interface EmailService {
             String staffName
     );
 
+    void sendPenaltyNotificationEmail(User user, Club club, PenaltyRule rule, ClubPenalty penalty);
 
 
 }

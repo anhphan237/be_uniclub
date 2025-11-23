@@ -25,11 +25,6 @@ public class ClubPenalty {
     @JoinColumn(name = "membership_id")
     private Membership membership;
 
-    // event liên quan (có thể null nếu phạt chung)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id")
-    private Event event;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ClubPenaltyTypeEnum type;
