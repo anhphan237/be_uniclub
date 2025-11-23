@@ -2,7 +2,6 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.MemberRewardSuggestionResponse;
 import com.example.uniclub.entity.MemberMonthlyActivity;
-import com.example.uniclub.enums.MemberActivityLevelEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.ClubRepository;
 import com.example.uniclub.repository.MemberMonthlyActivityRepository;
@@ -38,68 +37,30 @@ public class RewardSuggestionServiceImpl implements RewardSuggestionService {
 
     private MemberRewardSuggestionResponse mapToSuggestion(MemberMonthlyActivity m) {
 
-        double finalScore = m.getFinalScore();
-        MemberActivityLevelEnum level = m.getActivityLevel();
-
+        int finalScore = m.getFinalScore();
         int suggested = 0;
-        String reasoning = "No reward recommended.";
+        String reasoning;
 
-        switch (level) {
-
-            case MEMBER_OF_MONTH -> {
-                suggested = 50;
-                reasoning = "Top performer of the month.";
-            }
-
-            case FULL -> {
-                if (finalScore >= 0.90) {
-                    suggested = 30;
-                } else if (finalScore >= 0.80) {
-                    suggested = 20;
-                } else {
-                    suggested = 10;
-                }
-                reasoning = "High consistency with full activity performance.";
-            }
-
-            case POSITIVE -> {
-                if (finalScore >= 0.75) {
-                    suggested = 15;
-                } else if (finalScore >= 0.60) {
-                    suggested = 10;
-                } else {
-                    suggested = 5;
-                }
-                reasoning = "Good engagement and positive participation.";
-            }
-
-            case NORMAL -> {
-                if (finalScore >= 0.50) {
-                    suggested = 5;
-                } else if (finalScore >= 0.35) {
-                    suggested = 3;
-                } else {
-                    suggested = 1;
-                }
-                reasoning = "Average activity, room for improvement.";
-            }
-
-            case LOW -> {
-                suggested = 0;
-                reasoning = "Low activity this month.";
-            }
-
-            default -> {
-                suggested = 0;
-                reasoning = "No reward recommended.";
-            }
+        if (finalScore >= 160) {
+            suggested = 50;
+            reasoning = "Outstanding activity level (Member of the Month candidate).";
+        } else if (finalScore >= 130) {
+            suggested = 30;
+            reasoning = "High performance and excellent participation.";
+        } else if (finalScore >= 90) {
+            suggested = 20;
+            reasoning = "Positive and consistent member activity.";
+        } else if (finalScore >= 50) {
+            suggested = 10;
+            reasoning = "Normal activity level, average engagement.";
+        } else {
+            suggested = 0;
+            reasoning = "Low activity this month.";
         }
 
         return MemberRewardSuggestionResponse.builder()
                 .membershipId(m.getMembership().getMembershipId())
                 .fullName(m.getMembership().getUser().getFullName())
-                .activityLevel(level)
-                .baseScore(m.getBaseScore())
                 .finalScore(finalScore)
                 .suggestedPoints(suggested)
                 .suggestionReason(reasoning)

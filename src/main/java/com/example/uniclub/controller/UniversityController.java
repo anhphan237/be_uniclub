@@ -88,7 +88,6 @@ public class UniversityController {
         return ResponseEntity.ok(universityService.getAttendanceSummaryByEvent(year, eventId));
     }
 
-
     // ===============================================================
     // 🔹 Thành viên hoạt động sôi nổi theo tháng (ActivityEngine)
     // ===============================================================
@@ -122,7 +121,6 @@ public class UniversityController {
                     finalEnd.atTime(23, 59, 59)
             );
 
-            // Lấy activity theo tháng (nếu month != null)
             MemberMonthlyActivity activity = (month != null)
                     ? activityRepo.findByMembership_MembershipIdAndYearAndMonth(
                     m.getMembershipId(), year, month
@@ -135,11 +133,13 @@ public class UniversityController {
             map.put("clubName", m.getClub().getName());
             map.put("eventCount", eventCount);
 
-            map.put("activityLevel",
-                    activity != null ? activity.getActivityLevel().name() : "UNKNOWN");
+            // 🔥 Excel Model: chỉ còn finalScore
+            map.put("finalScore",
+                    activity != null ? activity.getFinalScore() : 0);
 
+            // Multiplier có thể giữ từ membership
             map.put("multiplier",
-                    activity != null ? activity.getAppliedMultiplier() : m.getMemberMultiplier());
+                    activity != null ? activity.getFinalScore() : m.getMemberMultiplier());
 
             result.add(map);
         }
@@ -150,7 +150,6 @@ public class UniversityController {
 
         return ResponseEntity.ok(result);
     }
-
 
     // ===============================================================
     // 🔹 Thành viên hoạt động theo RANGE (ActivityEngine)
@@ -191,8 +190,8 @@ public class UniversityController {
             map.put("clubName", m.getClub().getName());
             map.put("eventCount", eventCount);
 
-            // RANGE không thể xác định activityLevel → UNKNOWN
-            map.put("activityLevel", "UNKNOWN");
+            // RANGE: không có finalScore consistency → default
+            map.put("finalScore", 0);
 
             map.put("multiplier", m.getMemberMultiplier());
 

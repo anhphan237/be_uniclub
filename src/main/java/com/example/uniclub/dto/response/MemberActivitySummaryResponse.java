@@ -15,19 +15,21 @@ public class MemberActivitySummaryResponse {
     private String fullName;
     private String email;
 
-    private String memberLevel;        // MemberLevelEnum
-    private String activityLevel;      // MemberActivityLevelEnum
-    private Double activityMultiplier;
+    // ==== Attendance ====
+    private int totalClubSessions;
+    private int totalClubPresent;
+    private double sessionAttendanceRate;
+    private int attendanceBaseScore;
+    private double attendanceMultiplier;
+    private int attendanceTotalScore;
 
-    private Integer totalEvents;
-    private Integer attendedEvents;
-    private Double eventParticipationRate;
+    // ==== Staff ====
+    private int staffBaseScore;
+    private int staffScoreGood;
+    private int staffScoreAverage;
+    private int staffScorePoor;
+    private int staffTotalScore;
 
-    private Integer totalSessions;
-    private Integer attendedSessions;
-    private Double sessionRate;
-
-    private Double staffScore;
-    private Integer penaltyPoints;
-    private Double rawScore;
+    // Final
+    private int finalScore;
 }

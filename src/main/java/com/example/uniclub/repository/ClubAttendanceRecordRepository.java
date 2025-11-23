@@ -4,6 +4,7 @@ import com.example.uniclub.entity.ClubAttendanceRecord;
 import com.example.uniclub.enums.AttendanceStatusEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -50,6 +51,20 @@ public interface ClubAttendanceRecordRepository extends JpaRepository<ClubAttend
             java.util.List<AttendanceStatusEnum> statuses,
             java.time.LocalDate start,
             java.time.LocalDate end
+    );
+    // Đếm tổng số session mà CLB tổ chức trong tháng
+    int countBySession_Club_ClubIdAndSession_DateBetween(
+            Long clubId,
+            LocalDate start,
+            LocalDate end
+    );
+
+    // Đếm số attendance PRESENT hoặc LATE của CLB
+    int countBySession_Club_ClubIdAndStatusInAndSession_DateBetween(
+            Long clubId,
+            List<AttendanceStatusEnum> statuses,
+            LocalDate start,
+            LocalDate end
     );
 
 

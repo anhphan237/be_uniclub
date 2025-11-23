@@ -25,5 +25,10 @@ public interface StaffPerformanceRepository extends JpaRepository<StaffPerforman
             LocalDate start,
             LocalDate end
     );
+    List<StaffPerformance> findByEvent_HostClub_ClubIdAndEvent_DateBetween(
+            Long clubId,
+            LocalDate start,
+            LocalDate end
+    );
 
 }

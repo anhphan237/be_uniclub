@@ -1,16 +1,13 @@
 package com.example.uniclub.dto.response;
 
 import com.example.uniclub.entity.MemberMonthlyActivity;
-import com.example.uniclub.entity.Membership;
-import com.example.uniclub.enums.MemberActivityLevelEnum;
-import com.example.uniclub.enums.StaffEvaluationEnum;
 import lombok.*;
 
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class MemberMonthlyActivityResponse {
 
     private Long membershipId;
@@ -20,29 +17,33 @@ public class MemberMonthlyActivityResponse {
     private Long clubId;
     private String clubName;
 
-    private Integer year;
-    private Integer month;
+    private int year;
+    private int month;
 
     private int totalEventRegistered;
     private int totalEventAttended;
-    private double eventAttendanceRate;
 
     private int totalClubSessions;
     private int totalClubPresent;
+
     private double sessionAttendanceRate;
 
-    private double avgStaffPerformance;
-    private int totalPenaltyPoints;
+    // Attendance (Excel)
+    private int attendanceBaseScore;
+    private double attendanceMultiplier;
+    private int attendanceTotalScore;
 
-    private double baseScore;
+    // Staff
+    private int staffBaseScore;
+    private int staffGoodCount;
+    private int staffAverageCount;
+    private int staffPoorCount;
+    private int staffScoreGood;
+    private int staffScoreAverage;
+    private int staffScorePoor;
+    private int staffTotalScore;
 
-    // NEW
-    private int totalStaffCount;
-    private StaffEvaluationEnum staffEvaluation;
-
-    private MemberActivityLevelEnum activityLevel;
-    private double appliedMultiplier;
-    private double finalScore;
+    private int finalScore;
 
     public static MemberMonthlyActivityResponse from(MemberMonthlyActivity m) {
         return MemberMonthlyActivityResponse.builder()
@@ -58,23 +59,31 @@ public class MemberMonthlyActivityResponse {
 
                 .totalEventRegistered(m.getTotalEventRegistered())
                 .totalEventAttended(m.getTotalEventAttended())
-                .eventAttendanceRate(calcRate(m.getTotalEventAttended(), m.getTotalEventRegistered()))
 
                 .totalClubSessions(m.getTotalClubSessions())
                 .totalClubPresent(m.getTotalClubPresent())
-                .sessionAttendanceRate(calcRate(m.getTotalClubPresent(), m.getTotalClubSessions()))
+                .sessionAttendanceRate(
+                        m.getTotalClubSessions() == 0 ? 0
+                                : ((double) m.getTotalClubPresent() / m.getTotalClubSessions())
+                )
 
-                .totalStaffCount(m.getTotalStaffCount())
-                .staffEvaluation(m.getStaffEvaluation())
+                // attendance
+                .attendanceBaseScore(m.getAttendanceBaseScore())
+                .attendanceMultiplier(m.getAttendanceMultiplier())
+                .attendanceTotalScore(m.getAttendanceTotalScore())
 
-                .baseScore(m.getBaseScore())
-                .appliedMultiplier(m.getAppliedMultiplier())
+                // staff
+                .staffBaseScore(m.getStaffBaseScore())
+                .staffGoodCount(m.getStaffGoodCount())
+                .staffAverageCount(m.getStaffAverageCount())
+                .staffPoorCount(m.getStaffPoorCount())
+
+                .staffScoreGood(m.getStaffScoreGood())
+                .staffScoreAverage(m.getStaffScoreAverage())
+                .staffScorePoor(m.getStaffScorePoor())
+                .staffTotalScore(m.getStaffTotalScore())
+
                 .finalScore(m.getFinalScore())
-
                 .build();
-    }
-
-    private static double calcRate(int a, int b) {
-        return b == 0 ? 0 : (a * 1.0 / b);
     }
 }
