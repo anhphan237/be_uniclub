@@ -61,7 +61,8 @@ public class AuthServiceImpl {
         Boolean isClubStaff = null;
 
         if ("CLUB_LEADER".equals(roleName)) {
-            clubId = membershipRepository.findLeaderClubId(user.getUserId());
+            clubId = membershipRepository.findAnyLeaderOrViceClubId(user.getUserId());
+
         }
         else if ("STUDENT".equals(roleName)) {
             clubIds = membershipRepository.findActiveClubIds(user.getUserId());
