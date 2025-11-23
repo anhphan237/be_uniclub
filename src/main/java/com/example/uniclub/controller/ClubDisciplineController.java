@@ -9,6 +9,7 @@ import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.repository.PenaltyRuleRepository;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.ClubPenaltyService;
 import com.example.uniclub.service.StaffPerformanceService;
@@ -42,6 +43,7 @@ public class ClubDisciplineController {
     private final MembershipRepository membershipRepo;
     private final ClubPenaltyService clubPenaltyService;
     private final StaffPerformanceService staffPerformanceService;
+    private final PenaltyRuleRepository ruleRepo;
 
     // ============================================================================
     // 1) CREATE MEMBER PENALTY
@@ -106,6 +108,29 @@ public class ClubDisciplineController {
 
         return ResponseEntity.ok(
                 ApiResponse.ok("Staff performance saved successfully.")
+        );
+    }
+
+    @GetMapping("/penalty-rules")
+    @Operation(
+            summary = "Danh sách rule vi phạm cho Leader/Vice-Leader",
+            description = """
+            Leader / Vice-leader dùng API này để xem danh sách Rule đã được UniStaff cấu hình.<br><br>
+            Leader sẽ chọn ruleId từ danh sách này khi tạo phiếu phạt.<br>
+            Không có quyền chỉnh sửa rule.
+            """
+    )
+    public ResponseEntity<ApiResponse<?>> listPenaltyRules(
+            @PathVariable Long clubId,
+            HttpServletRequest request
+    ) {
+        // check quyền leader/vice
+        User current = jwtUtil.getUserFromRequest(request);
+        ensureLeaderRights(current, clubId);
+
+        // chỉ đọc rule, không lọc theo club (rule là global)
+        return ResponseEntity.ok(
+                ApiResponse.ok(ruleRepo.findAll())
         );
     }
 

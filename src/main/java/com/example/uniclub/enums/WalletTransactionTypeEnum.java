@@ -19,5 +19,7 @@ public enum WalletTransactionTypeEnum {
     EVENT_REFUND_PRODUCT,
     CLUB_RECEIVE_REDEEM,
     CLUB_REFUND,
-    ADMIN_ADJUST
+    ADMIN_ADJUST,
+    MEMBER_PENALTY,
+    CLUB_FROM_PENALTY
 }
