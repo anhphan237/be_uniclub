@@ -5,6 +5,7 @@ import com.example.uniclub.enums.EventStaffStateEnum;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,5 +65,17 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
             Long membershipId
     );
 
+    // 🔹 Lấy các lần làm staff theo membership + event.date
+    @Query("""
+    SELECT es FROM EventStaff es
+    WHERE es.membership.membershipId = :membershipId
+      AND es.event.date BETWEEN :start AND :end
+      AND es.state = com.example.uniclub.enums.EventStaffStateEnum.ACTIVE
+""")
+    List<EventStaff> findByMembershipAndEventDateBetween(
+            @Param("membershipId") Long membershipId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
 
 }

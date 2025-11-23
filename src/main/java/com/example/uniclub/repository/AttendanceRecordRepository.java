@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -91,6 +92,16 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("userId") Long userId,
             @Param("eventIds") java.util.List<Long> eventIds,
             @Param("levels") java.util.List<com.example.uniclub.enums.AttendanceLevelEnum> levels
+    );
+    @Query("""
+    SELECT ar FROM AttendanceRecord ar
+    WHERE ar.user.userId = :userId
+      AND ar.event.date BETWEEN :start AND :end
+""")
+    List<AttendanceRecord> findByUserIdAndEventDateBetween(
+            @Param("userId") Long userId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
     );
 
 

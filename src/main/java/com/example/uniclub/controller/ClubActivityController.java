@@ -23,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.YearMonth;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/clubs")
@@ -37,6 +36,17 @@ public class ClubActivityController {
     private final ClubEventActivityService clubEventActivityService;
     private final MemberActivityQueryService memberActivityQueryService;
 
+    // ==================== HELPER: build YearMonth ====================
+
+    private YearMonth parseYearMonth(Integer year, Integer month, boolean defaultPrevMonth) {
+        if (year != null && month != null) {
+            return YearMonth.of(year, month);
+        }
+
+        YearMonth now = YearMonth.now();
+        return defaultPrevMonth ? now.minusMonths(1) : now;
+    }
+
     // ==================== LEADER: Xem activity của member trong CLB ====================
 
     @GetMapping("/{clubId}/activities/monthly")
@@ -46,15 +56,14 @@ public class ClubActivityController {
     )
     public ResponseEntity<ApiResponse<ClubActivityMonthlyResponse>> getClubActivityMonthly(
             @PathVariable Long clubId,
-            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
         ensureClubManagePermission(current, clubId);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now()
-                : YearMonth.parse(month);
+        YearMonth ym = parseYearMonth(year, month, false);
 
         ClubActivityMonthlyResponse data = memberActivityQueryService.getClubActivity(clubId, ym);
         return ResponseEntity.ok(ApiResponse.ok(data));
@@ -69,7 +78,8 @@ public class ClubActivityController {
     )
     public ResponseEntity<ApiResponse<MemberActivityDetailResponse>> getMemberActivityDetail(
             @PathVariable Long membershipId,
-            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
@@ -80,9 +90,7 @@ public class ClubActivityController {
         Long clubId = membership.getClub().getClubId();
         ensureClubManagePermission(current, clubId);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now()
-                : YearMonth.parse(month);
+        YearMonth ym = parseYearMonth(year, month, false);
 
         MemberActivityDetailResponse data =
                 memberActivityQueryService.getMemberActivity(membershipId, ym);
@@ -99,20 +107,20 @@ public class ClubActivityController {
     )
     public ResponseEntity<ApiResponse<String>> recalculateClubActivity(
             @PathVariable Long clubId,
-            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
         ensureClubManagePermission(current, clubId);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now().minusMonths(1)   // mặc định tính cho tháng trước
-                : YearMonth.parse(month);
+        YearMonth ym = parseYearMonth(year, month, true); // default = tháng trước
 
         memberActivityService.recalculateForClubAndMonth(clubId, ym);
 
-        String msg = "Recalculated activity for club " + clubId + " in " + ym;
-        return ResponseEntity.ok(ApiResponse.ok(msg));
+        return ResponseEntity.ok(ApiResponse.ok(
+                "Recalculated activity for club " + clubId + " in " + ym
+        ));
     }
 
     // ==================== HELPER: check quyền ====================
@@ -130,7 +138,6 @@ public class ClubActivityController {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission for this club.");
         }
 
-        // Kiểm tra user có đúng là leader/vice của clubId không
         Membership m = membershipRepo.findByUser_UserIdAndClub_ClubId(user.getUserId(), clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club."));
 
@@ -143,6 +150,8 @@ public class ClubActivityController {
         }
     }
 
+    // ==================== UNISTAFF: Xem Event Activity ====================
+
     @GetMapping("/{clubId}/event-activity/monthly")
     @Operation(
             summary = "UniStaff xem hoạt động event của CLB trong 1 tháng",
@@ -153,12 +162,12 @@ public class ClubActivityController {
     )
     public ResponseEntity<ApiResponse<ClubEventMonthlyActivityResponse>> getClubEventActivity(
             @PathVariable Long clubId,
-            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
 
-        // Chỉ Admin hoặc UniStaff mới xem được hoạt động toàn CLB
         String roleName = current.getRole().getRoleName();
         boolean allowed = "ADMIN".equalsIgnoreCase(roleName)
                 || "UNIVERSITY_STAFF".equalsIgnoreCase(roleName);
@@ -167,9 +176,7 @@ public class ClubActivityController {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only UniStaff/Admin can view club event activity.");
         }
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now()
-                : YearMonth.parse(month);
+        YearMonth ym = parseYearMonth(year, month, false);
 
         ClubEventMonthlyActivityResponse data = clubEventActivityService.getClubEventActivity(clubId, ym);
         return ResponseEntity.ok(ApiResponse.ok(data));
