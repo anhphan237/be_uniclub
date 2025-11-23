@@ -12,16 +12,15 @@ import java.time.LocalDateTime;
 public class WalletTransactionResponse {
 
     private Long id;
-    private String type;                // Loại giao dịch
-    private Long amount;                // Số điểm thay đổi
-    private String description;         // Ghi chú / lý do
-    private LocalDateTime createdAt;    // Thời gian tạo
-    private String signedAmount;        // ✅ Hiển thị + hoặc -
+    private String type;
+    private Long amount;
+    private String description;
+    private LocalDateTime createdAt;
+    private String signedAmount;
 
-    private String senderName;          // Ví gửi (CLB / Uni / User)
-    private String receiverName;        // Ví nhận (CLB / Member / User)
+    private String senderName;
+    private String receiverName;
 
-    // ✅ Build Response từ entity WalletTransaction
     public static WalletTransactionResponse from(WalletTransaction tx) {
         String typeName = tx.getType() != null ? tx.getType().name() : null;
         String signedAmount = calculateSignedAmount(typeName, tx.getAmount());
@@ -33,43 +32,63 @@ public class WalletTransactionResponse {
                 .description(tx.getDescription())
                 .createdAt(tx.getCreatedAt())
                 .signedAmount(signedAmount)
-                .senderName(
-                        tx.getWallet() != null
-                                ? getWalletOwnerName(tx)
-                                : "Unknown Sender"
-                )
-                .receiverName(getReceiverName(tx))
+
+                // 🔥 ƯU TIÊN LẤY TÊN TỪ DB
+                .senderName(resolveSenderName(tx))
+                .receiverName(resolveReceiverName(tx))
+
                 .build();
     }
 
-    // 🧩 Helper: Lấy tên chủ ví gửi
-    private static String getWalletOwnerName(WalletTransaction tx) {
-        if (tx.getWallet().getClub() != null)
-            return tx.getWallet().getClub().getName();
-        if (tx.getWallet().getUser() != null)
-            return tx.getWallet().getUser().getFullName();
-        if (tx.getWallet().getEvent() != null)
-            return tx.getWallet().getEvent().getName();
-        return "Unknown Wallet Owner";
+    // ===========================================
+    // 🔥 FIX 1: Ưu tiên lấy senderName từ DB
+    // ===========================================
+    private static String resolveSenderName(WalletTransaction tx) {
+        if (tx.getSenderName() != null && !tx.getSenderName().isBlank())
+            return tx.getSenderName();
+
+        // Nếu DB không có, fallback theo wallet
+        if (tx.getWallet() != null) {
+            if (tx.getWallet().getClub() != null)
+                return tx.getWallet().getClub().getName();
+            if (tx.getWallet().getUser() != null)
+                return tx.getWallet().getUser().getFullName();
+            if (tx.getWallet().getEvent() != null)
+                return tx.getWallet().getEvent().getName();
+        }
+
+        // Fallback cuối cùng
+        return "Unknown Sender";
     }
 
-    // 🧩 Helper: Lấy tên người/CLB nhận
-    private static String getReceiverName(WalletTransaction tx) {
+    // ===========================================
+    // 🔥 FIX 2: Luôn lấy receiverName từ DB nếu có
+    // ===========================================
+    private static String resolveReceiverName(WalletTransaction tx) {
+        if (tx.getReceiverName() != null && !tx.getReceiverName().isBlank())
+            return tx.getReceiverName();
+
         if (tx.getReceiverClub() != null)
             return tx.getReceiverClub().getName();
+
         if (tx.getReceiverMembership() != null)
             return tx.getReceiverMembership().getUser().getFullName();
+
         if (tx.getReceiverUser() != null)
             return tx.getReceiverUser().getFullName();
+
         return "Unknown Receiver";
     }
 
-    // 🧮 Helper: Tính dấu + hoặc - dựa trên loại giao dịch
+    // ===========================================
+    // 🧮 Helper: Tính dấu + hoặc -
+    // ===========================================
     private static String calculateSignedAmount(String type, Long amount) {
-        if (type == null || amount == null) return String.valueOf(amount);
+        if (type == null || amount == null)
+            return String.valueOf(amount);
 
         switch (type) {
-            // 🟢 Các loại cộng điểm
+            // + Điểm
             case "ADD":
             case "UNI_TO_CLUB":
             case "CLUB_TO_MEMBER":
@@ -81,7 +100,7 @@ public class WalletTransactionResponse {
             case "EVENT_REFUND_PRODUCT":
                 return "+" + amount;
 
-            // 🔴 Các loại trừ điểm
+            // - Điểm
             case "REDUCE":
             case "TRANSFER":
             case "COMMIT_LOCK":
@@ -89,7 +108,6 @@ public class WalletTransactionResponse {
             case "EVENT_REDEEM_PRODUCT":
                 return "-" + amount;
 
-            // ⚪ Mặc định
             default:
                 return String.valueOf(amount);
         }
