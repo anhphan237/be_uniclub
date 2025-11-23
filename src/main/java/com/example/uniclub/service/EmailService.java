@@ -163,4 +163,6 @@ public interface EmailService {
     void sendPenaltyNotificationEmail(User user, Club club, PenaltyRule rule, ClubPenalty penalty);
 
 
+    void sendClubCreationOtpEmail(String to, String fullName, String otpCode);
+
 }

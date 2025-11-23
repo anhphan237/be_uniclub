@@ -2,7 +2,6 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.entity.*;
 import com.example.uniclub.service.EmailService;
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;
@@ -11,7 +10,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Service
@@ -20,132 +18,135 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
 
+    // ============================================================
+    //  🔥 TEMPLATE DÙNG CHUNG – ĐẸP, HIỆN ĐẠI, ĐỒNG BỘ MÀU UNICLUB
+    // ============================================================
+    private String wrapTemplate(String innerHtml) {
+        return """
+        <div style="font-family: 'Inter', Arial, sans-serif; background:#F5F9FF; padding:32px; margin:auto;">
+            <div style="
+                background:white; 
+                max-width:650px; 
+                margin:auto; 
+                border-radius:14px; 
+                padding:32px;
+                box-shadow:0 4px 20px rgba(0,0,0,0.06);
+            ">
+            
+                <div style="text-align:center; margin-bottom:24px;">
+                    <img src='cid:uniclub-logo'
+                         alt='UniClub Logo'
+                         style="width:120px; opacity:0.95;">
+                </div>
+
+                <div style="font-size:15px; color:#222; line-height:1.7;">
+                    %s
+                </div>
+
+                <hr style="border:none; border-top:1px solid #E0E7F1; margin:32px 0;">
+
+                <div style="text-align:center; color:#777; font-size:13px; line-height:1.5;">
+                    Best regards,<br>
+                    <b style="color:#1E88E5;">UniClub Vietnam</b><br>
+                    Digitalizing Student Communities ✨
+                </div>
+            </div>
+        </div>
+        """.formatted(innerHtml);
+    }
+
+    // ============================================================
+    //  📩 HÀM GỬI EMAIL CHUẨN
+    // ============================================================
     @Override
     public void sendEmail(String to, String subject, String content) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper =
+                    new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
 
-            // ✅ true = multipart mode (for inline images)
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-
-            // ✅ Cẩn thận: setFrom có 2 tham số cần encoding chuẩn
             helper.setFrom("noreply@uniclub.id.vn", "UniClub Vietnam");
             helper.setTo(to);
             helper.setSubject(subject);
 
+            // ✨ Bọc template vào
+            helper.setText(wrapTemplate(content), true);
 
-            String html = String.format("""
-<div style="font-family: Arial, sans-serif; background: #F7FBFF; 
-            border-radius: 12px; padding: 28px; max-width: 600px; margin: auto;
-            box-shadow: 0 0 10px rgba(0,0,0,0.08); color-scheme: light !important;">
-
-    <div style="text-align: center; margin-bottom: 22px;">
-        <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 120px;'>
-    </div>
-
-    <div style="font-size: 16px; color: #111111 !important; line-height: 1.6;">
-        %s
-    </div>
-
-    <hr style="margin: 28px 0; border: none; border-top: 1px solid #e2e2e2;">
-
-    <div style="text-align: center; font-size: 14px; color: #444 !important;">
-        <p>Best regards,<br><b>UniClub Vietnam</b><br>Digitalizing Communities 💡</p>
-    </div>
-
-</div>
-""", content);
-
-
-            // ✅ Đặt nội dung HTML
-            helper.setText(html, true);
-
-            // ✅ Inline logo (đảm bảo file nằm đúng đường dẫn)
+            // Logo inline
             helper.addInline("uniclub-logo", new ClassPathResource("static/images/logo.png"));
 
             mailSender.send(message);
-            System.out.println(" Email sent successfully to " + to);
 
-        } catch (MessagingException e) {
-            System.err.println(" Messaging error: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println(" Email send failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
+    // ============================================================
+    //  🎯 TẤT CẢ EMAIL BÊN DƯỚI – ĐÃ LÀM ĐẸP LẠI
+    // ============================================================
+
     @Override
     public void sendFeedbackThankYouEmail(String to, String eventName, int rating) {
-
-        String content = String.format("""
-        Hello,
-
-        Thank you for participating in the event: <b>%s</b>.
-        We’ve received your feedback with a rating of ⭐ %d stars.
-
-        Your opinion is valuable and helps UniClub improve future events!
-
-        Best regards,
-        <b>UniClub Vietnam</b>
-        """, eventName, rating);
+        String content = """
+            <h2 style="color:#1E88E5; margin-top:0;">Thank you for your feedback! ⭐</h2>
+            <p>Thank you for participating in the event <b>%s</b>.</p>
+            <p>Your rating: <b>%d stars</b>.</p>
+            <p>Your input helps us improve future UniClub events!</p>
+        """.formatted(eventName, rating);
 
         sendEmail(to, "Thank You for Your Feedback!", content);
     }
+
     @Override
     public void sendWelcomeEmail(String to, String fullName) {
         String content = """
-            <h2>Hello %s,</h2>
-            <p>Congratulations! You’ve successfully registered your <b>UniClub</b> account. 🎉</p>
-            <p>You can now log in to explore clubs, join events, and start earning points within the system.</p>
-            <p>👉 Access here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
-            """.formatted(fullName);
+            <h2 style="color:#1E88E5;">Welcome, %s! 🎉</h2>
+            <p>You’ve successfully registered your UniClub account.</p>
+            <p>👉 Log in here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
+        """.formatted(fullName);
 
         sendEmail(to, "[UniClub] Welcome to the system 🎉", content);
     }
 
-
     @Override
     public void sendResetPasswordEmail(String to, String fullName, String link) {
         String content = """
-            Hi %s,<br><br>
-            We received a request to reset your UniClub password.<br>
-            Click the button below to set a new password:<br><br>
-            <a href="%s" style="display:inline-block;padding:10px 20px;
-            background-color:#1E88E5;color:white;border-radius:6px;text-decoration:none;">
-            Reset Password</a><br><br>
-            This link will expire in 15 minutes.
-            """.formatted(fullName, link);
+            <h2 style="color:#1E88E5;">Reset Your Password</h2>
+            <p>Hi %s,</p>
+            <p>You requested to reset your password.</p>
+            <a href="%s" style="display:inline-block;padding:12px 24px;
+                background-color:#1E88E5;color:white;border-radius:6px;text-decoration:none;">
+                Reset Password
+            </a>
+            <p style="margin-top:12px;">The link expires in 15 minutes.</p>
+        """.formatted(fullName, link);
 
         sendEmail(to, "Reset your UniClub password", content);
     }
+
     @Override
     public void sendClubApplicationRejectedEmail(String to, String clubName, String reason) {
-
         String content = """
-            The request to establish the club <b>%s</b> has been rejected.<br>
-            <b>Reason:</b> %s<br><br>
-            Please review and resubmit if necessary.
-            """.formatted(clubName, reason);
+            <h2 style="color:#D32F2F;">Club Creation Rejected ❌</h2>
+            <p>The request to establish <b>%s</b> has been rejected.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(clubName, reason);
 
         sendEmail(to, "Club creation request rejected", content);
     }
 
-
-
     @Override
     public void sendClubApplicationApprovedEmail(String to, String fullName, String clubName) {
-
         String content = """
-            Hello <b>%s</b>,<br><br>
-            Your club creation request for <b>%s</b> has been successfully approved 🎉<br><br>
-            The club has now been created in the UniClub system.<br><br>
-            Note:<br>
-            - The school will manually create 2 accounts (President & Vice President).<br>
-            - These accounts will use the domain <b>@uniclub.edu.vn</b> and will be sent to you via email once ready.<br><br>
-            """.formatted(fullName, clubName);
+            <h2 style="color:#1E88E5;">Club Approved 🎉</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>Your club creation request for <b>%s</b> has been approved!</p>
+            <p>Two official accounts will be created by UniStaff soon.</p>
+        """.formatted(fullName, clubName);
 
         sendEmail(to, "Club creation request approved", content);
     }
-
 
     @Override
     public void sendClubCreationCompletedEmail(
@@ -159,59 +160,39 @@ public class EmailServiceImpl implements EmailService {
             String defaultPassword
     ) {
         String content = """
-            Hello %s,<br><br>
-            The club <b>%s</b> that you proposed has been approved and successfully created! 🎉<br><br>
-            Below are the details of your club’s two main accounts:<br><br>
+            <h2 style="color:#1E88E5;">Your Club Has Been Created 🎉</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>The club <b>%s</b> has been successfully created.</p>
 
-            🔹 <b>President (Leader)</b><br>
-            Full name: %s<br>
-            Email: %s<br><br>
+            <h3>Account Information</h3>
+            <p><b>Leader:</b> %s (%s)</p>
+            <p><b>Vice Leader:</b> %s (%s)</p>
+            <p><b>Default password:</b> %s</p>
 
-            🔹 <b>Vice President (Vice Leader)</b><br>
-            Full name: %s<br>
-            Email: %s<br><br>
-
-            Default password for both accounts: <b>%s</b><br><br>
-
-            Both accounts can log in at:<br>
-            <a href='https://uniclub.id.vn/login'>https://uniclub.id.vn/login</a><br><br>
-
-            The status of your club creation request is now: <b>COMPLETED</b><br><br>
-            """.formatted(
+            <p>You may log in at: <a href='https://uniclub.id.vn/login'>uniclub.id.vn/login</a></p>
+        """.formatted(
                 proposerName, clubName,
                 leaderName, leaderEmail,
                 viceName, viceEmail,
                 defaultPassword
         );
 
-        sendEmail(to, "[UniClub] Your club " + clubName + " has been successfully created", content);
+        sendEmail(to, "[UniClub] Club Created Successfully", content);
     }
+
     @Override
     public void sendEventRegistrationEmail(String to, String fullName, Event event, long commitPoints) {
-
         String content = """
-        Hello %s,<br><br>
-        You have successfully registered for the event <b>%s</b> 🎉<br><br>
-        
-        🔹 Event Date: %s<br>
-        🔹 Location: %s<br>
-        🔹 Commitment Points Locked: <b>%d</b><br><br>
-
-        Please remember to check-in during the event to earn rewards.<br><br>
-
-        Best regards,<br>
-        <b>UniClub Vietnam</b>
-        """.formatted(
-                fullName,
-                event.getName(),
-                event.getDate(),
-                event.getLocation().getName(),
-                commitPoints
-        );
+            <h2 style="color:#1E88E5;">Event Registration Confirmed 🎉</h2>
+            <p>Hello %s,</p>
+            <p>You successfully registered for <b>%s</b>.</p>
+            <p><b>Date:</b> %s<br>
+               <b>Location:</b> %s<br>
+               <b>Commitment Points Locked:</b> %d</p>
+        """.formatted(fullName, event.getName(), event.getDate(), event.getLocation().getName(), commitPoints);
 
         sendEmail(to, "[UniClub] Event Registration Confirmation", content);
     }
-
 
     @Override
     public void sendEventSummaryEmail(
@@ -222,524 +203,377 @@ public class EmailServiceImpl implements EmailService {
             String feedbackLink
     ) {
         String content = """
-            Hello %s,<br><br>
-            Thank you for participating in the event <b>%s</b> 🎉<br><br>
+            <h2 style="color:#1E88E5;">Event Summary 🎉</h2>
+            <p>Hello %s,</p>
+            <p>Thank you for attending <b>%s</b>.</p>
+            <p>You earned <b>%d points</b>.</p>
 
-            Based on your attendance:<br>
-            🔹 Reward Points Earned: <b>%d pts</b><br><br>
-
-            We would love to hear your feedback!<br>
-            Please click below to submit your evaluation:<br><br>
-
-            <a href="%s" style="padding:10px 20px; background:#1976D2; color:white; border-radius:6px; text-decoration:none;">
-            Submit Feedback
-            </a><br><br>
-
-            Best regards,<br>
-            <b>UniClub Vietnam</b>
-            """.formatted(
-                fullName,
-                event.getName(),
-                rewardPoints,
-                feedbackLink
-        );
+            <a href="%s" style="display:inline-block;padding:12px 24px;
+                background:#1976D2;color:white;border-radius:6px;text-decoration:none;">
+                Submit Feedback
+            </a>
+        """.formatted(fullName, event.getName(), rewardPoints, feedbackLink);
 
         sendEmail(to, "[UniClub] Event Summary & Feedback Request", content);
     }
+
     @Override
     public void sendEventCancellationEmail(String to, String fullName, Event event, long refundPoints) {
-
         String content = """
-        Hello %s,<br><br>
-        Your registration for the event <b>%s</b> has been cancelled.<br><br>
-
-        Refund details:<br>
-        🔹 Refunded Points: <b>%d pts</b><br><br>
-
-        If this was a mistake, you may re-register if the event is still open.<br><br>
-
-        Best regards,<br>
-        <b>UniClub Vietnam</b>
-        """.formatted(
-                fullName,
-                event.getName(),
-                refundPoints
-        );
+            <h2 style="color:#D32F2F;">Event Cancelled</h2>
+            <p>Hello %s,</p>
+            <p>Your registration for <b>%s</b> has been cancelled.</p>
+            <p>Refunded Points: <b>%d</b></p>
+        """.formatted(fullName, event.getName(), refundPoints);
 
         sendEmail(to, "[UniClub] Event Registration Cancelled", content);
     }
+
     @Override
     public void sendSuspiciousAttendanceEmail(String to, String fullName, Event event) {
-
         String content = """
-        Hello %s,<br><br>
-        Your attendance for the event <b>%s</b> has been marked as 
-        <span style="color:#D32F2F;"><b>SUSPICIOUS</b></span> due to inconsistencies detected in check-in data.<br><br>
-
-        If you believe this is a mistake, please contact your club leader or UniStaff for verification.<br><br>
-
-        Best regards,<br>
-        <b>UniClub Vietnam</b>
-        """.formatted(
-                fullName,
-                event.getName()
-        );
+            <h2 style="color:#D32F2F;">Suspicious Attendance Detected ⚠</h2>
+            <p>Hello %s,</p>
+            <p>Your attendance for <b>%s</b> has been marked as suspicious.</p>
+            <p>Please contact club leaders if this is incorrect.</p>
+        """.formatted(fullName, event.getName());
 
         sendEmail(to, "[UniClub] Attendance Marked as Suspicious", content);
     }
+
     @Override
     public void sendEventStaffAssignmentEmail(String to, String fullName, Event event, String duty) {
-
         String content = """
-        Hello %s,<br><br>
-        You have been assigned as <b>%s</b> for the event <b>%s</b> 🎉<br><br>
+            <h2 style="color:#1E88E5;">You Have Been Assigned as Event Staff 🎉</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>You are assigned as <b>%s</b> for event <b>%s</b>.</p>
+            <p>Date: %s<br>Location: %s</p>
+        """.formatted(fullName, duty, event.getName(), event.getDate(),
+                event.getLocation() != null ? event.getLocation().getName() : "Unknown");
 
-        🔹 Event Date: %s<br>
-        🔹 Location: %s<br>
-        🔹 Duty: <b>%s</b><br><br>
-
-        Please check the event details in UniClub to prepare your tasks.<br><br>
-
-        Best regards,<br>
-        <b>UniClub Vietnam</b>
-        """.formatted(
-                fullName,
-                duty,
-                event.getName(),
-                event.getDate(),
-                event.getLocation() != null ? event.getLocation().getName() : "Unknown",
-                duty
-        );
-
-        sendEmail(to, "[UniClub] You Have Been Assigned as Event Staff", content);
+        sendEmail(to, "[UniClub] Event Staff Assignment", content);
     }
+
     @Override
     public void sendMemberApplicationSubmitted(String to, String fullName, String clubName) {
-
-        String subject = "Your membership application has been submitted";
-
-        String body = """
-            <h2>🎉 Membership Application Submitted</h2>
+        String content = """
+            <h2 style="color:#1E88E5;">Membership Application Submitted</h2>
             <p>Hi %s,</p>
-            <p>Your application to join <b>%s</b> has been successfully submitted.</p>
-            <p>The club leadership team will review your request soon.</p>
-            <p>Thank you for your interest!</p>
-            """.formatted(fullName, clubName);
+            <p>Your request to join <b>%s</b> has been submitted.</p>
+        """.formatted(fullName, clubName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "Your membership application has been submitted", content);
     }
 
     @Override
     public void sendMemberApplicationResult(
-            String to,
-            String fullName,
-            String clubName,
-            boolean approved
+            String to, String fullName, String clubName, boolean approved
     ) {
-
-        String subject = approved
-                ? "Your application to " + clubName + " is approved!"
-                : "Your application to " + clubName + " has been updated";
-
-        String body = approved
+        String content = approved
                 ? """
-                <h2>Application Approved</h2>
-                <p>Congratulations %s!</p>
-                <p>Your membership request for <b>%s</b> has been <b style='color:green;'>approved</b>.</p>
-                <p>Welcome to the club! 🎉</p>
+                    <h2 style="color:green;">Application Approved 🎉</h2>
+                    <p>Congratulations %s,</p>
+                    <p>You are now a member of <b>%s</b>.</p>
                 """.formatted(fullName, clubName)
                 : """
-                <h2>Application Rejected</h2>
-                <p>Hi %s,</p>
-                <p>Your membership request for <b>%s</b> has been <b style='color:red;'>rejected</b>.</p>
-                <p>You may submit another application if you wish.</p>
+                    <h2 style="color:#D32F2F;">Application Rejected ❌</h2>
+                    <p>Hi %s,</p>
+                    <p>Your request to join <b>%s</b> has been rejected.</p>
                 """.formatted(fullName, clubName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, approved
+                ? "Your application to " + clubName + " is approved!"
+                : "Your application to " + clubName + " has been updated", content);
     }
 
     @Override
     public void sendMemberApplicationCancelled(String to, String fullName, String clubName) {
-
-        String subject = "Membership application cancelled";
-
-        String body = """
-            <h2>⚠ Application Cancelled</h2>
+        String content = """
+            <h2 style="color:#D32F2F;">Application Cancelled</h2>
             <p>Hi %s,</p>
-            <p>Your application to join <b>%s</b> has been successfully cancelled.</p>
-            <p>If this was a mistake, you can submit a new application anytime.</p>
-            """.formatted(fullName, clubName);
+            <p>Your application to join <b>%s</b> has been cancelled.</p>
+        """.formatted(fullName, clubName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "Membership application cancelled", content);
     }
-
 
     @Override
     public void sendClubNewMembershipRequestEmail(
-            String to,
-            String leaderName,
-            String clubName,
-            String applicantName
+            String to, String leaderName, String clubName, String applicantName
     ) {
-        String subject = "[UniClub] New membership request for " + clubName;
+        String content = """
+            <h2 style="color:#1E88E5;">New Membership Request</h2>
+            <p>Dear %s,</p>
+            <p>A new user (<b>%s</b>) wants to join <b>%s</b>.</p>
+        """.formatted(leaderName, applicantName, clubName);
 
-        String body = """
-        <p>Dear %s,</p>
-        <p>A new member has requested to join your club <b>%s</b>.</p>
-        <p><b>Applicant:</b> %s</p>
-        <p>Please log in to UniClub to review and approve/reject this request.</p>
-        <br>
-        <p>Regards,<br><b>UniClub System</b></p>
-        """.formatted(leaderName, clubName, applicantName);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] New membership request for " + clubName, content);
     }
+
     @Override
     public void sendMemberKickedEmail(
-            String to,
-            String memberName,
-            String clubName,
-            String kickerName
+            String to, String memberName, String clubName, String kickerName
     ) {
-
-        String subject = "You have been removed from " + clubName;
-
-        String body = """
-        <p>Dear %s,</p>
-        <p>You have been <b style='color:red;'>removed</b> from the club <b>%s</b> by <b>%s</b>.</p>
-        <p>If you believe this was a mistake, please contact your Club Leader or University Staff.</p>
-        <br>
-        <p>Best regards,<br><b>UniClub System</b></p>
+        String content = """
+            <h2 style="color:#D32F2F;">You Have Been Removed</h2>
+            <p>Dear %s,</p>
+            <p>You were removed from <b>%s</b> by <b>%s</b>.</p>
         """.formatted(memberName, clubName, kickerName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "You have been removed from " + clubName, content);
     }
+
     @Override
     public void sendLeaveRequestSubmittedToLeader(
-            String to,
-            String leaderName,
-            String memberName,
-            String clubName,
-            String reason
+            String to, String leaderName, String memberName,
+            String clubName, String reason
     ) {
-        String subject = "[UniClub] Member submitted a club leave request";
+        String content = """
+            <h2 style="color:#1E88E5;">Leave Request Submitted</h2>
+            <p>Dear %s,</p>
+            <p><b>%s</b> has requested to leave <b>%s</b>.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(leaderName, memberName, clubName,
+                (reason == null || reason.isBlank()) ? "No reason provided" : reason);
 
-        String body = """
-        <p>Dear %s,</p>
-        <p>Member <b>%s</b> has submitted a request to leave the club <b>%s</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <p>Please log in to the UniClub platform to review this request.</p>
-        <br>
-        <p>Regards,<br><b>UniClub System</b></p>
-        """.formatted(
-                leaderName,
-                memberName,
-                clubName,
-                (reason == null || reason.isBlank()) ? "No reason provided." : reason
-        );
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Member submitted a club leave request", content);
     }
-    @Override
-    public void sendLeaveRequestApprovedToMember(
-            String to,
-            String memberName,
-            String clubName
-    ) {
-        String subject = "[UniClub] Your club leave request has been approved";
 
-        String body = """
-        <p>Dear %s,</p>
-        <p>Your request to leave the club <b>%s</b> has been <b style='color:green;'>approved</b>.</p>
-        <p>You are no longer a member of this club.</p>
-        <br>
-        <p>Thank you for being part of UniClub,<br><b>UniClub Team</b></p>
+    @Override
+    public void sendLeaveRequestApprovedToMember(String to, String memberName, String clubName) {
+        String content = """
+            <h2 style="color:green;">Leave Request Approved</h2>
+            <p>Dear %s,</p>
+            <p>Your request to leave <b>%s</b> has been approved.</p>
         """.formatted(memberName, clubName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Your club leave request has been approved", content);
     }
+
     @Override
     public void sendLeaveRequestRejectedToMember(
-            String to,
-            String memberName,
-            String clubName,
-            String leaderName
+            String to, String memberName, String clubName, String leaderName
     ) {
-        String subject = "[UniClub] Your club leave request has been rejected";
-
-        String body = """
-        <p>Dear %s,</p>
-        <p>Your request to leave the club <b>%s</b> has been <b style='color:red;'>rejected</b> by Leader <b>%s</b>.</p>
-        <p>Please contact your Club Leader if you need more clarification.</p>
-        <br>
-        <p>Regards,<br><b>UniClub Team</b></p>
+        String content = """
+            <h2 style="color:#D32F2F;">Leave Request Rejected</h2>
+            <p>Dear %s,</p>
+            <p>Your request to leave <b>%s</b> was rejected by <b>%s</b>.</p>
         """.formatted(memberName, clubName, leaderName);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Your club leave request has been rejected", content);
     }
+
     @Override
     public void sendPointRequestSubmittedToStaff(
-            String to,
-            String staffName,
-            String clubName,
-            long points,
-            String reason
+            String to, String staffName, String clubName, long points, String reason
     ) {
-        String subject = "[UniClub] New Point Request Submitted by " + clubName;
-
         String content = """
-        <p>Dear %s,</p>
-        <p>The club <b>%s</b> has submitted a new <b>Point Request</b>.</p>
-        
-        <p><b>Requested Points:</b> %d</p>
-        <p><b>Reason:</b> %s</p>
+            <h2 style="color:#1E88E5;">New Point Request</h2>
+            <p>Dear %s,</p>
+            <p>Club <b>%s</b> submitted a point request.</p>
+            <p><b>Points:</b> %d</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(staffName, clubName, points,
+                (reason == null || reason.isBlank()) ? "No reason provided" : reason);
 
-        <p>Please log in to the UniClub dashboard to review and approve/reject this request.</p>
-
-        <br>
-        <p>Best regards,<br><b>UniClub System</b></p>
-        """.formatted(
-                staffName,
-                clubName,
-                points,
-                (reason == null || reason.isBlank()) ? "No reason provided" : reason
-        );
-
-        sendEmail(to, subject, content);
+        sendEmail(to, "[UniClub] New Point Request Submitted", content);
     }
+
     @Override
     public void sendPointRequestApproved(
-            String to,
-            String fullName,
-            String clubName,
-            long points,
-            String note
+            String to, String fullName, String clubName, long points, String note
     ) {
-        String subject = "[UniClub] Your Point Request Has Been Approved";
-
         String content = """
-        <p>Dear %s,</p>
-        <p>Your point request for <b>%s</b> has been <span style='color:green;'><b>APPROVED</b></span>.</p>
-        
-        <p><b>Approved Points:</b> %d</p>
-        <p><b>Staff Note:</b> %s</p>
+            <h2 style="color:green;">Point Request Approved</h2>
+            <p>Dear %s,</p>
+            <p>Your request for <b>%s</b> has been approved.</p>
+            <p><b>Points Added:</b> %d</p>
+            <p><b>Staff Note:</b> %s</p>
+        """.formatted(fullName, clubName, points,
+                (note == null || note.isBlank()) ? "No note provided" : note);
 
-        <br>
-        <p>The approved points have already been added to your club wallet.</p>
-        <p>Best regards,<br><b>UniClub System</b></p>
-        """.formatted(
-                fullName,
-                clubName,
-                points,
-                (note == null || note.isBlank()) ? "No note provided" : note
-        );
-
-        sendEmail(to, subject, content);
+        sendEmail(to, "[UniClub] Your Point Request Has Been Approved", content);
     }
+
     @Override
     public void sendPointRequestRejected(
-            String to,
-            String fullName,
-            String clubName,
-            String note
+            String to, String fullName, String clubName, String note
     ) {
-        String subject = "[UniClub] Your Point Request Has Been Rejected";
-
         String content = """
-        <p>Dear %s,</p>
-        <p>Your point request for <b>%s</b> has been <span style='color:red;'><b>REJECTED</b></span>.</p>
+            <h2 style="color:#D32F2F;">Point Request Rejected</h2>
+            <p>Dear %s,</p>
+            <p>Your request for <b>%s</b> has been rejected.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(fullName, clubName,
+                (note == null || note.isBlank()) ? "No reason provided" : note);
 
-        <p><b>Staff Note:</b> %s</p>
-
-        <br>
-        <p>If you believe this was a mistake, please contact the University Staff for clarification.</p>
-        <p>Best regards,<br><b>UniClub System</b></p>
-        """.formatted(
-                fullName,
-                clubName,
-                (note == null || note.isBlank()) ? "No reason provided" : note
-        );
-
-        sendEmail(to, subject, content);
+        sendEmail(to, "[UniClub] Your Point Request Has Been Rejected", content);
     }
+
     @Override
     public void sendClubRedeemEmail(String to, String fullName, String productName,
-                                    int quantity, long totalPoints,
-                                    String orderCode, String qrUrl) {
+                                    int quantity, long totalPoints, String orderCode, String qrUrl) {
 
-        String subject = "[UniClub] Redemption Confirmation #" + orderCode;
-
-        String body = """
-            <h3>You have successfully redeemed your product!</h3>
+        String content = """
+            <h2 style="color:#1E88E5;">Redeem Successful 🎁</h2>
             <p><b>Product:</b> %s</p>
             <p><b>Quantity:</b> %d</p>
-            <p><b>Points deducted:</b> %d</p>
-            <p><b>Order code:</b> %s</p>
-            <div style='text-align:center;margin:20px 0'>
-                <img src="%s" alt="QR Code" style="width:150px"/>
+            <p><b>Points Spent:</b> %d</p>
+            <p><b>Order Code:</b> %s</p>
+            <div style='text-align:center;margin:20px'>
+                <img src="%s" style="width:150px">
             </div>
-            """.formatted(productName, quantity, totalPoints, orderCode, qrUrl);
+        """.formatted(productName, quantity, totalPoints, orderCode, qrUrl);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Redemption Confirmation #" + orderCode, content);
     }
+
     @Override
     public void sendEventRedeemEmail(String to, String fullName, String eventName,
                                      String productName, int quantity, long totalPoints,
                                      String orderCode, String qrUrl) {
 
-        String subject = "[UniClub] Event Gift Redemption – " + eventName;
-
-        String body = """
-            <h3>Gift redemption at the event was successful!</h3>
+        String content = """
+            <h2 style="color:#1E88E5;">Event Gift Redeemed 🎉</h2>
             <p><b>Event:</b> %s</p>
             <p><b>Product:</b> %s</p>
             <p><b>Quantity:</b> %d</p>
-            <p><b>Points deducted:</b> %d</p>
-            <p><b>Order code:</b> %s</p>
-            <div style='text-align:center;margin:20px 0'>
-                <img src="%s" alt="QR Code" style="width:150px"/>
+            <p><b>Points Spent:</b> %d</p>
+            <p><b>Order Code:</b> %s</p>
+            <div style='text-align:center;margin:20px'>
+                <img src="%s" style="width:150px">
             </div>
-            """.formatted(eventName, productName, quantity, totalPoints, orderCode, qrUrl);
+        """.formatted(eventName, productName, quantity, totalPoints, orderCode, qrUrl);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Event Gift Redemption – " + eventName, content);
     }
+
     @Override
     public void sendRefundEmail(String to, String fullName, String productName,
                                 int quantity, long refundPoints, String reason,
                                 String orderCode) {
 
-        String subject = "[UniClub] Refund Successful for Order #" + orderCode;
-
-        String body = """
-            <h3>Points refund successful!</h3>
+        String content = """
+            <h2 style="color:green;">Refund Successful</h2>
             <p><b>Product:</b> %s</p>
-            <p><b>Quantity refunded:</b> %d</p>
-            <p><b>Points refunded:</b> %d</p>
+            <p><b>Quantity:</b> %d</p>
+            <p><b>Points Refunded:</b> %d</p>
             <p><b>Reason:</b> %s</p>
-            """.formatted(productName, quantity, refundPoints, reason);
+        """.formatted(productName, quantity, refundPoints, reason);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Refund Successful for Order #" + orderCode, content);
     }
+
     @Override
     public void sendPartialRefundEmail(String to, String fullName, String productName,
                                        int quantityRefunded, long refundPoints, String reason,
                                        String orderCode) {
 
-        String subject = "[UniClub] Partial Refund for Order #" + orderCode;
-
-        String body = """
-            <h3>Partial points refund!</h3>
+        String content = """
+            <h2 style="color:#1E88E5;">Partial Refund Processed</h2>
             <p><b>Product:</b> %s</p>
-            <p><b>Quantity refunded:</b> %d</p>
-            <p><b>Points refunded:</b> %d</p>
+            <p><b>Quantity Refunded:</b> %d</p>
+            <p><b>Points Refunded:</b> %d</p>
             <p><b>Reason:</b> %s</p>
-            """.formatted(productName, quantityRefunded, refundPoints, reason);
+        """.formatted(productName, quantityRefunded, refundPoints, reason);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Partial Refund for Order #" + orderCode, content);
     }
+
     @Override
     public void sendCheckInRewardEmail(String to, String fullName, String eventName,
                                        long pointsEarned, long totalPoints) {
 
-        String body = """
-        <h3>🎉 You received event reward points!</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>Thank you for attending <b>%s</b>.</p>
-        <p>You have earned <b>%d points</b>.</p>
-        <p>Your new total balance is <b>%d points</b>.</p>
-    """.formatted(fullName, eventName, pointsEarned, totalPoints);
+        String content = """
+            <h2 style="color:#1E88E5;">Reward Received 🎉</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>You earned <b>%d points</b> from attending <b>%s</b>.</p>
+            <p>Your new balance: <b>%d points</b>.</p>
+        """.formatted(fullName, pointsEarned, eventName, totalPoints);
 
-        sendEmail(to, "[UniClub] Event Reward Points Received", body);
+        sendEmail(to, "[UniClub] Event Reward Points Received", content);
     }
+
     @Override
     public void sendManualBonusEmail(String to, String fullName,
                                      long bonusPoints, String reason, long totalPoints) {
 
-        String body = """
-        <h3>🎁 Bonus Points Awarded</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>You have received <b>%d bonus points</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <p>Your updated balance is <b>%d points</b>.</p>
-    """.formatted(
-                fullName,
-                bonusPoints,
+        String content = """
+            <h2 style="color:#1E88E5;">Bonus Points Awarded 🎁</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>You received <b>%d bonus points</b>.</p>
+            <p><b>Reason:</b> %s</p>
+            <p>Your new balance: <b>%d points</b>.</p>
+        """.formatted(fullName, bonusPoints,
                 (reason == null || reason.isBlank()) ? "No specific reason" : reason,
-                totalPoints
-        );
+                totalPoints);
 
-        sendEmail(to, "[UniClub] You Received Bonus Points", body);
+        sendEmail(to, "[UniClub] You Received Bonus Points", content);
     }
 
     @Override
     public void sendMilestoneEmail(String to, String fullName, long milestone) {
 
-        String body = """
-        <h3>🏆 Congratulations on Your Achievement!</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>You have reached <b>%d UniPoints</b> — an important milestone 🎉</p>
-        <p>Keep participating in clubs & events to earn more!</p>
-    """.formatted(fullName, milestone);
+        String content = """
+            <h2 style="color:#1E88E5;">Milestone Reached 🏆</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>You reached <b>%d UniPoints</b>!</p>
+            <p>Keep participating to earn more!</p>
+        """.formatted(fullName, milestone);
 
-        sendEmail(to, "[UniClub] Milestone Achievement Reached", body);
+        sendEmail(to, "[UniClub] Milestone Achievement Reached", content);
     }
+
     @Override
     public void sendClubTopUpEmail(String to, String fullName,
                                    String clubName, long points, String reason) {
 
-        String body = """
-        <h3>💰 Club Wallet Received Points</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>Your club <b>%s</b> has been credited with <b>%d points</b>.</p>
-        <p><b>Reason:</b> %s</p>
-    """.formatted(
-                fullName,
-                clubName,
-                points,
+        String content = """
+            <h2 style="color:green;">Club Wallet Credited 💰</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>Club <b>%s</b> has been credited <b>%d points</b>.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(
+                fullName, clubName, points,
                 (reason == null || reason.isBlank()) ? "No reason provided" : reason
         );
 
-        sendEmail(to, "[UniClub] Club Wallet Credited", body);
+        sendEmail(to, "[UniClub] Club Wallet Credited", content);
     }
+
     @Override
     public void sendClubWalletDeductionEmail(String to, String fullName,
                                              String clubName, long points, String reason) {
 
-        String body = """
-        <h3>⚠ Club Wallet Deduction</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>Your club <b>%s</b> has spent <b>%d points</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <p>If this was not you, please contact University Staff immediately.</p>
-    """.formatted(
-                fullName,
-                clubName,
-                points,
+        String content = """
+            <h2 style="color:#D32F2F;">Club Wallet Deduction ⚠</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>Club <b>%s</b> spent <b>%d points</b>.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(
+                fullName, clubName, points,
                 (reason == null || reason.isBlank()) ? "No reason provided" : reason
         );
 
-        sendEmail(to, "[UniClub] Club Wallet Deducted", body);
+        sendEmail(to, "[UniClub] Club Wallet Deducted", content);
     }
+
     @Override
     public void sendClubBatchDeductionSummaryEmail(String to, String fullName,
                                                    String clubName, long totalPoints,
                                                    int memberCount, String reason) {
 
-        String body = """
-        <h3>📢 Batch Reward Deduction Summary</h3>
-        <p>Hello <b>%s</b>,</p>
-        <p>Your club <b>%s</b> has distributed <b>%d points</b> to <b>%d members</b>.</p>
-        <p><b>Reason:</b> %s</p>
-        <p>You can view the full transaction list in your Club Wallet.</p>
-    """.formatted(
-                fullName,
-                clubName,
-                totalPoints,
-                memberCount,
+        String content = """
+            <h2 style="color:#1E88E5;">Batch Distribution Summary 📢</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>Club <b>%s</b> distributed <b>%d points</b> to <b>%d members</b>.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(
+                fullName, clubName, totalPoints, memberCount,
                 (reason == null || reason.isBlank()) ? "No reason provided" : reason
         );
 
-        sendEmail(to, "[UniClub] Batch Points Distributed", body);
+        sendEmail(to, "[UniClub] Batch Points Distributed", content);
     }
 
     @Override
@@ -751,46 +585,18 @@ public class EmailServiceImpl implements EmailService {
             String location
     ) {
 
-        String subject = "Successfully Checked In: " + eventName;
+        String formattedTime = (startTime != null) ? startTime.toString() : "Not specified";
 
-        // Format LocalTime → "HH:mm"
-        String formattedTime = (startTime != null)
-                ? startTime.toString()   // hoặc dùng DateTimeFormatter nếu bạn muốn kiểu đẹp hơn
-                : "Not specified";
-
-        String htmlBody = """
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #0066cc;">Check-in Successful</h2>
-
+        String content = """
+            <h2 style="color:#1E88E5;">Check-in Successful 🎉</h2>
             <p>Hello <b>%s</b>,</p>
+            <p>You checked in to <b>%s</b>.</p>
+            <p><b>Time:</b> %s<br><b>Location:</b> %s</p>
+        """.formatted(fullName, eventName, formattedTime,
+                location != null ? location : "Not specified");
 
-            <p>You have successfully checked in to the event:</p>
-
-            <h3>%s</h3>
-
-            <p>
-                ⏰ <b>Time:</b> %s<br>
-                📍 <b>Location:</b> %s
-            </p>
-
-            <p>We hope you enjoy the event! 🎉</p>
-
-            <hr style="margin: 25px 0;">
-            <p style="font-size: 12px; color: gray;">
-                This is an automated email. Please do not reply.<br>
-                UniClub — Smart Student Community Platform.
-            </p>
-        </div>
-        """.formatted(
-                fullName,
-                eventName,
-                formattedTime,
-                location != null ? location : "Not specified"
-        );
-
-        sendEmail(to, subject, htmlBody);
+        sendEmail(to, "Successfully Checked In: " + eventName, content);
     }
-
 
     @Override
     public void sendUpcomingEventReminderEmail(
@@ -801,185 +607,113 @@ public class EmailServiceImpl implements EmailService {
             String location
     ) {
 
-        String subject = "Reminder: Upcoming Event - " + eventName;
-
-        String htmlBody = """
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-            <h2 style="color: #1E88E5;">Event Reminder</h2>
-
+        String content = """
+            <h2 style="color:#1E88E5;">Event Reminder ⏰</h2>
             <p>Hello <b>%s</b>,</p>
-
-            <p>This is a friendly reminder that the event below is happening soon:</p>
-
-            <h3>%s</h3>
-
-            <p>
-                ⏰ <b>Time:</b> %s<br>
-                📍 <b>Location:</b> %s
-            </p>
-
-            <p>We look forward to seeing you!</p>
-
-            <hr style="margin: 25px 0;">
-            <p style="font-size: 12px; color: gray;">
-                This is an automated email, please do not reply.<br>
-                UniClub — Smart Student Community Platform.
-            </p>
-        </div>
-        """.formatted(
-                fullName,
-                eventName,
+            <p>Your event <b>%s</b> is happening soon.</p>
+            <p><b>Time:</b> %s<br><b>Location:</b> %s</p>
+        """.formatted(fullName, eventName,
                 eventTime != null ? eventTime : "Not specified",
-                location != null ? location : "Not specified"
-        );
+                location != null ? location : "Not specified");
 
-        sendEmail(to, subject, htmlBody);
+        sendEmail(to, "Reminder: Upcoming Event - " + eventName, content);
     }
+
     @Override
     public void sendEventAwaitingUniStaffReviewEmail(
             String to,
             String eventName,
             String eventDate
     ) {
-        String subject = "[UniClub] Event awaiting UniStaff review";
 
-        String body = """
-        <h2>📌 Event Pending Review</h2>
-        <p>The event <b>%s</b> has been submitted for UniStaff approval.</p>
-        <p><b>Date:</b> %s</p>
-    """.formatted(eventName, eventDate);
+        String content = """
+            <h2 style="color:#1E88E5;">Event Pending UniStaff Review</h2>
+            <p>The event <b>%s</b> is awaiting approval.</p>
+            <p><b>Date:</b> %s</p>
+        """.formatted(eventName, eventDate);
 
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Event awaiting UniStaff review", content);
     }
 
     @Override
     public void sendCoHostInviteEmail(String to, String clubName, String eventName) {
-        String subject = "[UniClub] You are invited to co-host an event";
+        String content = """
+            <h2 style="color:#1E88E5;">Co-host Invitation 🤝</h2>
+            <p>Your club <b>%s</b> was invited to co-host:</p>
+            <p><b>%s</b></p>
+        """.formatted(clubName, eventName);
 
-        String body = """
-        <h2>🤝 Co-host Invitation</h2>
-        <p>Your club <b>%s</b> has been invited to co-host the event:</p>
-        <h3>%s</h3>
-        <p>Please log in to UniClub to accept or reject the invitation.</p>
-    """.formatted(clubName, eventName);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] You are invited to co-host an event", content);
     }
-
-
 
     @Override
     public void sendEventWaitingUniStaffEmail(String to, String eventName) {
-        String subject = "[UniClub] Event waiting for co-host responses";
+        String content = """
+            <h2 style="color:#1E88E5;">Awaiting Co-Host Responses ⏳</h2>
+            <p>The event <b>%s</b> is waiting for co-host responses.</p>
+        """.formatted(eventName);
 
-        String body = """
-        <h2>⏳ Awaiting Co-Host Actions</h2>
-        <p>The event <b>%s</b> is still waiting for some co-hosts to respond.</p>
-    """.formatted(eventName);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Event waiting for co-host responses", content);
     }
 
     @Override
     public void sendHostEventRejectedByCoHostEmail(String to, String eventName, String rejectedClubName) {
-        String subject = "[UniClub] Co-host rejected your event";
+        String content = """
+            <h2 style="color:#D32F2F;">Co-host Rejected Event ❌</h2>
+            <p>The co-host <b>%s</b> rejected your event:</p>
+            <p><b>%s</b></p>
+        """.formatted(rejectedClubName, eventName);
 
-        String body = """
-        <h2>❌ Co-host Rejected Event</h2>
-        <p>The co-host <b>%s</b> has rejected the event:</p>
-        <h3>%s</h3>
-    """.formatted(rejectedClubName, eventName);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Co-host rejected your event", content);
     }
-
-
 
     @Override
     public void sendEventApprovedEmail(String to, String eventName, long approvedPoints) {
-        String subject = "[UniClub] Your event has been approved";
+        String content = """
+            <h2 style="color:green;">Event Approved 🎉</h2>
+            <p>Your event <b>%s</b> was approved.</p>
+            <p><b>Budget:</b> %d points</p>
+        """.formatted(eventName, approvedPoints);
 
-        String body = """
-        <h2>🎉 Event Approved</h2>
-        <p>Your event <b>%s</b> has been approved by UniStaff!</p>
-        <p><b>Allocated Budget:</b> %d points</p>
-    """.formatted(eventName, approvedPoints);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Your event has been approved", content);
     }
 
     @Override
     public void sendEventRejectedEmail(String to, String eventName, String reason, String staffName) {
-        String subject = "[UniClub] Event Rejected";
+        String content = """
+            <h2 style="color:#D32F2F;">Event Rejected ❌</h2>
+            <p>Your event <b>%s</b> was rejected by <b>%s</b>.</p>
+            <p><b>Reason:</b> %s</p>
+        """.formatted(eventName, staffName, reason);
 
-        String body = """
-        <h2>❌ Event Rejected</h2>
-        <p>Your event <b>%s</b> was rejected by <b>%s</b>.</p>
-        <p><b>Reason:</b> %s</p>
-    """.formatted(eventName, staffName, reason);
-
-        sendEmail(to, subject, body);
+        sendEmail(to, "[UniClub] Event Rejected", content);
     }
-
 
     @Override
     public void sendPenaltyNotificationEmail(User user, Club club, PenaltyRule rule, ClubPenalty penalty) {
 
-        String subject = "[UniClub] Penalty Notice from " + club.getName();
-
-        String body = """
-        <div style="font-family: Arial, sans-serif; background: #F4F7FB; padding: 30px; border-radius: 10px;">
-
-            <div style="text-align: center; margin-bottom: 25px;">
-                <img src='cid:uniclub-logo' alt='UniClub Logo' style='width: 120px;'>
-            </div>
+        String content = """
+            <h2 style="color:#D84315;">⚠ Penalty Notification</h2>
+            <p>Hello <b>%s</b>,</p>
+            <p>You received a penalty from <b>%s</b>.</p>
 
             <div style="
-                background: white; 
-                padding: 25px; 
-                border-radius: 12px; 
-                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-                max-width: 650px; 
-                margin:auto;
-            ">
-            
-                <h2 style="color:#D84315; text-align:center; margin-top:0;">
-                    ⚠ Penalty Notification
-                </h2>
-
-                <p>Hello <b>%s</b>,</p>
-                <p>
-                    You have received a penalty from <b>%s</b>. Please review the penalty details below:
-                </p>
-
-                <div style="
-                    border: 1px solid #e0e0e0; 
-                    border-radius: 10px; 
-                    padding: 18px; 
-                    margin-top: 18px;
-                    background:#FAFAFA;
-                ">
-                    <p style="margin: 6px 0;"><b>📌 Violation:</b> %s</p>
-                    <p style="margin: 6px 0;"><b>🏷 Reason:</b> %s</p>
-                    <p style="margin: 6px 0;"><b>➖ Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
-                    <p style="margin: 6px 0;"><b>👤 Issued by:</b> %s</p>
-                    <p style="margin: 6px 0;"><b>🕒 Issued at:</b> %s</p>
-                </div>
-
-                <p style="margin-top:20px;">
-                    If you have any concerns or believe this penalty was issued in error, 
-                    please contact your club’s management team.
-                </p>
-
-                <p style="text-align:center; margin-top:28px; font-size:14px; color:#777;">
-                    Best regards,<br>
-                    <b>UniClub Vietnam</b><br>
-                    Digitalizing Student Communities ✨
-                </p>
-
+                border:1px solid #ddd;
+                background:#FAFAFA;
+                padding:18px;
+                border-radius:10px;
+                margin-top:16px;">
+                
+                <p><b>📌 Violation:</b> %s</p>
+                <p><b>🏷 Reason:</b> %s</p>
+                <p><b>➖ Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
+                <p><b>👤 Issued by:</b> %s</p>
+                <p><b>🕒 Issued at:</b> %s</p>
             </div>
 
-        </div>
+            <p style="margin-top:18px;">
+                If you believe this penalty was issued in error, contact your club management team.
+            </p>
         """.formatted(
                 user.getFullName(),
                 club.getName(),
@@ -990,7 +724,41 @@ public class EmailServiceImpl implements EmailService {
                 penalty.getCreatedAt().toString()
         );
 
-        sendEmail(user.getEmail(), subject, body);
+        sendEmail(user.getEmail(),
+                "[UniClub] Penalty Notice from " + club.getName(),
+                content);
+    }
+    @Override
+    public void sendClubCreationOtpEmail(String to, String fullName, String otpCode) {
+
+        String content = """
+        <h2 style="color:#1E88E5;">Club Creation OTP Verification</h2>
+
+        <p>Hello <b>%s</b>,</p>
+
+        <p>You have been granted permission to submit a request to establish a new club on the <b>UniClub</b> system.</p>
+
+        <p>Your OTP code is:</p>
+
+        <div style="
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            text-align: center;
+            margin: 24px 0;
+            padding: 16px 0;
+            background:#E8F1FF;
+            color:#1E88E5;
+            border-radius: 10px;
+            border: 1px solid #C8DAFF;
+        ">
+            %s
+        </div>
+
+        <p>This code is valid for <b>48 hours</b>. Please do not share it with anyone.</p>
+    """.formatted(fullName, otpCode);
+
+        sendEmail(to, "[UniClub] OTP Code for Club Creation Request", content);
     }
 
 

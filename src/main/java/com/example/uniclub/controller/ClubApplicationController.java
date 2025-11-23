@@ -76,23 +76,22 @@ public class ClubApplicationController {
     @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping("/send-otp")
     public ResponseEntity<ApiResponse<String>> sendOtpToStudent(@RequestParam String studentEmail) {
+
         var student = clubApplicationService.findStudentByEmail(studentEmail);
 
         String otp = String.format("%06d", (int) (Math.random() * 1000000));
+
         clubApplicationService.saveOtp(studentEmail, otp);
 
-        String html = String.format("""
-        <p>Hello <b>%s</b>,</p>
-        <p>You have been granted permission to submit a request to establish a new club on the <b>UniClub</b> system.</p>
-        <p>Your OTP code is:</p>
-        <div style="font-size: 26px; color: #ff6600; font-weight: bold;">%s</div>
-        <p>This code is valid for <b>48 hours</b>. Please do not share it with anyone else.</p>
-        """, student.getFullName(), otp);
-
-        emailService.sendEmail(studentEmail, "[UniClub] OTP code for Club Creation Request", html);
+        emailService.sendClubCreationOtpEmail(
+                studentEmail,
+                student.getFullName(),
+                otp
+        );
 
         return ResponseEntity.ok(ApiResponse.msg("OTP has been sent to " + studentEmail));
     }
+
 
     // ==========================================================
     // 🟠 3. PHÊ DUYỆT / TỪ CHỐI ĐƠN
