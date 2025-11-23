@@ -19,35 +19,65 @@ public class EmailServiceImpl implements EmailService {
     private final JavaMailSender mailSender;
 
     // ============================================================
-    //  🔥 TEMPLATE DÙNG CHUNG – ĐẸP, HIỆN ĐẠI, ĐỒNG BỘ MÀU UNICLUB
+    //  🔥 TEMPLATE – LIGHT + DARK MODE (AUTO DETECT)
     // ============================================================
     private String wrapTemplate(String innerHtml) {
         return """
-        <div style="font-family: 'Inter', Arial, sans-serif; background:#F5F9FF; padding:32px; margin:auto;">
-            <div style="
-                background:white; 
-                max-width:650px; 
-                margin:auto; 
-                border-radius:14px; 
+        <div style="font-family: 'Inter', Arial, sans-serif; padding:32px; margin:auto; background:#F5F9FF;">
+            <style>
+                @media (prefers-color-scheme: dark) {
+                    body, .email-body {
+                        background:#0D1117 !important;
+                        color:#E6EDF3 !important;
+                    }
+                    .email-card {
+                        background:#161B22 !important;
+                        border:1px solid #30363D !important;
+                        color:#E6EDF3 !important;
+                    }
+                    .divider {
+                        border-top:1px solid #30363D !important;
+                    }
+                    .footer-text {
+                        color:#9BA3B4 !important;
+                    }
+                    .brand-text {
+                        color:#58A6FF !important;
+                    }
+                    .otp-box {
+                        background:#21262D !important;
+                        color:#79C0FF !important;
+                        border:1px solid #30363D !important;
+                    }
+                }
+            </style>
+
+            <div class="email-card" style="
+                background:white;
+                max-width:650px;
+                margin:auto;
+                border-radius:14px;
                 padding:32px;
                 box-shadow:0 4px 20px rgba(0,0,0,0.06);
             ">
-            
+
                 <div style="text-align:center; margin-bottom:24px;">
                     <img src='cid:uniclub-logo'
                          alt='UniClub Logo'
                          style="width:120px; opacity:0.95;">
                 </div>
 
-                <div style="font-size:15px; color:#222; line-height:1.7;">
+                <div style="font-size:15px; line-height:1.7; color:#222;">
                     %s
                 </div>
 
-                <hr style="border:none; border-top:1px solid #E0E7F1; margin:32px 0;">
+                <hr class="divider"
+                    style="border:none; border-top:1px solid #E0E7F1; margin:32px 0;">
 
-                <div style="text-align:center; color:#777; font-size:13px; line-height:1.5;">
+                <div class="footer-text"
+                    style="text-align:center; color:#777; font-size:13px; line-height:1.5;">
                     Best regards,<br>
-                    <b style="color:#1E88E5;">UniClub Vietnam</b><br>
+                    <b class="brand-text" style="color:#1E88E5;">UniClub Vietnam</b><br>
                     Digitalizing Student Communities ✨
                 </div>
             </div>
@@ -69,10 +99,9 @@ public class EmailServiceImpl implements EmailService {
             helper.setTo(to);
             helper.setSubject(subject);
 
-            // ✨ Bọc template vào
+            // ✨ Apply template
             helper.setText(wrapTemplate(content), true);
 
-            // Logo inline
             helper.addInline("uniclub-logo", new ClassPathResource("static/images/logo.png"));
 
             mailSender.send(message);
@@ -83,7 +112,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     // ============================================================
-    //  🎯 TẤT CẢ EMAIL BÊN DƯỚI – ĐÃ LÀM ĐẸP LẠI
+    //  🎯 TOÀN BỘ EMAIL PHÍA DƯỚI GIỮ NGUYÊN
     // ============================================================
 
     @Override
@@ -703,7 +732,7 @@ public class EmailServiceImpl implements EmailService {
                 padding:18px;
                 border-radius:10px;
                 margin-top:16px;">
-                
+
                 <p><b>📌 Violation:</b> %s</p>
                 <p><b>🏷 Reason:</b> %s</p>
                 <p><b>➖ Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
@@ -728,6 +757,7 @@ public class EmailServiceImpl implements EmailService {
                 "[UniClub] Penalty Notice from " + club.getName(),
                 content);
     }
+
     @Override
     public void sendClubCreationOtpEmail(String to, String fullName, String otpCode) {
 
@@ -740,7 +770,7 @@ public class EmailServiceImpl implements EmailService {
 
         <p>Your OTP code is:</p>
 
-        <div style="
+        <div class="otp-box" style="
             font-size: 32px;
             font-weight: bold;
             letter-spacing: 6px;
@@ -760,6 +790,5 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] OTP Code for Club Creation Request", content);
     }
-
 
 }
