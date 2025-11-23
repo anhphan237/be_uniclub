@@ -2,10 +2,12 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.ClubEventMonthlyActivityResponse;
 import com.example.uniclub.entity.Event;
-import com.example.uniclub.enums.ClubEventActivityEnum;
+import com.example.uniclub.entity.MultiplierPolicy;
 import com.example.uniclub.enums.EventStatusEnum;
-import com.example.uniclub.repository.ClubRepository;
+import com.example.uniclub.enums.PolicyActivityTypeEnum;
+import com.example.uniclub.enums.PolicyTargetTypeEnum;
 import com.example.uniclub.repository.EventRepository;
+import com.example.uniclub.repository.MultiplierPolicyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +19,7 @@ import java.util.List;
 public class ClubEventActivityService {
 
     private final EventRepository eventRepo;
-    private final ClubRepository clubRepo;
+    private final MultiplierPolicyRepository multiplierPolicyRepository;
 
     public ClubEventMonthlyActivityResponse getClubEventActivity(Long clubId, YearMonth ym) {
 
@@ -35,8 +37,16 @@ public class ClubEventActivityService {
                 .filter(e -> e.getStatus() == EventStatusEnum.REJECTED)
                 .count();
 
-        ClubEventActivityEnum level = ClubEventActivityEnum.classify(completed);
-        double multiplier = level.multiplier;
+        List<MultiplierPolicy> multiplierPolicies = multiplierPolicyRepository
+                .findByTargetTypeAndActivityTypeAndActiveTrue(PolicyTargetTypeEnum.CLUB, PolicyActivityTypeEnum.CLUB_EVENT_ACTIVITY);
+
+        MultiplierPolicy multiplierPolicy = multiplierPolicies.stream()
+                .filter(p -> p.getMinThreshold() <= completed && p.getMaxThreshold() >= completed)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("No multiplier policy found"));;
+
+        double multiplier = multiplierPolicy.getMultiplier();
+        String level = multiplierPolicy.getRuleName();
         double finalScore = completed * multiplier;
 
         return ClubEventMonthlyActivityResponse.builder()

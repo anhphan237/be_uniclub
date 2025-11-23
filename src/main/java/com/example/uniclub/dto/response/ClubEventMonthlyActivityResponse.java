@@ -1,6 +1,5 @@
 package com.example.uniclub.dto.response;
 
-import com.example.uniclub.enums.ClubEventActivityEnum;
 import lombok.Builder;
 import lombok.Data;
 
@@ -15,7 +14,7 @@ public class ClubEventMonthlyActivityResponse {
     private int completedEvents;
     private int rejectedEvents;
 
-    private ClubEventActivityEnum activityLevel;
+    private String activityLevel;
     private double multiplier;
     private double finalScore;
 }
