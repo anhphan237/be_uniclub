@@ -50,10 +50,11 @@ public class QrService {
             MatrixToImageWriter.writeToStream(matrix, "PNG", baos);
             byte[] qrBytes = baos.toByteArray();
 
-            // 🆙 Upload ảnh QR lên Cloudinary (folder riêng)
+            String publicId = "qr_" + System.currentTimeMillis(); // 🔥 Không chứa ký tự đặc biệt
+
             Map uploadResult = cloudinary.uploader().upload(qrBytes, ObjectUtils.asMap(
                     "folder", "uniclub_qr",
-                    "public_id", "qr_" + data,
+                    "public_id", publicId,
                     "overwrite", true
             ));
 
@@ -62,4 +63,5 @@ public class QrService {
             throw new RuntimeException("QR generation/upload failed", e);
         }
     }
+
 }
