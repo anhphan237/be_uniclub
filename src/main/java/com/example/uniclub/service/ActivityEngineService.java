@@ -1,5 +1,7 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.response.CalculateLiveActivityResponse;
+import com.example.uniclub.dto.response.CalculateScoreResponse;
 import com.example.uniclub.dto.response.PerformanceDetailResponse;
 import com.example.uniclub.entity.MemberMonthlyActivity;
 
@@ -9,6 +11,10 @@ public interface ActivityEngineService {
 
 
     MemberMonthlyActivity recalculateForMembership(Long membershipId, int year, int month);
+    List<CalculateLiveActivityResponse> calculateLiveActivities(Long clubId, int attendanceBase, int staffBase);
+
+
+    CalculateScoreResponse calculatePreviewScore(Long membershipId, int attendanceBase, int staffBase);
 
 
     void recalculateForClub(Long clubId, int year, int month);

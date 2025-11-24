@@ -1,7 +1,10 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.CalculateScoreRequest;
 import com.example.uniclub.dto.request.UpdateBaseScoreRequest;
+import com.example.uniclub.dto.response.CalculateLiveActivityResponse;
+import com.example.uniclub.dto.response.CalculateScoreResponse;
 import com.example.uniclub.dto.response.ClubMonthlyActivitySummaryResponse;
 import com.example.uniclub.dto.response.MemberMonthlyActivityResponse;
 import com.example.uniclub.entity.*;
@@ -9,6 +12,7 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
+import com.example.uniclub.service.ActivityEngineService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +47,7 @@ public class ActivityReportController {
     private final MemberMonthlyActivityRepository monthlyActivityRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+    private final ActivityEngineService activityEngineService;
 
 
     // ==========================================================
@@ -181,6 +186,43 @@ public class ActivityReportController {
         return ResponseEntity.ok(ApiResponse.ok(summary));
     }
 
+
+    @PostMapping("/clubs/{clubId}/members/{membershipId}/calculate-score")
+    public ResponseEntity<ApiResponse<CalculateScoreResponse>> calculateScore(
+            @PathVariable Long clubId,
+            @PathVariable Long membershipId,
+            @RequestBody CalculateScoreRequest req,
+            HttpServletRequest http
+    ) {
+        User user = jwtUtil.getUserFromRequest(http);
+
+        // Leader/Vice required
+        ensureLeaderRights(user, clubId);
+
+        CalculateScoreResponse resp = activityEngineService.calculatePreviewScore(
+                membershipId,
+                req.getAttendanceBaseScore(),
+                req.getStaffBaseScore()
+        );
+
+        return ResponseEntity.ok(ApiResponse.ok(resp));
+    }
+    @GetMapping("/clubs/{clubId}/members/activity-live")
+    @Operation(summary = "Leader xem điểm hoạt động REAL-TIME của member trong CLB (dựa vào base score nhập)")
+    public ResponseEntity<ApiResponse<List<CalculateLiveActivityResponse>>> getClubMembersActivityLive(
+            @PathVariable Long clubId,
+            @RequestParam(defaultValue = "100") int attendanceBase,
+            @RequestParam(defaultValue = "100") int staffBase,
+            HttpServletRequest request
+    ) {
+        User current = jwtUtil.getUserFromRequest(request);
+        ensureLeaderRights(current, clubId);
+
+        List<CalculateLiveActivityResponse> result =
+                activityEngineService.calculateLiveActivities(clubId, attendanceBase, staffBase);
+
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 
 
 

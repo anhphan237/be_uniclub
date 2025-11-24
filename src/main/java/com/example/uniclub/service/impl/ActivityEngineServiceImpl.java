@@ -1,5 +1,7 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.response.CalculateLiveActivityResponse;
+import com.example.uniclub.dto.response.CalculateScoreResponse;
 import com.example.uniclub.dto.response.PerformanceDetailResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
@@ -396,4 +398,143 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         list.sort(Comparator.comparingInt(MemberMonthlyActivity::getFinalScore).reversed());
         return list;
     }
+    @Override
+    public CalculateScoreResponse calculatePreviewScore(Long membershipId, int attendanceBase, int staffBase) {
+
+        Membership membership = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        // Lấy dữ liệu tháng hiện tại
+        LocalDate now = LocalDate.now();
+        int year = now.getYear();
+        int month = now.getMonthValue();
+
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.plusMonths(1).minusDays(1);
+
+        // -------------------------------
+        // 1) Attendance Rate
+        // -------------------------------
+        int totalSessions = attendanceRepo.countByMembership_MembershipIdAndSession_DateBetween(
+                membershipId, start, end);
+
+        int presentSessions = attendanceRepo
+                .countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
+                        membershipId,
+                        List.of(AttendanceStatusEnum.PRESENT, AttendanceStatusEnum.LATE),
+                        start, end
+                );
+
+        double sessionRate = totalSessions == 0 ? 0.0 : (double) presentSessions / totalSessions;
+
+        double attendanceMultiplier = resolveAttendanceMultiplier(sessionRate);
+        int attendanceTotal = (int) Math.round(attendanceBase * attendanceMultiplier);
+
+        // -------------------------------
+        // 2) Staff
+        // -------------------------------
+        List<StaffPerformance> staffList =
+                staffPerformanceRepo.findByMembership_MembershipIdAndEvent_DateBetween(
+                        membershipId, start, end
+                );
+
+        PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
+
+        double staffMultiplier = resolveStaffMultiplier(bestEval.name());
+        int staffTotal = (int) Math.round(staffBase * staffMultiplier);
+
+        // -------------------------------
+        // 3) Final Score
+        // -------------------------------
+        int finalScore = attendanceTotal + staffTotal;
+
+        return CalculateScoreResponse.builder()
+                .attendanceBaseScore(attendanceBase)
+                .attendanceMultiplier(attendanceMultiplier)
+                .attendanceTotalScore(attendanceTotal)
+
+                .staffBaseScore(staffBase)
+                .staffMultiplier(staffMultiplier)
+                .staffTotalScore(staffTotal)
+
+                .finalScore(finalScore)
+                .build();
+    }
+    @Override
+    public List<CalculateLiveActivityResponse> calculateLiveActivities(Long clubId, int attendanceBase, int staffBase) {
+
+        LocalDate now = LocalDate.now();
+        int year = now.getYear();
+        int month = now.getMonthValue();
+
+        List<Membership> members = membershipRepo.findByClub_ClubIdAndStateIn(
+                clubId,
+                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
+        );
+
+        return members.stream().map(m -> {
+
+                    Long membershipId = m.getMembershipId();
+
+                    LocalDate start = LocalDate.of(year, month, 1);
+                    LocalDate end = start.plusMonths(1).minusDays(1);
+
+                    // -----------------------------
+                    // 1) Attendance rate
+                    // -----------------------------
+                    int totalSessions = attendanceRepo.countByMembership_MembershipIdAndSession_DateBetween(
+                            membershipId, start, end);
+
+                    int presentSessions = attendanceRepo
+                            .countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
+                                    membershipId,
+                                    List.of(AttendanceStatusEnum.PRESENT, AttendanceStatusEnum.LATE),
+                                    start, end
+                            );
+
+                    double sessionRate = totalSessions == 0 ? 0.0 : (double) presentSessions / totalSessions;
+                    double attendanceMultiplier = resolveAttendanceMultiplier(sessionRate);
+
+                    int attendanceTotal = (int) Math.round(attendanceBase * attendanceMultiplier);
+
+                    // -----------------------------
+                    // 2) Staff performance
+                    // -----------------------------
+                    List<StaffPerformance> staffList =
+                            staffPerformanceRepo.findByMembership_MembershipIdAndEvent_DateBetween(
+                                    membershipId, start, end
+                            );
+
+                    PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
+                    double staffMultiplier = resolveStaffMultiplier(bestEval.name());
+
+                    int staffTotal = (int) Math.round(staffBase * staffMultiplier);
+
+                    // -----------------------------
+                    // 3) Final score
+                    // -----------------------------
+                    int finalScore = attendanceTotal + staffTotal;
+
+                    return CalculateLiveActivityResponse.builder()
+                            .membershipId(m.getMembershipId())
+                            .userId(m.getUser().getUserId())
+                            .fullName(m.getUser().getFullName())
+                            .studentCode(m.getUser().getStudentCode())
+
+                            .attendanceBaseScore(attendanceBase)
+                            .attendanceMultiplier(attendanceMultiplier)
+                            .attendanceTotalScore(attendanceTotal)
+
+                            .staffBaseScore(staffBase)
+                            .staffMultiplier(staffMultiplier)
+                            .staffTotalScore(staffTotal)
+
+                            .finalScore(finalScore)
+                            .build();
+
+                }).sorted((a, b) -> Integer.compare(b.getFinalScore(), a.getFinalScore()))
+                .toList();
+    }
+
+
 }
