@@ -2,27 +2,23 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.CalculateScoreRequest;
-import com.example.uniclub.dto.request.UpdateBaseScoreRequest;
-import com.example.uniclub.dto.response.CalculateLiveActivityResponse;
-import com.example.uniclub.dto.response.CalculateScoreResponse;
-import com.example.uniclub.dto.response.ClubMonthlyActivitySummaryResponse;
-import com.example.uniclub.dto.response.MemberMonthlyActivityResponse;
+import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.ActivityEngineService;
+
+import jakarta.servlet.http.HttpServletRequest;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -31,80 +27,77 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
-@Tag(
-        name = "Activity Report",
-        description = """
-        API tra cứu **điểm hoạt động hàng tháng** của member / club.<br>
-        - Member xem điểm hoạt động của chính mình trong CLB.<br>
-        - Leader xem danh sách điểm hoạt động của các member trong CLB.<br>
-        - Admin / UniStaff xem tổng hợp toàn hệ thống.<br>
-        """
-)
+@Tag(name="Activity Report", description="Activity tracking & monthly scoring")
 public class ActivityReportController {
 
     private final JwtUtil jwtUtil;
     private final MembershipRepository membershipRepo;
-    private final MemberMonthlyActivityRepository monthlyActivityRepo;
+    private final MemberMonthlyActivityRepository monthlyRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
-    private final ActivityEngineService activityEngineService;
+    private final ActivityEngineService activityService;
 
+    // ==========================================================
+    // Validate Month helper
+    // ==========================================================
+    private void validateMonth(int year, int month) {
+        if (month < 1 || month > 12)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Month must be between 1–12");
+
+        if (year < 2000)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid year");
+    }
 
     // ==========================================================
     // A1) MEMBER xem điểm hoạt động của bản thân trong CLB
     // ==========================================================
     @GetMapping("/clubs/{clubId}/members/me/activity")
-    @Operation(summary = "Member xem điểm hoạt động của bản thân trong CLB")
+    @Operation(summary = "Member xem điểm hoạt động của bản thân")
     public ResponseEntity<ApiResponse<MemberMonthlyActivityResponse>> getMyMonthlyActivity(
             @PathVariable Long clubId,
             @RequestParam Integer year,
             @RequestParam Integer month,
-            HttpServletRequest request
+            HttpServletRequest req
     ) {
-        User current = jwtUtil.getUserFromRequest(request);
+        validateMonth(year, month);
 
-        Membership membership = membershipRepo.findByUser_UserIdAndClub_ClubId(
-                        current.getUserId(), clubId)
+        User user = jwtUtil.getUserFromRequest(req);
+
+        Membership membership = membershipRepo
+                .findByUser_UserIdAndClub_ClubId(user.getUserId(), clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "You are not a member of this club."));
 
-        if (!(membership.getState() == MembershipStateEnum.ACTIVE
-                || membership.getState() == MembershipStateEnum.APPROVED)) {
+        if (membership.getState() != MembershipStateEnum.ACTIVE
+                && membership.getState() != MembershipStateEnum.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN,
-                    "Your membership is not active or approved.");
+                    "Your membership is not active.");
         }
 
-        MemberMonthlyActivity activity = monthlyActivityRepo
-                .findByMembership_MembershipIdAndYearAndMonth(
-                        membership.getMembershipId(),
-                        year,
-                        month
-                )
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "Monthly activity not found for this membership and month."
-                ));
+        MemberMonthlyActivity activity =
+                activityService.getMonthlyActivity(membership.getMembershipId(), year, month);
 
         return ResponseEntity.ok(ApiResponse.ok(
-                MemberMonthlyActivityResponse.from(activity)
-        ));
+                MemberMonthlyActivityResponse.from(activity)));
     }
 
     // ==========================================================
-    // A2) LEADER xem danh sách điểm của toàn bộ member
+    // A2) LEADER xem danh sách member hoạt động
     // ==========================================================
     @GetMapping("/clubs/{clubId}/members/activity")
-    @Operation(summary = "Leader xem điểm hoạt động của tất cả member trong CLB")
-    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getClubMembersMonthlyActivity(
+    @Operation(summary = "Leader xem điểm hoạt động của toàn CLB")
+    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getClubMonthlyActivities(
             @PathVariable Long clubId,
             @RequestParam Integer year,
             @RequestParam Integer month,
-            HttpServletRequest request
+            HttpServletRequest req
     ) {
-        ensureLeaderRights(jwtUtil.getUserFromRequest(request), clubId);
+        validateMonth(year, month);
+        User user = jwtUtil.getUserFromRequest(req);
+        ensureLeaderRights(user, clubId);
 
-        List<MemberMonthlyActivity> list = monthlyActivityRepo
-                .findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+        List<MemberMonthlyActivity> list =
+                activityService.getClubMonthlyActivities(clubId, year, month);
 
         List<MemberMonthlyActivityResponse> result = list.stream()
                 .map(MemberMonthlyActivityResponse::from)
@@ -114,62 +107,55 @@ public class ActivityReportController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+
     // ==========================================================
-    // A3) ADMIN / UNISTAFF xem toàn bộ system
+    // A3) ADMIN xem toàn system
     // ==========================================================
     @GetMapping("/admin/member-activities")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @Operation(summary = "Admin / UniStaff xem toàn hệ thống trong một tháng")
-    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getAllMemberActivitiesOfMonth(
+    @Operation(summary = "Admin xem toàn hệ thống theo tháng")
+    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getAllActivities(
             @RequestParam Integer year,
             @RequestParam Integer month
     ) {
-        List<MemberMonthlyActivity> list = monthlyActivityRepo.findByYearAndMonth(year, month);
+        validateMonth(year, month);
 
-        List<MemberMonthlyActivityResponse> result = list.stream()
-                .map(MemberMonthlyActivityResponse::from)
-                .sorted(Comparator.comparingDouble(MemberMonthlyActivityResponse::getFinalScore).reversed())
-                .toList();
+        List<MemberMonthlyActivityResponse> result =
+                monthlyRepo.findByYearAndMonth(year, month)
+                        .stream()
+                        .map(MemberMonthlyActivityResponse::from)
+                        .sorted(Comparator.comparingDouble(MemberMonthlyActivityResponse::getFinalScore).reversed())
+                        .toList();
 
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     // ==========================================================
-    // A4) LEADER xem summary hoạt động CLB (Excel Model)
+    // A4) CLUB SUMMARY
     // ==========================================================
     @GetMapping("/clubs/{clubId}/activity/summary")
-    @Operation(summary = "Leader xem tổng quan hoạt động CLB trong một tháng")
-    public ResponseEntity<ApiResponse<ClubMonthlyActivitySummaryResponse>> getClubMonthlySummary(
+    @Operation(summary = "Leader xem tổng quan hoạt động CLB")
+    public ResponseEntity<ApiResponse<ClubMonthlyActivitySummaryResponse>> getClubSummary(
             @PathVariable Long clubId,
             @RequestParam Integer year,
             @RequestParam Integer month,
-            HttpServletRequest request
+            HttpServletRequest req
     ) {
-        ensureLeaderRights(jwtUtil.getUserFromRequest(request), clubId);
+        validateMonth(year, month);
+        User user = jwtUtil.getUserFromRequest(req);
+        ensureLeaderRights(user, clubId);
 
         Club club = clubRepo.findById(clubId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found."));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
         LocalDate start = LocalDate.of(year, month, 1);
-        LocalDate end = start.plusMonths(1).minusDays(1);
+        LocalDate end   = start.plusMonths(1).minusDays(1);
 
-        // (1) Số event COMPLETED trong tháng
         int totalEvents = eventRepo.countByHostClub_ClubIdAndStatusAndDateBetween(
-                clubId,
-                EventStatusEnum.COMPLETED,
-                start,
-                end
-        );
+                clubId, EventStatusEnum.COMPLETED, start, end);
 
-        // (2) List activity của member
         List<MemberMonthlyActivity> activities =
-                monthlyActivityRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
-
-        // Excel model KHÔNG còn FULL LEVEL + MEMBER OF MONTH + CLUB MULTIPLIER
-        long fullCount = 0;
-        MemberMonthlyActivityResponse memberOfMonth = null;
-
-        long memberCount = activities.size();
+                monthlyRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
 
         ClubMonthlyActivitySummaryResponse summary = ClubMonthlyActivitySummaryResponse.builder()
                 .clubId(club.getClubId())
@@ -177,29 +163,38 @@ public class ActivityReportController {
                 .year(year)
                 .month(month)
                 .totalEventsCompleted(totalEvents)
-                .memberCount(memberCount)
-                .fullMembersCount(fullCount)        // fixed = 0
-                .memberOfMonth(memberOfMonth)       // always null
-                .clubMultiplier(1.0)                // Excel model fixed = 1.0
+                .memberCount((long) activities.size())
+                .fullMembersCount(0L)
+                .memberOfMonth(null)
+                .clubMultiplier(1.0)
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(summary));
     }
 
-
+    // ==========================================================
+    // PREVIEW SCORE
+    // ==========================================================
     @PostMapping("/clubs/{clubId}/members/{membershipId}/calculate-score")
-    public ResponseEntity<ApiResponse<CalculateScoreResponse>> calculateScore(
+    @Operation(summary = "Leader preview điểm one member")
+    public ResponseEntity<ApiResponse<CalculateScoreResponse>> previewScore(
             @PathVariable Long clubId,
             @PathVariable Long membershipId,
             @RequestBody CalculateScoreRequest req,
             HttpServletRequest http
     ) {
         User user = jwtUtil.getUserFromRequest(http);
-
-        // Leader/Vice required
         ensureLeaderRights(user, clubId);
 
-        CalculateScoreResponse resp = activityEngineService.calculatePreviewScore(
+        Membership membership = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        if (!membership.getClub().getClubId().equals(clubId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Membership does not belong to this club.");
+        }
+
+        CalculateScoreResponse resp = activityService.calculatePreviewScore(
                 membershipId,
                 req.getAttendanceBaseScore(),
                 req.getStaffBaseScore()
@@ -207,27 +202,29 @@ public class ActivityReportController {
 
         return ResponseEntity.ok(ApiResponse.ok(resp));
     }
+
+    // ==========================================================
+    // LIVE SCORE LIST
+    // ==========================================================
     @GetMapping("/clubs/{clubId}/members/activity-live")
-    @Operation(summary = "Leader xem điểm hoạt động REAL-TIME của member trong CLB (dựa vào base score nhập)")
-    public ResponseEntity<ApiResponse<List<CalculateLiveActivityResponse>>> getClubMembersActivityLive(
+    @Operation(summary = "Leader xem điểm LIVE real-time của CLB")
+    public ResponseEntity<ApiResponse<List<CalculateLiveActivityResponse>>> getLiveActivity(
             @PathVariable Long clubId,
             @RequestParam(defaultValue = "100") int attendanceBase,
             @RequestParam(defaultValue = "100") int staffBase,
             HttpServletRequest request
     ) {
-        User current = jwtUtil.getUserFromRequest(request);
-        ensureLeaderRights(current, clubId);
+        User user = jwtUtil.getUserFromRequest(request);
+        ensureLeaderRights(user, clubId);
 
         List<CalculateLiveActivityResponse> result =
-                activityEngineService.calculateLiveActivities(clubId, attendanceBase, staffBase);
+                activityService.calculateLiveActivities(clubId, attendanceBase, staffBase);
 
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-
-
     // ==========================================================
-    // Helper
+    // PERMISSION CHECK
     // ==========================================================
     private void ensureLeaderRights(User user, Long clubId) {
         Membership membership = membershipRepo
@@ -235,14 +232,14 @@ public class ActivityReportController {
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "You are not a member of this club."));
 
-        if (!(membership.getClubRole() == ClubRoleEnum.LEADER
-                || membership.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
+        if (membership.getClubRole() != ClubRoleEnum.LEADER &&
+                membership.getClubRole() != ClubRoleEnum.VICE_LEADER) {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "Only leader or vice-leader can perform this action.");
         }
 
-        if (!(membership.getState() == MembershipStateEnum.ACTIVE
-                || membership.getState() == MembershipStateEnum.APPROVED)) {
+        if (membership.getState() != MembershipStateEnum.ACTIVE &&
+                membership.getState() != MembershipStateEnum.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN,
                     "Your membership is not active.");
         }
