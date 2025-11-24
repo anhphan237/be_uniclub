@@ -30,29 +30,38 @@ public class EventRegistration {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
-    private RegistrationStatusEnum status;
+    @Column(nullable = false)
+    private RegistrationStatusEnum status = RegistrationStatusEnum.PENDING;
 
     private Integer committedPoints;
-    private LocalDateTime registeredAt;
-    private LocalDateTime checkinAt;
-    private LocalDateTime canceledAt;
-    @Column
-    private LocalDateTime updatedAt;
-    @CreationTimestamp
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-    @Enumerated(EnumType.STRING)
-    private AttendanceLevelEnum attendanceLevel;
-    // ==== Attendance timestamps (3-phase) ====
-    private java.time.LocalDateTime checkMidAt;   // giữa buổi
-    private java.time.LocalDateTime checkoutAt;   // cuối buổi
 
-    // ==== Fraud detection ====
+    private LocalDateTime registeredAt;
+
+    // ========== 3 PHASE ATTENDANCE ==========
+    private LocalDateTime checkinAt;   // START
+    private LocalDateTime checkMidAt;  // MID
+    private LocalDateTime checkoutAt;  // END
+
+    // ========== CANCEL ==========
+    private LocalDateTime cancelledAt;
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AttendanceLevelEnum attendanceLevel = AttendanceLevelEnum.NONE;
+
+    // ========== FRAUD DETECTION ==========
+    @Builder.Default
     @Column(nullable = false)
     private boolean suspicious = false;
 
     @Column(length = 255)
     private String fraudReason;
-
 }

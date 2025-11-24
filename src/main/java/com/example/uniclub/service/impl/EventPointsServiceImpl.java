@@ -23,7 +23,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class EventPointsServiceImpl implements EventPointsService {
-
+    private final WalletTransactionRepository walletTransactionRepo;
     private final EventLogService eventLogService;
     private final EventRepository eventRepo;
     private final EventRegistrationRepository regRepo;
@@ -42,76 +42,106 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Override
     @Transactional
     public String register(CustomUserDetails principal, EventRegisterRequest req) {
+
         User user = userRepo.findById(principal.getUser().getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         Event event = eventRepo.findById(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getType() == EventTypeEnum.PUBLIC)
+        // ❌ PUBLIC không cần đăng ký
+        if (event.getType() == EventTypeEnum.PUBLIC) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Public events do not require registration.");
-
-        if (!List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING).contains(event.getStatus()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration.");
-
-        if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId()))
-            throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event.");
-
-        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended.");
-
-        // Membership rules
-        if (event.getType() == EventTypeEnum.PRIVATE) {
-            boolean isHostMember = membershipRepo.existsByUser_UserIdAndClub_ClubId(
-                    user.getUserId(), event.getHostClub().getClubId());
-
-            if (!isHostMember)
-                throw new ApiException(HttpStatus.FORBIDDEN, "Private event: only host club members can register.");
-        } else if (event.getType() == EventTypeEnum.SPECIAL) {
-
-            boolean isMember =
-                    membershipRepo.existsByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId())
-                            || event.getCoHostedClubs().stream().anyMatch(
-                            c -> membershipRepo.existsByUser_UserIdAndClub_ClubId(
-                                    user.getUserId(), c.getClubId()));
-
-            if (!isMember)
-                throw new ApiException(HttpStatus.FORBIDDEN,
-                        "You must be a member of host or cohost club to join this event.");
         }
 
-        // Commit points
-        Wallet memberWallet = walletService.getOrCreateUserWallet(user);
+        // ❌ Event không ở trạng thái cho đăng ký
+        if (!(event.getStatus() == EventStatusEnum.APPROVED
+                || event.getStatus() == EventStatusEnum.ONGOING)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration.");
+        }
+
+        // ❌ Event đã qua ngày
+        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended.");
+        }
+
+        // ❌ Deadline quá hạn
+        if (event.getRegistrationDeadline() != null
+                && LocalDate.now().isAfter(event.getRegistrationDeadline())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline has passed.");
+        }
+
+        // ❌ Không cho đăng ký trùng
+        if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event.");
+        }
+
+        // 🔐 Quyền PRIVATE
+        if (event.getType() == EventTypeEnum.PRIVATE) {
+            boolean isHostMember = membershipRepo
+                    .existsByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId());
+
+            if (!isHostMember) {
+                throw new ApiException(HttpStatus.FORBIDDEN,
+                        "Private event: only members of the host club can register.");
+            }
+        }
+
+        // 🤝 Quyền SPECIAL (host + cohost)
+        if (event.getType() == EventTypeEnum.SPECIAL) {
+
+            boolean isMemberHost = membershipRepo
+                    .existsByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId());
+
+            boolean isMemberCoHost = event.getCoHostedClubs().stream()
+                    .anyMatch(c -> membershipRepo.existsByUser_UserIdAndClub_ClubId(
+                            user.getUserId(), c.getClubId()));
+
+            if (!isMemberHost && !isMemberCoHost) {
+                throw new ApiException(HttpStatus.FORBIDDEN,
+                        "You must be a host or co-host club member to join this event.");
+            }
+        }
+
+        // 🪙 Trừ commit point
+        Wallet userWallet = walletService.getOrCreateUserWallet(user);
         Wallet eventWallet = ensureEventWallet(event);
 
-        long commitPoints = Optional.ofNullable(event.getCommitPointCost()).orElse(0);
-        if (memberWallet.getBalancePoints() < commitPoints)
+        long commitPoint = Optional.ofNullable(event.getCommitPointCost()).orElse(0);
+
+        if (userWallet.getBalancePoints() < commitPoint) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Not enough points to register.");
+        }
 
         walletService.transferPointsWithType(
-                memberWallet, eventWallet, commitPoints,
+                userWallet, eventWallet, commitPoint,
                 "Register event " + event.getName(),
                 WalletTransactionTypeEnum.COMMIT_LOCK
         );
 
-        regRepo.save(EventRegistration.builder()
+        // 💾 Tạo registration
+        EventRegistration registration = EventRegistration.builder()
                 .event(event)
                 .user(user)
                 .status(RegistrationStatusEnum.CONFIRMED)
                 .registeredAt(LocalDateTime.now())
-                .committedPoints((int) commitPoints)
+                .committedPoints((int) commitPoint)
                 .attendanceLevel(AttendanceLevelEnum.NONE)
-                .build());
+                .build();
 
+        regRepo.save(registration);
+
+        // 📧 Gửi email xác nhận
         emailService.sendEventRegistrationEmail(
                 user.getEmail(),
                 user.getFullName(),
                 event,
-                commitPoints
+                commitPoint
         );
 
-        return "Registered successfully. " + commitPoints + " points locked for commitment.";
+        return "Registered successfully. " + commitPoint + " commitment points locked.";
     }
+
 
     // =========================================================
     // 🔹 CHECK-IN
@@ -165,6 +195,7 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Override
     @Transactional
     public String cancelRegistration(CustomUserDetails principal, Long eventId) {
+
         User user = principal.getUser();
 
         Event event = eventRepo.findById(eventId)
@@ -173,39 +204,56 @@ public class EventPointsServiceImpl implements EventPointsService {
         EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(eventId, user.getUserId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "You are not registered for this event"));
 
-        if (reg.getStatus() == RegistrationStatusEnum.CANCELED)
-            return "Already canceled.";
+        // ❌ Event canceled → user không cần hủy
+        if (event.getStatus() == EventStatusEnum.CANCELLED) {
+            return "Event was cancelled by the host. Your points were refunded automatically if applicable.";
+        }
 
-        Wallet memberWallet = walletService.getOrCreateUserWallet(user);
-        Wallet eventWallet = ensureEventWallet(event);
+        // ❌ Already cancelled
+        if (reg.getStatus() == RegistrationStatusEnum.CANCELED) {
+            return "Registration already canceled.";
+        }
 
-        long refund = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
+        // ❌ Không hủy được nếu event bắt đầu / ongoing
+        LocalDateTime start = LocalDateTime.of(event.getDate(), event.getStartTime());
+        if (LocalDateTime.now().isAfter(start)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot cancel registration after event has started.");
+        }
 
-        walletService.transferPointsWithType(
-                eventWallet, memberWallet, refund,
-                "Cancel event registration " + event.getName(),
-                WalletTransactionTypeEnum.REFUND_COMMIT
-        );
+        // ❌ Không hủy được nếu đã check-in
+        if (reg.getAttendanceLevel() != null && reg.getAttendanceLevel() != AttendanceLevelEnum.NONE) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "You cannot cancel because you have already checked in.");
+        }
 
+        // ❗ Không refund commit point cho user
+        long committed = Optional.ofNullable(reg.getCommittedPoints())
+                .map(Integer::longValue)
+                .orElse(0L);
+
+        // 🔄 Update registration status
         reg.setStatus(RegistrationStatusEnum.CANCELED);
-        reg.setCanceledAt(LocalDateTime.now());
+        reg.setCancelledAt(LocalDateTime.now());
         regRepo.save(reg);
 
+        // 📧 Email: bạn có thể sửa nội dung email NO-REFUND
         emailService.sendEventCancellationEmail(
                 user.getEmail(),
                 user.getFullName(),
                 event,
-                refund
+                0  // ❗ Refund = 0
         );
 
-        return "Registration canceled. " + refund + " points refunded.";
+        return "Registration cancelled. Commitment points will not be refunded.";
     }
+
 
     // =========================================================
     // 🔹 END EVENT (final fixed version)
     // =========================================================
-    @Transactional
     @Override
+    @Transactional
     public String endEvent(CustomUserDetails principal, EventEndRequest req) {
 
         Event event = eventRepo.findByIdWithCoHostRelations(req.eventId())
@@ -224,92 +272,95 @@ public class EventPointsServiceImpl implements EventPointsService {
             AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel())
                     .orElse(AttendanceLevelEnum.NONE);
 
-            if (level == AttendanceLevelEnum.NONE) continue;
+            long commit = Optional.ofNullable(reg.getCommittedPoints())
+                    .map(Integer::longValue)
+                    .orElse(0L);
 
+            // ❌ Không commit → không thưởng
+            if (commit <= 0) {
+                reg.setStatus(RegistrationStatusEnum.NO_SHOW);
+                regRepo.save(reg);
+                continue;
+            }
+
+            // ❌ SUSPICIOUS → không thưởng + gửi email
             if (level == AttendanceLevelEnum.SUSPICIOUS) {
                 emailService.sendSuspiciousAttendanceEmail(
                         reg.getUser().getEmail(),
                         reg.getUser().getFullName(),
                         event
                 );
+
+                reg.setStatus(RegistrationStatusEnum.NO_SHOW);
+                regRepo.save(reg);
                 continue;
             }
 
-            long commit = Optional.ofNullable(reg.getCommittedPoints())
-                    .map(Integer::longValue)
-                    .orElse(0L);
+            // ❌ NONE → không thưởng
+            if (level == AttendanceLevelEnum.NONE) {
+                reg.setStatus(RegistrationStatusEnum.NO_SHOW);
+                regRepo.save(reg);
+                continue;
+            }
 
-            if (commit <= 0) continue;
+            // 🎯 Attendance factor (only commit points)
+            double attendanceFactor = (level == AttendanceLevelEnum.FULL) ? 2.0 : 1.0;
 
-            long baseReward = switch (level) {
-                case HALF -> commit;
-                case FULL -> commit * 2L;
-                default -> 0L;
-            };
+            // 🎯 Reward = commit * attendance factor
+            long finalReward = Math.round(commit * attendanceFactor);
 
-            Membership membership = membershipRepo
-                    .findByUser_UserIdAndClub_ClubId(
-                            reg.getUser().getUserId(),
-                            event.getHostClub().getClubId()
-                    )
-                    .orElse(null);
+            if (finalReward > 0) {
+                Wallet memberWallet = walletService.getOrCreateUserWallet(reg.getUser());
 
-            if (membership == null) continue;
+                // 💰 chuyển điểm thưởng
+                walletService.transferPointsWithType(
+                        eventWallet, memberWallet, finalReward,
+                        "Event reward for " + event.getName(),
+                        WalletTransactionTypeEnum.BONUS_REWARD
+                );
 
-            double clubMultiplier = Optional.ofNullable(event.getHostClub().getClubMultiplier()).orElse(1.0);
-            double memberMultiplier = Optional.ofNullable(membership.getMemberMultiplier()).orElse(1.0);
-            double eventMultiplier = (event.getType() == EventTypeEnum.SPECIAL) ? 1.5 : 1.0;
+                // 📧 gửi email tóm tắt
+                emailService.sendEventSummaryEmail(
+                        reg.getUser().getEmail(),
+                        reg.getUser().getFullName(),
+                        event,
+                        finalReward,
+                        "https://uniclub.id.vn/feedback?eventId=" + event.getEventId()
+                );
 
-            long finalReward = Math.round(baseReward * clubMultiplier * memberMultiplier * eventMultiplier);
+                reg.setStatus(RegistrationStatusEnum.REWARDED);
+            } else {
+                reg.setStatus(RegistrationStatusEnum.NO_SHOW);
+            }
 
-            if (finalReward <= 0) continue;
-
-            Wallet memberWallet = walletService.getOrCreateUserWallet(membership.getUser());
-
-            walletService.transferPointsWithType(
-                    eventWallet, memberWallet, finalReward,
-                    "Reward for " + event.getName(),
-                    WalletTransactionTypeEnum.BONUS_REWARD
-            );
-
-            emailService.sendEventSummaryEmail(
-                    reg.getUser().getEmail(),
-                    reg.getUser().getFullName(),
-                    event,
-                    finalReward,
-                    "https://uniclub.id.vn/feedback?eventId=" + event.getEventId()
-            );
-
-            totalReward += finalReward;
-
-            reg.setStatus(RegistrationStatusEnum.REFUNDED);
             regRepo.save(reg);
+            totalReward += finalReward;
         }
 
-        // Flush before settlement
+        // Flush
         walletRepo.flush();
         regRepo.flush();
 
-        // RELOAD event → correct updated wallet balance
+        // Reload event
         Event refreshed = eventRepo.findByIdWithCoHostRelations(event.getEventId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "Event not found during settlement"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event disappeared"));
 
-        // SETTLE leftover
+        // Hoàn leftover
         rewardService.autoSettleEvent(refreshed);
 
-        // Close event wallet (must use refreshed wallet)
+        // Đóng ví sự kiện
         Wallet refreshedWallet = refreshed.getWallet();
         refreshedWallet.setStatus(WalletStatusEnum.CLOSED);
         walletRepo.save(refreshedWallet);
 
-        // Mark event completed
         refreshed.setStatus(EventStatusEnum.COMPLETED);
         refreshed.setCompletedAt(LocalDateTime.now());
         eventRepo.save(refreshed);
 
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
+
+
 
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
@@ -323,4 +374,23 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         return w;
     }
+    @Override
+    public void refundCommitPoints(User user, long points, Event event) {
+        Wallet wallet = walletRepo.findByUser_UserId(user.getUserId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User wallet not found"));
+
+        wallet.setBalancePoints(wallet.getBalancePoints() + points);
+        walletRepo.save(wallet);
+
+        walletTransactionRepo.save(
+                WalletTransaction.builder()
+                        .wallet(wallet)
+                        .amount(points)
+                        .type(WalletTransactionTypeEnum.REFUND_COMMIT)
+                        .description("Refund commit points from cancelled event: " + event.getName())
+                        .createdAt(LocalDateTime.now())
+                        .build()
+        );
+    }
+
 }

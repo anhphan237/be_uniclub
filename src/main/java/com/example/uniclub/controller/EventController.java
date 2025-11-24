@@ -156,13 +156,44 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.msg(eventPointsService.checkin(principal, req)));
     }
     @Operation(summary = "Sinh viên huỷ đăng ký sự kiện")
-    @PutMapping("/{eventId}/cancel")
+    @PutMapping("/{eventId}/registration/cancel")
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<ApiResponse<String>> cancelRegistration(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long eventId) {
-        return ResponseEntity.ok(ApiResponse.msg(eventPointsService.cancelRegistration(principal, eventId)));
+        return ResponseEntity.ok(ApiResponse.msg(
+                eventPointsService.cancelRegistration(principal, eventId)
+        ));
     }
+    @Operation(
+            summary = "Leader hoặc UniStaff hủy sự kiện (có lý do)",
+            description = """
+        Cho phép **CLUB_LEADER** hoặc **UNIVERSITY_STAFF** hủy sự kiện trước khi diễn ra.
+
+        📌 Hệ thống sẽ:
+        - Hủy tất cả đăng ký & hoàn commit point
+        - Xóa toàn bộ staff assignment
+        - Hoàn budget (nếu UniStaff hủy)
+        - Gửi email tới Leader, Co-host và sinh viên đã đăng ký
+
+        ⚠️ Cần cung cấp lý do hủy.
+        """)
+    @PutMapping("/{eventId}/cancel-event")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> cancelEvent(
+            @PathVariable Long eventId,
+            @RequestBody EventCancelRequest req,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+
+        String result = eventService.cancelEvent(eventId, req, principal);
+
+        return ResponseEntity.ok(ApiResponse.msg(result));
+    }
+
+
+
+
     @Operation(
             summary = "Hoàn thành sự kiện (Leader/Staff xác nhận)",
             description = """

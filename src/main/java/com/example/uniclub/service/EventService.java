@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventBudgetApproveRequest;
+import com.example.uniclub.dto.request.EventCancelRequest;
 import com.example.uniclub.dto.request.EventCreateRequest;
 import com.example.uniclub.dto.request.EventExtendRequest;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
@@ -80,5 +81,6 @@ public interface EventService {
 
     byte[] exportAttendanceData(Long eventId, String format);
     Map<String, Object> getEventAttendanceSummary(Long eventId);
+    public String cancelEvent(Long eventId, EventCancelRequest req, CustomUserDetails principal);
 
 }

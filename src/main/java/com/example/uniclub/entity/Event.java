@@ -62,6 +62,8 @@ public class Event {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EventStatusEnum status = EventStatusEnum.PENDING_COCLUB;
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 
 
     @Builder.Default
@@ -101,6 +103,10 @@ public class Event {
     private User approvedBy;
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
 
     // 💼 Ví của sự kiện
     @OneToOne

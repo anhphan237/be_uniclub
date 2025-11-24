@@ -248,15 +248,32 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendEventCancellationEmail(String to, String fullName, Event event, long refundPoints) {
-        String content = """
-            <h2 style="color:#D32F2F;">Event Cancelled</h2>
-            <p>Hello %s,</p>
-            <p>Your registration for <b>%s</b> has been cancelled.</p>
-            <p>Refunded Points: <b>%d</b></p>
-        """.formatted(fullName, event.getName(), refundPoints);
 
-        sendEmail(to, "[UniClub] Event Registration Cancelled", content);
+        // ⚠ refundPoints giờ luôn = 0 khi user hủy đăng ký
+        String content = """
+        <h2 style="color:#D32F2F;">Registration Cancelled ❌</h2>
+
+        <p>Hello <b>%s</b>,</p>
+
+        <p>You have cancelled your registration for the event <b>%s</b>.</p>
+
+        <div style="
+            margin: 20px 0;
+            padding: 18px;
+            background: #FFF4F4;
+            border-left: 4px solid #D32F2F;
+            border-radius: 8px;">
+            <p style="margin:0; color:#B71C1C;">
+                ⚠ <b>Your commitment points will <u>not</u> be refunded.</b>
+            </p>
+        </div>
+
+        <p>If this was a mistake, please contact your club management team.</p>
+    """.formatted(fullName, event.getName());
+
+        sendEmail(to, "[UniClub] Registration Cancelled – No Refund", content);
     }
+
 
     @Override
     public void sendSuspiciousAttendanceEmail(String to, String fullName, Event event) {
@@ -789,6 +806,35 @@ public class EmailServiceImpl implements EmailService {
     """.formatted(fullName, otpCode);
 
         sendEmail(to, "[UniClub] OTP Code for Club Creation Request", content);
+    }
+    @Override
+    public void sendEventCancelledEmail(String to, String eventName, String eventDate, String reason) {
+
+        String content = """
+        <h2 style="color:#D32F2F;">Event Cancelled ❌</h2>
+
+        <p>Hello,</p>
+
+        <p>The event <b>%s</b> scheduled on <b>%s</b> has been officially <b>cancelled</b>.</p>
+
+        <p style="margin-top:10px;">
+            <b>Reason for cancellation:</b><br>
+            <span style="color:#D32F2F; font-weight:600;">%s</span>
+        </p>
+
+        <p style="margin-top:16px;">
+            All related registrations, staff assignments, and scheduled activities have been removed.
+        </p>
+
+        <p>If this affects any planning or commitments, please reach out to UniStaff or your club management team.</p>
+
+        <p style="margin-top:22px;">
+            Thank you for your understanding.<br>
+            <span style="color:#1E88E5; font-weight:600;">UniClub Vietnam</span>
+        </p>
+    """.formatted(eventName, eventDate, reason);
+
+        sendEmail(to, "[UniClub] Event Cancelled – " + eventName, content);
     }
 
 }

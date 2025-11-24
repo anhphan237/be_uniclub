@@ -1,9 +1,6 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.request.EventBudgetApproveRequest;
-import com.example.uniclub.dto.request.EventCreateRequest;
-import com.example.uniclub.dto.request.EventEndRequest;
-import com.example.uniclub.dto.request.EventExtendRequest;
+import com.example.uniclub.dto.request.*;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
@@ -346,17 +343,46 @@ public class EventServiceImpl implements EventService {
         );
 
         if (!isUniStaff && !isLeader) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "You do not have permission to finish this event.");
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only Leader or University Staff may finish this event.");
         }
 
+        // 1️⃣ Must be APPROVED or ONGOING
+        if (!List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING)
+                .contains(event.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event must be APPROVED or ONGOING to finish.");
+        }
 
+        // 2️⃣ Not finished already
+        if (event.getCompletedAt() != null || event.getStatus() == EventStatusEnum.COMPLETED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event has already been settled.");
+        }
+
+        // 3️⃣ Validate wallet
+        if (event.getWallet() == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event wallet missing unexpectedly.");
+
+        if (event.getWallet().getStatus() == WalletStatusEnum.CLOSED)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet is closed. Cannot finish event.");
+
+        // ❗❗ KHÔNG CHECK THỜI GIAN
+        // → Leader và UniStaff có quyền kết thúc event bất kỳ lúc nào.
+
+        // 4️⃣ Run settlement
         String result = eventPointsService.endEvent(principal, new EventEndRequest(eventId));
 
-        log.info("🏁 Event '{}' completed by {} ({}) – Settlement executed",
+        event.setStatus(EventStatusEnum.COMPLETED);
+        event.setCompletedAt(LocalDateTime.now());
+        eventRepo.save(event);
+
+        log.info("🏁 Event '{}' completed EARLY/NORMAL by {} ({}) – Settlement executed",
                 event.getName(), user.getEmail(), roleName);
 
         return result;
     }
+
+
 
 
 
@@ -502,11 +528,58 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public void delete(Long id) {
-        if (!eventRepo.existsById(id)) {
-            throw new ApiException(HttpStatus.NOT_FOUND, "Event not found");
+
+        Event event = eventRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        // 1️⃣ Không được xóa event đã completed / cancelled
+        if (event.getStatus() == EventStatusEnum.COMPLETED ||
+                event.getStatus() == EventStatusEnum.CANCELLED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Completed or cancelled events cannot be deleted. Use cancel instead.");
         }
-        eventRepo.deleteById(id);
+
+        // 2️⃣ Không xóa event đã có người đăng ký
+        if (eventRegistrationRepo.existsByEvent_EventId(event.getEventId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot delete event with registrations. Cancel the event instead.");
+        }
+
+        // 3️⃣ Không xóa event đã có staff
+        if (!eventStaffRepo.findByEvent_EventId(event.getEventId()).isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot delete event with assigned staff.");
+        }
+
+        // 4️⃣ Không xóa nếu có ngân sách
+        if (event.getBudgetPoints() > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot delete event after budget approval. Cancel instead.");
+        }
+
+        // 5️⃣ Không xóa event đã có attendance
+        if (eventRegistrationRepo.existsByEvent_EventIdAndAttendanceLevelNot(
+                id, AttendanceLevelEnum.NONE)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event contains attendance records and cannot be deleted.");
+        }
+
+        // 6️⃣ Không xóa nếu còn co-host
+        if (event.getCoHostRelations() != null && !event.getCoHostRelations().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot delete event with co-host relations. Must cancel instead.");
+        }
+
+        // ===========================
+        // 7️⃣ Safe delete
+        // ===========================
+        if (event.getWallet() != null) {
+            walletRepo.delete(event.getWallet()); // để tránh orphan
+        }
+
+        eventRepo.delete(event);
     }
+
 
 
     @Override
@@ -818,7 +891,7 @@ public class EventServiceImpl implements EventService {
                 .count();
 
         long refundedCount = regs.stream()
-                .filter(r -> r.getStatus() == RegistrationStatusEnum.REFUNDED)
+                .filter(r -> r.getStatus() == RegistrationStatusEnum.REWARDED)
                 .count();
 
         long totalCommitPoints = regs.stream()
@@ -836,6 +909,136 @@ public class EventServiceImpl implements EventService {
         );
     }
 
+
+    @Override
+    @Transactional
+    public String cancelEvent(Long eventId, EventCancelRequest req, CustomUserDetails principal) {
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        var user = principal.getUser();
+
+        // 1) CHECK QUYỀN
+        boolean isUniStaff = user.getRole().getRoleName().equalsIgnoreCase("UNIVERSITY_STAFF");
+
+        boolean isLeader = membershipRepo.existsByUser_UserIdAndClub_ClubIdAndClubRoleIn(
+                user.getUserId(),
+                event.getHostClub().getClubId(),
+                List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER)
+        );
+
+        if (!isUniStaff && !isLeader) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only Leader or University Staff can cancel the event");
+        }
+
+        // 2) CHỈ HỦY SỰ KIỆN CHƯA DIỄN RA
+        LocalDateTime startTime = LocalDateTime.of(event.getDate(), event.getStartTime());
+        if (LocalDateTime.now().isAfter(startTime)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot cancel an event that has already started");
+        }
+
+        // 3) CHỈ HỦY KHI EVENT TRONG TRẠNG THÁI HỢP LỆ
+        if (!(event.getStatus() == EventStatusEnum.APPROVED
+                || event.getStatus() == EventStatusEnum.PENDING_UNISTAFF
+                || event.getStatus() == EventStatusEnum.PENDING_COCLUB)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event cannot be cancelled in its current state");
+        }
+
+        // 4) CHECK CHƯA ĐIỂM DANH
+        boolean hasAttendance = eventRegistrationRepo.existsByEvent_EventIdAndAttendanceLevelNot(
+                eventId, AttendanceLevelEnum.NONE);
+        if (hasAttendance) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot cancel event with attendance records");
+        }
+
+        // 5) HOÀN COMMIT POINT + CANCEL REGISTRATION
+        List<EventRegistration> regs = eventRegistrationRepo.findByEvent_EventId(eventId);
+        for (EventRegistration reg : regs) {
+            int committed = Optional.ofNullable(reg.getCommittedPoints()).orElse(0);
+            if (committed > 0) {
+                eventPointsService.refundCommitPoints(reg.getUser(), committed, event);
+            }
+            reg.setStatus(RegistrationStatusEnum.CANCELED);
+            reg.setCancelledAt(LocalDateTime.now());
+        }
+        eventRegistrationRepo.saveAll(regs);
+
+        // 6) HỦY STAFF ASSIGNMENT
+        List<EventStaff> staffs = eventStaffRepo.findByEvent_EventId(eventId);
+        for (EventStaff s : staffs) {
+            s.setState(EventStaffStateEnum.REMOVED);
+            s.setUnassignedAt(LocalDateTime.now());
+        }
+        eventStaffRepo.saveAll(staffs);
+
+        // 7) BUDGET — KHÁC NHAU TÙY AI HỦY
+        Wallet eventWallet = event.getWallet();
+
+        if (eventWallet != null && eventWallet.getBalancePoints() > 0) {
+
+            if (isUniStaff) {
+                // UNI STAFF HỦY — CLB ĐƯỢC HOÀN ĐIỂM
+                Wallet clubWallet = walletRepo.findByClub_ClubId(event.getHostClub().getClubId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                                "Club wallet not found"));
+
+                long refund = eventWallet.getBalancePoints();
+                clubWallet.setBalancePoints(clubWallet.getBalancePoints() + refund);
+                eventWallet.setBalancePoints(0L);
+
+                walletRepo.save(clubWallet);
+                walletRepo.save(eventWallet);
+
+                walletTransactionRepo.save(WalletTransaction.builder()
+                        .wallet(clubWallet)
+                        .amount(refund)
+                        .type(WalletTransactionTypeEnum.EVENT_REFUND_REMAINING)
+                        .description("Refund remaining event budget (cancelled by UniStaff): " + event.getName())
+                        .createdAt(LocalDateTime.now())
+                        .build()
+                );
+
+            } else {
+                // CLUB LEADER HỦY — KHÔNG HOÀN ĐIỂM
+                walletTransactionRepo.save(WalletTransaction.builder()
+                        .wallet(eventWallet)
+                        .amount(0L)
+                        .type(WalletTransactionTypeEnum.EVENT_BUDGET_FORFEIT)
+                        .description("Budget forfeited because event was cancelled by club leader")
+                        .createdAt(LocalDateTime.now())
+                        .build()
+                );
+
+                // Nếu muốn KHÓA ví sự kiện
+                eventWallet.setStatus(WalletStatusEnum.CLOSED);
+                walletRepo.save(eventWallet);
+            }
+        }
+
+        // 8) SET STATUS CANCELLED
+        event.setRejectReason(req.reason());
+        event.setStatus(EventStatusEnum.CANCELLED);
+        event.setCancelledAt(LocalDateTime.now());
+        eventRepo.save(event);
+
+        // 9) GỬI EMAIL
+        String leaderEmail = membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
+        try {
+            emailService.sendEventCancelledEmail(
+                    leaderEmail,
+                    event.getName(),
+                    event.getDate().toString(),
+                    req.reason()
+            );
+        } catch (Exception ignored) {}
+
+        return "Event has been cancelled successfully";
+    }
 
 
 

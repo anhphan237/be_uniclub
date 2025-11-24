@@ -101,6 +101,9 @@ public interface EmailService {
     void sendClubBatchDeductionSummaryEmail(String to, String fullName, String clubName,
                                             long totalPoints, int memberCount, String reason);
 
+    void sendEventCancelledEmail(String to, String eventName, String eventDate, String reason);
+
+
 
     void sendUpcomingEventReminderEmail(
             String to,
