@@ -167,8 +167,8 @@ public class RedeemServiceImpl implements RedeemService {
 
         // 🧾 QR + Code
         String orderCode = "UC-" + Long.toHexString(order.getOrderId()).toUpperCase();
-        String qrContentUrl = "https://uniclub.id.vn/redeem/order/" + orderCode;
-        String qrUrl = qrService.generateQrAndUpload(qrContentUrl);
+        String qrContent = orderCode;
+        String qrUrl = qrService.generateQrAndUpload(qrContent);
 
 
         order.setOrderCode(orderCode);
@@ -360,8 +360,9 @@ public class RedeemServiceImpl implements RedeemService {
 
         // 🧾 Generate QR + order code
         String orderCode = "EV-" + Long.toHexString(order.getOrderId()).toUpperCase();
-        String qrContentUrl = "https://uniclub.id.vn/redeem/order/" + orderCode;
-        String qrUrl = qrService.generateQrAndUpload(qrContentUrl);
+        String qrContent = orderCode;
+        String qrUrl = qrService.generateQrAndUpload(qrContent);
+
 
 
         order.setOrderCode(orderCode);
