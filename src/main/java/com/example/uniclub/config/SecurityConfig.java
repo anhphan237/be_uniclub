@@ -75,6 +75,8 @@ public class SecurityConfig {
                         // ✅ Public data
                         .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events/public/checkin")
+                        .hasRole("STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/events/register")
                         .hasRole("STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/events/*/feedback")
