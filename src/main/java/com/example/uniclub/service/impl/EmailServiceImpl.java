@@ -836,5 +836,19 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] Event Cancelled – " + eventName, content);
     }
+    @Override
+    public void sendNewMembershipRequestToLeader(String to, String leaderName, String clubName, String applicantName) {
+
+        String content = """
+        <h2 style="color:#1E88E5;">New Membership Request 🚀</h2>
+        <p>Dear %s,</p>
+
+        <p><b>%s</b> has submitted a request to join <b>%s</b>.</p>
+
+        <p>Please log in to your Leader Dashboard to approve or reject this request.</p>
+    """.formatted(leaderName, applicantName, clubName);
+
+        sendEmail(to, "[UniClub] New membership request for " + clubName, content);
+    }
 
 }

@@ -81,29 +81,30 @@ public class MembershipServiceImpl implements MembershipService {
                 .findFirst()
                 .orElse(null);
 
-        // 🚫 No limit defined -> skip
+        // 🚫 No maxClubJoin defined → skip
         if (maxJoin == null) {
             log.info("Major {} has no maxClubJoin policy -> skipping limit check", major.getName());
             return;
         }
 
-        // 📊 Count ACTIVE memberships
-        int activeClubCount = membershipRepo.countByUser_UserIdAndState(
+        // ⭐ FIX: Count ACTIVE + PENDING memberships
+        int activeOrPendingCount = membershipRepo.countByUser_UserIdAndStateIn(
                 user.getUserId(),
-                MembershipStateEnum.ACTIVE
+                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.PENDING)
         );
 
         // 🚫 Vi phạm chính sách
-        if (activeClubCount >= maxJoin) {
+        if (activeOrPendingCount >= maxJoin) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     String.format(
                             "You have reached the maximum number of clubs allowed for your major (%d). Current: %d",
-                            maxJoin, activeClubCount
+                            maxJoin, activeOrPendingCount
                     )
             );
         }
     }
+
 
 
     // ========================== 🔹 1. Basic Membership Operations ==========================
@@ -170,14 +171,28 @@ public class MembershipServiceImpl implements MembershipService {
 
                     membershipRepo.save(existing);
 
-                    // 🔔 NOTIFY LEADERS & VICE LEADERS
-                    notifyClubManagersUsingEmailService(club, user);
+                    // 🔥 Notify LEADER
+                    membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
+                            emailService.sendNewMembershipRequestToLeader(
+                                    leader.getEmail(),
+                                    leader.getFullName(),
+                                    club.getName(),
+                                    user.getFullName()
+                            )
+                    );
+
+                    // 🔔 Notify applicant
+                    emailService.sendMemberApplicationSubmitted(
+                            user.getEmail(),
+                            user.getFullName(),
+                            club.getName()
+                    );
 
                     return toResp(existing);
                 }
 
-                default ->
-                        throw new ApiException(HttpStatus.BAD_REQUEST, "Unexpected membership state: " + state);
+                default -> throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Unexpected membership state: " + state);
             }
         }
 
@@ -206,8 +221,22 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        // 🔔 Notify leaders
-        notifyClubManagersUsingEmailService(club, user);
+        // 🔥 Notify LEADER
+        membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
+                emailService.sendNewMembershipRequestToLeader(
+                        leader.getEmail(),
+                        leader.getFullName(),
+                        club.getName(),
+                        user.getFullName()
+                )
+        );
+
+        // 🔔 Notify applicant
+        emailService.sendMemberApplicationSubmitted(
+                user.getEmail(),
+                user.getFullName(),
+                club.getName()
+        );
 
         return toResp(newMembership);
     }
@@ -215,31 +244,6 @@ public class MembershipServiceImpl implements MembershipService {
 
 
 
-// ===================== 🔔 EMAIL NOTIFICATION FUNC =====================
-
-    private void notifyClubManagersUsingEmailService(Club club, User applicant) {
-
-        List<Membership> managers = membershipRepo.findByClub_ClubIdAndClubRoleInAndStateIn(
-                club.getClubId(),
-                List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER),
-                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
-        );
-
-        if (managers.isEmpty()) return;
-
-        for (Membership mgr : managers) {
-            try {
-                emailService.sendClubNewMembershipRequestEmail(
-                        mgr.getUser().getEmail(),
-                        mgr.getUser().getFullName(),
-                        club.getName(),
-                        applicant.getFullName()
-                );
-            } catch (Exception e) {
-                log.warn("Failed to send membership-join email to {}", mgr.getUser().getEmail());
-            }
-        }
-    }
 
 
 

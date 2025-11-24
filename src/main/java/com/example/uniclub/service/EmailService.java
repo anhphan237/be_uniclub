@@ -147,6 +147,7 @@ public interface EmailService {
     );
 
 
+    void sendNewMembershipRequestToLeader(String to, String leaderName, String clubName, String applicantName);
 
 
     void sendEventApprovedEmail(

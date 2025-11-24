@@ -30,6 +30,7 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
     // ✅ Dùng trong EventServiceImpl để tìm leader hoặc vice-leader được duyệt
     Optional<Membership> findFirstByClub_ClubIdAndClubRoleAndState(
             Long clubId, ClubRoleEnum clubRole, MembershipStateEnum state);
+    int countByUser_UserIdAndStateIn(Long userId, List<MembershipStateEnum> states);
 
     // ✅ Kiểm tra ràng buộc số lượng role trong CLB
     long countByClub_ClubIdAndClubRole(Long clubId, ClubRoleEnum clubRole);
@@ -161,6 +162,14 @@ AND m.state = 'ACTIVE'
 AND (m.clubRole = 'LEADER' OR m.clubRole = 'VICE_LEADER')
 """)
     Long findAnyLeaderOrViceClubId(Long userId);
+    @Query("""
+    SELECT m.user 
+    FROM Membership m
+    WHERE m.club.clubId = :clubId
+      AND m.clubRole = com.example.uniclub.enums.ClubRoleEnum.LEADER
+      AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+""")
+    Optional<User> findActiveLeaderByClubId(@Param("clubId") Long clubId);
 
 
 }
