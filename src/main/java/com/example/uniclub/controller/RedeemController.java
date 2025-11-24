@@ -2,8 +2,11 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.RedeemOrderRequest;
+import com.example.uniclub.dto.request.RedeemQrRequest;
 import com.example.uniclub.dto.request.RefundRequest;
+import com.example.uniclub.dto.request.ScanQrRequest;
 import com.example.uniclub.dto.response.OrderResponse;
+import com.example.uniclub.dto.response.RedeemScanResponse;
 import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.RedeemService;
@@ -274,5 +277,50 @@ public class RedeemController {
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
+
+
+    @Operation(
+            summary = "Generate QR for redeeming",
+            description = """
+                Member tạo mã QR chứa thông tin membership để đem lên quầy redeem.
+                Mã QR có thời hạn 60 giây để tăng bảo mật.
+                """
+    )
+    @PostMapping("/generate-qr")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<String>> generateQr(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestBody RedeemQrRequest req
+    ) {
+        String qr = redeemService.generateMemberQr(
+                principal.getUser().getUserId(),
+                req.clubId()
+        );
+        return ResponseEntity.ok(ApiResponse.ok(qr));
+    }
+
+    @Operation(
+            summary = "Scan member QR at redeem booth",
+            description = """
+                Leader / Vice Leader / Staff quét QR của member để kiểm tra:
+                - Member có thuộc CLB hay không
+                - Membership còn ACTIVE không
+                - Wallet balance hiện tại
+                - Các đơn hàng pending chưa lấy quà
+                - Thông tin user (fullName, studentCode)
+                """
+    )
+    @PostMapping("/scan-qr")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    public ResponseEntity<ApiResponse<RedeemScanResponse>> scanQr(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestBody ScanQrRequest req
+    ) {
+        RedeemScanResponse data = redeemService.scanMemberQr(
+                req.qrToken(),
+                principal.getUser().getUserId()
+        );
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
 
 }

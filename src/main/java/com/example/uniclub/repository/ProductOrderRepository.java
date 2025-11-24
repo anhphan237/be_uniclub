@@ -32,6 +32,10 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
     // 🧾 Lấy toàn bộ đơn hàng (phân trang + sort)
     Page<ProductOrder> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+    List<ProductOrder> findByMembership_MembershipIdAndStatus(
+            Long membershipId,
+            OrderStatusEnum status
+    );
 
-
+    List<ProductOrder> findByMembership_MembershipId(Long membershipId);
 }

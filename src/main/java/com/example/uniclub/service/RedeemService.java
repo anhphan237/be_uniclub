@@ -2,6 +2,8 @@ package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.RedeemOrderRequest;
 import com.example.uniclub.dto.response.OrderResponse;
+import com.example.uniclub.dto.response.RedeemScanResponse;
+
 import java.util.List;
 
 public interface RedeemService {
@@ -30,4 +32,10 @@ public interface RedeemService {
     List<OrderResponse> getOrdersByMember(Long userId);
     List<OrderResponse> getOrdersByClub(Long clubId);
     List<OrderResponse> getOrdersByEvent(Long eventId);
+    // 🆕 Member tạo QR để đổi quà tại booth CLB
+    String generateMemberQr(Long userId, Long clubId);
+
+    // 🆕 Staff quét QR để xác thực member thuộc đúng CLB
+    RedeemScanResponse scanMemberQr(String qrToken, Long staffUserId);
+
 }

@@ -166,6 +166,16 @@ public interface EmailService {
 
     void sendPenaltyNotificationEmail(User user, Club club, PenaltyRule rule, ClubPenalty penalty);
 
+    void sendMemberRedeemNotifyLeaderEmail(
+            String to,
+            String leaderName,
+            String memberName,
+            String studentCode,
+            String productName,
+            int quantity,
+            long totalPoints,
+            String orderCode
+    );
 
     void sendClubCreationOtpEmail(String to, String fullName, String otpCode);
 

@@ -170,6 +170,11 @@ AND (m.clubRole = 'LEADER' OR m.clubRole = 'VICE_LEADER')
       AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
 """)
     Optional<User> findActiveLeaderByClubId(@Param("clubId") Long clubId);
+    List<Membership> findByClub_ClubIdAndClubRoleInAndState(
+            Long clubId,
+            List<ClubRoleEnum> roles,
+            MembershipStateEnum state
+    );
 
 
 }

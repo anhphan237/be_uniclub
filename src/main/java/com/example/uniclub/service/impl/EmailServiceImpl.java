@@ -850,5 +850,43 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] New membership request for " + clubName, content);
     }
+    @Override
+    public void sendMemberRedeemNotifyLeaderEmail(
+            String to,
+            String leaderName,
+            String memberName,
+            String studentCode,
+            String productName,
+            int quantity,
+            long totalPoints,
+            String orderCode
+    ) {
+
+        String content = """
+        <h2 style="color:#1E88E5;">Member Redeemed a Reward 🎁</h2>
+
+        <p>Dear <b>%s</b>,</p>
+
+        <p>One of your club members just redeemed an item.</p>
+
+        <div style="
+            margin: 20px 0;
+            padding: 16px;
+            background:#F5F9FF;
+            border-left: 4px solid #1E88E5;
+            border-radius: 10px;
+        ">
+            <p><b>👤 Member:</b> %s (%s)</p>
+            <p><b>🎁 Product:</b> %s</p>
+            <p><b>🔢 Quantity:</b> %d</p>
+            <p><b>💰 Points spent:</b> %d</p>
+            <p><b>📦 Order Code:</b> %s</p>
+        </div>
+
+        <p>You can track order details in your Leader Dashboard.</p>
+    """.formatted(leaderName, memberName, studentCode, productName, quantity, totalPoints, orderCode);
+
+        sendEmail(to, "[UniClub] Member Redeemed Reward #" + orderCode, content);
+    }
 
 }

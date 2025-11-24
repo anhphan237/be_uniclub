@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.RedeemOrderRequest;
 import com.example.uniclub.dto.response.OrderResponse;
+import com.example.uniclub.dto.response.RedeemScanResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -16,6 +17,7 @@ import com.example.uniclub.repository.TagRepository;
 import com.example.uniclub.repository.ProductTagRepository;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Base64;
 import java.util.List;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
@@ -183,8 +185,26 @@ public class RedeemServiceImpl implements RedeemService {
                 orderCode,
                 qrUrl
         );
+        // 📣 EMAIL cho LEADER + VICE
+        List<Membership> managers = membershipRepo
+                .findByClub_ClubIdAndClubRoleInAndState(
+                        clubId,
+                        List.of(ClubRoleEnum.LEADER, ClubRoleEnum.VICE_LEADER),
+                        MembershipStateEnum.ACTIVE
+                );
 
-
+        for (Membership m : managers) {
+            emailService.sendMemberRedeemNotifyLeaderEmail(
+                    m.getUser().getEmail(),
+                    m.getUser().getFullName(),
+                    membership.getUser().getFullName(),
+                    membership.getUser().getStudentCode(),
+                    product.getName(),
+                    req.quantity(),
+                    totalPoints,
+                    orderCode
+            );
+        }
         // 📢 Realtime notification
         try {
             Notification notification = Notification.builder()
@@ -627,4 +647,109 @@ public class RedeemServiceImpl implements RedeemService {
                 .filter(order -> order.getProduct().getType() == ProductTypeEnum.EVENT_ITEM)
                 .map(this::toResponse).toList();
     }
+    @Override
+    public String generateMemberQr(Long userId, Long clubId) {
+
+        Membership membership = membershipRepo
+                .findByUser_UserIdAndClub_ClubIdAndState(
+                        userId, clubId, MembershipStateEnum.ACTIVE)
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
+                        "You are not an active member of this club"));
+
+        LocalDateTime expires = LocalDateTime.now().plusSeconds(60);
+
+        String raw = membership.getMembershipId() + ";" +
+                clubId + ";" +
+                userId + ";" +
+                expires;
+
+        // 🔐 Thêm hash để chống giả mạo QR
+        String hash = Integer.toHexString(raw.hashCode());
+
+        String full = raw + ";" + hash;
+
+        String token = Base64.getEncoder().encodeToString(full.getBytes());
+
+        return qrService.generateQrAndUpload(token);
+    }
+    @Override
+    public RedeemScanResponse scanMemberQr(String qrToken, Long staffUserId) {
+
+        // =======================
+        // 1. Decode QR
+        // =======================
+        String decoded;
+        try {
+            decoded = new String(Base64.getDecoder().decode(qrToken));
+        } catch (Exception e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid QR format");
+        }
+
+        // format: membershipId;clubId;userId;expires;hash
+        String[] parts = decoded.split(";");
+        if (parts.length != 5)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "QR data invalid");
+
+        Long membershipId = Long.parseLong(parts[0]);
+        Long clubId = Long.parseLong(parts[1]);
+        Long userId = Long.parseLong(parts[2]);
+        LocalDateTime expires = LocalDateTime.parse(parts[3]);
+        String qrHash = parts[4];
+
+        // =======================
+        // 2. Check hash (anti-fake)
+        // =======================
+        String raw = membershipId + ";" + clubId + ";" + userId + ";" + expires;
+        String expected = Integer.toHexString(raw.hashCode());
+
+        if (!expected.equals(qrHash))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "QR signature invalid");
+
+        // =======================
+        // 3. Check expiration
+        // =======================
+        if (expires.isBefore(LocalDateTime.now()))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "QR has expired (over 60 seconds)");
+
+        // =======================
+        // 4. Staff must belong to same club
+        // =======================
+        membershipRepo.findByUser_UserIdAndClub_ClubIdAndState(
+                staffUserId, clubId, MembershipStateEnum.ACTIVE
+        ).orElseThrow(() ->
+                new ApiException(HttpStatus.FORBIDDEN, "You are not a staff of this club")
+        );
+
+        // =======================
+        // 5. Load Member Info
+        // =======================
+        Membership membership = membershipRepo.findById(membershipId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        if (membership.getState() != MembershipStateEnum.ACTIVE)
+            throw new ApiException(HttpStatus.FORBIDDEN, "Membership is not ACTIVE");
+
+        User user = membership.getUser();
+
+        // =======================
+        // 6. Load Wallet
+        // =======================
+        Wallet wallet = walletRepo.findByUser_UserId(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found"));
+
+        // =======================
+        // 7. Load pending orders (club storage)
+        // =======================
+        List<ProductOrder> pendingOrders =
+                orderRepo.findByMembership_MembershipIdAndStatus(
+                        membershipId, OrderStatusEnum.PENDING
+                );
+
+        // =======================
+        // 8. Build response
+        // =======================
+        return RedeemScanResponse.from(user, membership, wallet, pendingOrders);
+    }
+
+
 }
