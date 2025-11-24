@@ -21,6 +21,11 @@ public interface RedeemService {
     // 🟡 Hoàn hàng một phần
     OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId, String reason);
 
+
+    OrderResponse getOrderByCode(String orderCode);
+
+    OrderResponse getOrderById(Long orderId);
+
     // 🔹 Lấy danh sách đơn hàng của member / club / event
     List<OrderResponse> getOrdersByMember(Long userId);
     List<OrderResponse> getOrdersByClub(Long clubId);

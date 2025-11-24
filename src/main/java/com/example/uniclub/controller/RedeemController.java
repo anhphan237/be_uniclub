@@ -4,11 +4,13 @@ import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.RedeemOrderRequest;
 import com.example.uniclub.dto.request.RefundRequest;
 import com.example.uniclub.dto.response.OrderResponse;
+import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.RedeemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.security.PermitAll;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -222,4 +224,55 @@ public class RedeemController {
                 redeemService.getOrdersByEvent(eventId)
         ));
     }
+
+
+    @Operation(
+            summary = "Xem chi tiết đơn hàng bằng OrderCode (QR Scan)",
+            description = """
+            API dùng để hiển thị chi tiết đơn hàng khi quét QR.<br>
+            Không yêu cầu đăng nhập.<br><br>
+
+            - Staff/Leader có thể quét QR từ email hoặc tại booth để xem thông tin đơn hàng.<br>
+            - OrderCode là mã dạng <b>UC-xxxxxx</b> hoặc <b>EV-xxxxxx</b>.<br>
+            - Trả về toàn bộ chi tiết đơn hàng: sản phẩm, điểm, số lượng, club/event, trạng thái, thời gian tạo,...
+            """,
+            responses = @io.swagger.v3.oas.annotations.responses.
+                    ApiResponse(responseCode = "200", description = "Lấy chi tiết đơn hàng thành công")
+    )
+    @GetMapping("/orders/{orderCode}")
+    @PermitAll
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrderByCode(
+            @PathVariable String orderCode
+    ) {
+        OrderResponse res = redeemService.getOrderByCode(orderCode);
+        return ResponseEntity.ok(ApiResponse.ok(res));
+    }
+    @Operation(
+            summary = "Xem chi tiết đơn hàng bằng OrderId",
+            description = """
+            API trả về chi tiết đơn hàng dựa trên <b>orderId</b>.<br>
+            Dùng cho nội bộ hệ thống (Leader/Staff), hoặc khi cần debug từ Admin.<br>
+            Không dành cho QR scan (QR dùng orderCode).<br><br>
+
+            Trả về thông tin:
+            - Sản phẩm
+            - Số lượng
+            - Điểm đã trừ
+            - Club / Event
+            - Trạng thái đơn
+            - Thời gian tạo / hoàn tất
+            """,
+            responses = @io.swagger.v3.oas.annotations.responses.
+                    ApiResponse(responseCode = "200", description = "Lấy chi tiết đơn hàng theo ID thành công")
+    )
+    @GetMapping("/order/id/{orderId}")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','UNIVERSITY_STAFF','ADMIN')")
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(
+            @PathVariable Long orderId
+    ) {
+        OrderResponse res = redeemService.getOrderById(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(res));
+    }
+
+
 }

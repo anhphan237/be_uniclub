@@ -58,6 +58,21 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getReasonRefund()
         );
     }
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderByCode(String orderCode) {
+        ProductOrder order = orderRepo.findByOrderCode(orderCode)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
+        return toResponse(order);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderById(Long orderId) {
+        ProductOrder order = orderRepo.findById(orderId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
+
+        return toResponse(order);
+    }
 
     // 🟢 Thành viên đổi hàng trong CLB
     @Override
@@ -150,7 +165,9 @@ public class RedeemServiceImpl implements RedeemService {
 
         // 🧾 QR + Code
         String orderCode = "UC-" + Long.toHexString(order.getOrderId()).toUpperCase();
-        String qrUrl = qrService.generateQrAndUpload(orderCode);
+        String qrContentUrl = "https://uniclub.id.vn/redeem/order/" + orderCode;
+        String qrUrl = qrService.generateQrAndUpload(qrContentUrl);
+
 
         order.setOrderCode(orderCode);
         order.setQrCodeBase64(qrUrl);
@@ -323,7 +340,9 @@ public class RedeemServiceImpl implements RedeemService {
 
         // 🧾 Generate QR + order code
         String orderCode = "EV-" + Long.toHexString(order.getOrderId()).toUpperCase();
-        String qrUrl = qrService.generateQrAndUpload(orderCode);
+        String qrContentUrl = "https://uniclub.id.vn/redeem/order/" + orderCode;
+        String qrUrl = qrService.generateQrAndUpload(qrContentUrl);
+
 
         order.setOrderCode(orderCode);
         order.setQrCodeBase64(qrUrl);
