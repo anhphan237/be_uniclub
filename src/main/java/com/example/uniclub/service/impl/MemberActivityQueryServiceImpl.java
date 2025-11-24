@@ -92,9 +92,7 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
 
                 // === Staff ===
                 .staffBaseScore(a.getStaffBaseScore())
-                .staffScoreGood(a.getStaffScoreGood())
-                .staffScoreAverage(a.getStaffScoreAverage())
-                .staffScorePoor(a.getStaffScorePoor())
+
                 .staffTotalScore(a.getStaffTotalScore())
 
                 // === Final score ===
@@ -183,9 +181,6 @@ public class MemberActivityQueryServiceImpl implements MemberActivityQueryServic
 
                 // === Staff ===
                 .staffBaseScore(a.getStaffBaseScore())
-                .staffScoreGood(a.getStaffScoreGood())
-                .staffScoreAverage(a.getStaffScoreAverage())
-                .staffScorePoor(a.getStaffScorePoor())
                 .staffTotalScore(a.getStaffTotalScore())
 
                 // === Final ===

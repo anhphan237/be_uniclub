@@ -3,11 +3,8 @@ package com.example.uniclub.dto.response;
 import com.example.uniclub.entity.MemberMonthlyActivity;
 import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class MemberMonthlyActivityResponse {
 
     private Long membershipId;
@@ -22,30 +19,30 @@ public class MemberMonthlyActivityResponse {
 
     private int totalEventRegistered;
     private int totalEventAttended;
+    private double eventAttendanceRate;
+    private int totalPenaltyPoints;
 
-    private int totalClubSessions;
-    private int totalClubPresent;
+    private String activityLevel;
 
-    private double sessionAttendanceRate;
-
-    // Attendance (Excel)
     private int attendanceBaseScore;
     private double attendanceMultiplier;
     private int attendanceTotalScore;
 
-    // Staff
     private int staffBaseScore;
-    private int staffGoodCount;
-    private int staffAverageCount;
-    private int staffPoorCount;
-    private int staffScoreGood;
-    private int staffScoreAverage;
-    private int staffScorePoor;
+    private int totalStaffCount;
+    private String staffEvaluation;
+    private double staffMultiplier;
+    private int staffScore;
     private int staffTotalScore;
+
+    private int totalClubSessions;
+    private int totalClubPresent;
+    private double sessionAttendanceRate;
 
     private int finalScore;
 
     public static MemberMonthlyActivityResponse from(MemberMonthlyActivity m) {
+
         return MemberMonthlyActivityResponse.builder()
                 .membershipId(m.getMembership().getMembershipId())
                 .userId(m.getMembership().getUser().getUserId())
@@ -59,29 +56,25 @@ public class MemberMonthlyActivityResponse {
 
                 .totalEventRegistered(m.getTotalEventRegistered())
                 .totalEventAttended(m.getTotalEventAttended())
+                .eventAttendanceRate(m.getEventAttendanceRate())
+                .totalPenaltyPoints(m.getTotalPenaltyPoints())
 
-                .totalClubSessions(m.getTotalClubSessions())
-                .totalClubPresent(m.getTotalClubPresent())
-                .sessionAttendanceRate(
-                        m.getTotalClubSessions() == 0 ? 0
-                                : ((double) m.getTotalClubPresent() / m.getTotalClubSessions())
-                )
+                .activityLevel(m.getActivityLevel())
 
-                // attendance
                 .attendanceBaseScore(m.getAttendanceBaseScore())
                 .attendanceMultiplier(m.getAttendanceMultiplier())
                 .attendanceTotalScore(m.getAttendanceTotalScore())
 
-                // staff
                 .staffBaseScore(m.getStaffBaseScore())
-                .staffGoodCount(m.getStaffGoodCount())
-                .staffAverageCount(m.getStaffAverageCount())
-                .staffPoorCount(m.getStaffPoorCount())
-
-                .staffScoreGood(m.getStaffScoreGood())
-                .staffScoreAverage(m.getStaffScoreAverage())
-                .staffScorePoor(m.getStaffScorePoor())
+                .totalStaffCount(m.getTotalStaffCount())
+                .staffEvaluation(m.getStaffEvaluation())
+                .staffMultiplier(m.getStaffMultiplier())
+                .staffScore(m.getStaffScore())
                 .staffTotalScore(m.getStaffTotalScore())
+
+                .totalClubSessions(m.getTotalClubSessions())
+                .totalClubPresent(m.getTotalClubPresent())
+                .sessionAttendanceRate(m.getSessionAttendanceRate())
 
                 .finalScore(m.getFinalScore())
                 .build();

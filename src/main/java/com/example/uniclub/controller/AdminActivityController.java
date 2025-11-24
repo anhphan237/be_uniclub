@@ -39,22 +39,20 @@ public class AdminActivityController {
     }
 
     // =============== Ranking CLB theo hoạt động ===============
-
     @GetMapping("/clubs/ranking")
     @Operation(
             summary = "Ranking CLB theo mức độ hoạt động trong 1 tháng",
             description = "Dùng cho Admin / University Staff"
     )
     public ResponseEntity<ApiResponse<List<ClubActivityRankingItemResponse>>> getClubRanking(
-            @RequestParam(required = false) String month,
+            @RequestParam int year,
+            @RequestParam int month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
         ensureAdminOrStaff(current);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now().minusMonths(1)
-                : YearMonth.parse(month);
+        var ym = YearMonth.of(year, month);
 
         List<ClubActivityRankingItemResponse> data =
                 memberActivityQueryService.getClubRanking(ym);
@@ -63,7 +61,6 @@ public class AdminActivityController {
     }
 
     // =============== Chi tiết hoạt động 1 CLB ===============
-
     @GetMapping("/clubs/{clubId}/detail")
     @Operation(
             summary = "Xem chi tiết hoạt động member của 1 CLB theo tháng",
@@ -71,15 +68,14 @@ public class AdminActivityController {
     )
     public ResponseEntity<ApiResponse<ClubActivityMonthlyResponse>> getClubActivityDetail(
             @PathVariable Long clubId,
-            @RequestParam(required = false) String month,
+            @RequestParam int year,
+            @RequestParam int month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
         ensureAdminOrStaff(current);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now().minusMonths(1)
-                : YearMonth.parse(month);
+        YearMonth ym = YearMonth.of(year, month);
 
         ClubActivityMonthlyResponse data =
                 memberActivityQueryService.getClubActivity(clubId, ym);
@@ -88,22 +84,20 @@ public class AdminActivityController {
     }
 
     // =============== Tính lại toàn bộ cho tất cả CLB ===============
-
     @PostMapping("/recalculate-all")
     @Operation(
             summary = "Tính lại mức độ hoạt động của member cho tất cả CLB",
             description = "Dùng cho Admin / University Staff để rebuild dữ liệu 1 tháng"
     )
     public ResponseEntity<ApiResponse<String>> recalculateAllClubs(
-            @RequestParam(required = false) String month,
+            @RequestParam int year,
+            @RequestParam int month,
             HttpServletRequest request
     ) {
         User current = jwtUtil.getUserFromRequest(request);
         ensureAdminOrStaff(current);
 
-        YearMonth ym = (month == null || month.isBlank())
-                ? YearMonth.now().minusMonths(1)
-                : YearMonth.parse(month);
+        YearMonth ym = YearMonth.of(year, month);
 
         memberActivityService.recalculateForAllClubsAndMonth(ym);
 

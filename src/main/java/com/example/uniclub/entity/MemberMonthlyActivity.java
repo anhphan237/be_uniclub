@@ -11,11 +11,8 @@ import java.time.LocalDateTime;
                 "membership_id", "year", "month"
         })
 )
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class MemberMonthlyActivity {
 
     @Id
@@ -27,15 +24,14 @@ public class MemberMonthlyActivity {
     private Membership membership;
 
     @Column(nullable = false)
-    private Integer year;
+    private int year;
 
     @Column(nullable = false)
-    private Integer month;    // 1–12
+    private int month;
 
-    // ===========================================================
-    //  RAW STATISTICS
-    // ===========================================================
-
+    // ======================
+    // EVENT
+    // ======================
     @Column(nullable = false)
     private int totalEventRegistered;
 
@@ -43,24 +39,16 @@ public class MemberMonthlyActivity {
     private int totalEventAttended;
 
     @Column(nullable = false)
-    private int totalClubSessions;
+    private double eventAttendanceRate;
 
     @Column(nullable = false)
-    private int totalClubPresent;
+    private int totalPenaltyPoints;
 
-    // Staff counts (from StaffPerformance)
+    // ======================
+    // ATTENDANCE
+    // ======================
     @Column(nullable = false)
-    private int staffGoodCount;
-
-    @Column(nullable = false)
-    private int staffAverageCount;
-
-    @Column(nullable = false)
-    private int staffPoorCount;
-
-    // ===========================================================
-    //  ATTENDANCE SCORE (Excel model)
-    // ===========================================================
+    private String activityLevel;   // LOW / NORMAL / POSITIVE / OUTSTANDING
 
     @Column(nullable = false)
     private int attendanceBaseScore;
@@ -71,29 +59,42 @@ public class MemberMonthlyActivity {
     @Column(nullable = false)
     private int attendanceTotalScore;
 
-    // ===========================================================
-    //  STAFF SCORE (Excel model)
-    // ===========================================================
-
+    // ======================
+    // STAFF
+    // ======================
     @Column(nullable = false)
     private int staffBaseScore;
 
     @Column(nullable = false)
-    private int staffScoreGood;
+    private int totalStaffCount;
 
     @Column(nullable = false)
-    private int staffScoreAverage;
+    private String staffEvaluation;   // GOOD / AVERAGE / POOR
 
     @Column(nullable = false)
-    private int staffScorePoor;
+    private double staffMultiplier;
+
+    @Column(nullable = false)
+    private int staffScore;
 
     @Column(nullable = false)
     private int staffTotalScore;
 
-    // ===========================================================
-    //  FINAL SCORE
-    // ===========================================================
+    // ======================
+    // CLUB
+    // ======================
+    @Column(nullable = false)
+    private int totalClubSessions;
 
+    @Column(nullable = false)
+    private int totalClubPresent;
+
+    @Column(nullable = false)
+    private double sessionAttendanceRate;
+
+    // ======================
+    // FINAL
+    // ======================
     @Column(nullable = false)
     private int finalScore;
 
