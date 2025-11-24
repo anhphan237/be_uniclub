@@ -323,4 +323,17 @@ public class RedeemController {
         return ResponseEntity.ok(ApiResponse.ok(data));
     }
 
+    @GetMapping("/event/club/{clubId}")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','ADMIN')")
+    @Operation(
+            summary = "Get all event redeem orders for a club",
+            description = "Return list of EVENT_ITEM orders belonging to a specific club"
+    )
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getEventRedeemOrders(
+            @PathVariable Long clubId
+    ) {
+        List<OrderResponse> data = redeemService.getEventOrdersByClub(clubId);
+        return ResponseEntity.ok(ApiResponse.ok(data));
+    }
+
 }

@@ -3,6 +3,7 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.entity.Membership;
 import com.example.uniclub.enums.OrderStatusEnum;
+import com.example.uniclub.enums.ProductTypeEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -36,6 +37,7 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
             Long membershipId,
             OrderStatusEnum status
     );
+    List<ProductOrder> findByClub_ClubIdAndProduct_Type(Long clubId, ProductTypeEnum type);
 
     List<ProductOrder> findByMembership_MembershipId(Long membershipId);
 }

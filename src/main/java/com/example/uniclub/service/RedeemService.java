@@ -34,6 +34,7 @@ public interface RedeemService {
     List<OrderResponse> getOrdersByEvent(Long eventId);
     // 🆕 Member tạo QR để đổi quà tại booth CLB
     String generateMemberQr(Long userId, Long clubId);
+    List<OrderResponse> getEventOrdersByClub(Long clubId);
 
     // 🆕 Staff quét QR để xác thực member thuộc đúng CLB
     RedeemScanResponse scanMemberQr(String qrToken, Long staffUserId);

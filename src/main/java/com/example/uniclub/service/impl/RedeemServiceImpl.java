@@ -750,6 +750,18 @@ public class RedeemServiceImpl implements RedeemService {
         // =======================
         return RedeemScanResponse.from(user, membership, wallet, pendingOrders);
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getEventOrdersByClub(Long clubId) {
+
+        return orderRepo.findByClub_ClubIdAndProduct_Type(
+                        clubId,
+                        ProductTypeEnum.EVENT_ITEM
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
 
 
 }
