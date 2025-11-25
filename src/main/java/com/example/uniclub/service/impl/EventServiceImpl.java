@@ -89,6 +89,7 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional
     public EventResponse create(EventCreateRequest req) {
+
         LocalDate today = LocalDate.now();
 
         if (req.date().isBefore(today))
@@ -161,8 +162,11 @@ public class EventServiceImpl implements EventService {
             event.setCoHostRelations(coRelations);
         }
 
+        // 1️⃣ Lưu EVENT TRƯỚC
         eventRepo.save(event);
+        eventRepo.flush();
 
+        // 2️⃣ Tạo ví EVENT (KHÔNG set club, KHÔNG set user)
         Wallet wallet = Wallet.builder()
                 .ownerType(WalletOwnerTypeEnum.EVENT)
                 .event(event)
@@ -170,24 +174,23 @@ public class EventServiceImpl implements EventService {
                 .status(WalletStatusEnum.ACTIVE)
                 .build();
 
+        // 3️⃣ Lưu ví
         walletRepo.save(wallet);
+
+        // 4️⃣ Gán ví vào event nhưng KHÔNG SAVE event lại (tránh lỗi UNIQUE)
         event.setWallet(wallet);
-        eventRepo.save(event);
 
         // ============================
         // 📧 EMAIL THÔNG BÁO
         // ============================
         if (coHosts.isEmpty()) {
-
-            // Notify UniStaff: event waiting for review
             emailService.sendEventAwaitingUniStaffReviewEmail(
-                    "unistaff@uniclub.id.vn", // hoặc lấy từ DB
+                    "unistaff@uniclub.id.vn",
                     event.getName(),
                     event.getDate().toString()
             );
 
         } else {
-            // Send invite email to each co-host leader
             for (Club c : coHosts) {
                 String leaderEmail = membershipRepo.findLeaderEmailByClubId(c.getClubId());
                 if (leaderEmail != null) {
@@ -199,7 +202,6 @@ public class EventServiceImpl implements EventService {
                 }
             }
 
-            // Notify UniStaff: waiting for co-host responses
             emailService.sendEventWaitingUniStaffEmail(
                     "unistaff@uniclub.id.vn",
                     event.getName()
@@ -208,6 +210,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
 
 
