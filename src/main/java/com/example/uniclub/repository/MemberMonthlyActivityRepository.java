@@ -35,4 +35,6 @@ public interface MemberMonthlyActivityRepository extends JpaRepository<MemberMon
 
     // Lịch sử theo membership (ví dụ cho API “history”)
     List<MemberMonthlyActivity> findByMembership_MembershipIdOrderByYearDescMonthDesc(Long membershipId);
+
+
 }

@@ -2,6 +2,8 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.CalculateScoreRequest;
+import com.example.uniclub.dto.request.CreateMonthlyActivityRequest;
+import com.example.uniclub.dto.request.UpdateMonthlyActivityBulkRequest;
 import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
@@ -244,4 +246,122 @@ public class ActivityReportController {
                     "Your membership is not active.");
         }
     }
+    @PostMapping("/clubs/{clubId}/activity/monthly/create")
+    @Operation(summary = "Leader tạo báo cáo hoạt động tháng cho 1 membership")
+    public ResponseEntity<ApiResponse<MemberMonthlyActivityResponse>> createMonthlyActivity(
+            @PathVariable Long clubId,
+            @RequestBody CreateMonthlyActivityRequest req,
+            HttpServletRequest http
+    ) {
+        User user = jwtUtil.getUserFromRequest(http);
+        ensureLeaderRights(user, clubId);
+
+        // Validate month
+        validateMonth(req.getYear(), req.getMonth());
+
+        // Khóa tháng cũ
+        LocalDate now = LocalDate.now();
+        if (req.getYear() < now.getYear() ||
+                (req.getYear() == now.getYear() && req.getMonth() < now.getMonthValue())) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Past months are locked, cannot create.");
+        }
+
+        // Check exists
+        MemberMonthlyActivity exist = monthlyRepo
+                .findByMembership_MembershipIdAndYearAndMonth(
+                        req.getMembershipId(), req.getYear(), req.getMonth())
+                .orElse(null);
+
+        if (exist != null) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Monthly activity already exists.");
+        }
+
+        Membership membership = membershipRepo.findById(req.getMembershipId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
+
+        if (!membership.getClub().getClubId().equals(clubId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Membership not in this club");
+        }
+
+        MemberMonthlyActivity entity = new MemberMonthlyActivity();
+        applyMonthlyRequest(req, entity);
+        entity.setMembership(membership);
+
+        monthlyRepo.save(entity);
+
+        return ResponseEntity.ok(ApiResponse.ok(MemberMonthlyActivityResponse.from(entity)));
+    }
+
+    @PutMapping("/clubs/{clubId}/activity/monthly/update-bulk")
+    @Operation(summary = "Leader cập nhật báo cáo hoạt động nhiều thành viên cùng lúc")
+    public ResponseEntity<ApiResponse<String>> updateBulkMonthlyActivity(
+            @PathVariable Long clubId,
+            @RequestBody UpdateMonthlyActivityBulkRequest req,
+            HttpServletRequest http
+    ) {
+        User user = jwtUtil.getUserFromRequest(http);
+        ensureLeaderRights(user, clubId);
+
+        int year = req.getYear();
+        int month = req.getMonth();
+
+        validateMonth(year, month);
+
+        // Khóa tháng cũ
+        LocalDate now = LocalDate.now();
+        if (year < now.getYear() ||
+                (year == now.getYear() && month < now.getMonthValue())) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Past months are locked, cannot update.");
+        }
+
+        for (CreateMonthlyActivityRequest item : req.getItems()) {
+
+            MemberMonthlyActivity entity = monthlyRepo
+                    .findByMembership_MembershipIdAndYearAndMonth(
+                            item.getMembershipId(), year, month)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                            "Activity not found for membership " + item.getMembershipId()));
+
+            applyMonthlyRequest(item, entity);
+            monthlyRepo.save(entity);
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok("Updated successfully"));
+    }
+
+
+    private void applyMonthlyRequest(CreateMonthlyActivityRequest req, MemberMonthlyActivity e) {
+
+        e.setYear(req.getYear());
+        e.setMonth(req.getMonth());
+
+        e.setTotalEventRegistered(req.getTotalEventRegistered());
+        e.setTotalEventAttended(req.getTotalEventAttended());
+        e.setEventAttendanceRate(req.getEventAttendanceRate());
+
+        e.setTotalPenaltyPoints(req.getTotalPenaltyPoints());
+        e.setActivityLevel(req.getActivityLevel());
+
+        e.setAttendanceBaseScore(req.getAttendanceBaseScore());
+        e.setAttendanceMultiplier(req.getAttendanceMultiplier());
+        e.setAttendanceTotalScore(req.getAttendanceTotalScore());
+
+        e.setStaffBaseScore(req.getStaffBaseScore());
+        e.setTotalStaffCount(req.getTotalStaffCount());
+        e.setStaffEvaluation(req.getStaffEvaluation());
+        e.setStaffMultiplier(req.getStaffMultiplier());
+        e.setStaffScore(req.getStaffScore());
+        e.setStaffTotalScore(req.getStaffTotalScore());
+
+        e.setTotalClubSessions(req.getTotalClubSessions());
+        e.setTotalClubPresent(req.getTotalClubPresent());
+        e.setSessionAttendanceRate(req.getSessionAttendanceRate());
+
+        e.setFinalScore(req.getFinalScore());
+    }
+
+
 }
