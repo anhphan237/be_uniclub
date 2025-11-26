@@ -1,26 +1,30 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.request.EventCreateRequest;
+import com.example.uniclub.dto.request.EventDayRequest;
 import com.example.uniclub.dto.response.EventResponse;
-import com.example.uniclub.entity.*;
-import com.example.uniclub.enums.*;
+import com.example.uniclub.entity.Club;
+import com.example.uniclub.entity.Location;
+import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.enums.EventTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.impl.EventServiceImpl;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,15 +70,21 @@ class EventServiceImplTest {
             EventTypeEnum type,
             Long locationId
     ) {
+        List<EventDayRequest> days = List.of(
+                new EventDayRequest(
+                        LocalDate.now().plusDays(1),
+                        LocalTime.of(9, 0),
+                        LocalTime.of(10, 0)
+                )
+        );
+
         return new EventCreateRequest(
                 hostClubId,
                 coHosts,
                 name,
                 "desc",
                 type,
-                LocalDate.now().plusDays(1),
-                LocalTime.of(9, 0),
-                LocalTime.of(10, 0),
+                days,
                 locationId,
                 120,
                 0,
