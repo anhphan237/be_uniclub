@@ -4,9 +4,13 @@ import com.example.uniclub.dto.request.StaffPerformanceRequest;
 import com.example.uniclub.dto.response.StaffPerformanceMonthlySummaryResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.ClubRoleEnum;
+import com.example.uniclub.enums.EventStaffStateEnum;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
-import com.example.uniclub.repository.*;
+import com.example.uniclub.repository.EventRepository;
+import com.example.uniclub.repository.EventStaffRepository;
+import com.example.uniclub.repository.MembershipRepository;
+import com.example.uniclub.repository.StaffPerformanceRepository;
 import com.example.uniclub.service.ActivityEngineService;
 import com.example.uniclub.service.StaffPerformanceService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -30,7 +35,6 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
     // ============================================================================
     // 1) CREATE STAFF EVALUATION
     // ============================================================================
-
     @Override
     @Transactional
     public StaffPerformance createStaffPerformance(Long clubId,
@@ -43,7 +47,6 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
                         "You are not a member of this club."));
 
-        // Must be leader / vice-leader
         if (!(evaluator.getClubRole() == ClubRoleEnum.LEADER ||
                 evaluator.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
             throw new ApiException(HttpStatus.FORBIDDEN,
@@ -75,15 +78,13 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
                     "Cannot evaluate staff until the event is COMPLETED.");
         }
 
-        // 4) Get staff (ACTIVE or EXPIRED allowed)
-        EventStaff es = eventStaffRepo.findByEvent_EventIdAndMembership_MembershipId(
-                        event.getEventId(),
-                        membership.getMembershipId())
+        // 4) Check staff participation
+        EventStaff es = eventStaffRepo
+                .findByEvent_EventIdAndMembership_MembershipId(event.getEventId(), membership.getMembershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
                         "This member did not participate as staff."));
 
-        // Block REMOVED
-        if (es.getState().name().equals("REMOVED")) {
+        if (es.getState() == EventStaffStateEnum.REMOVED) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "This member was removed from the event.");
         }
@@ -106,16 +107,29 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
 
         perf = staffPerformanceRepo.save(perf);
 
-        // 7) Trigger recalculation of activity score
+        // ================================================================
+        // 🔥 FIX QUAN TRỌNG: Lấy ngày chốt điểm theo EventDay hoặc endDate
+        // ================================================================
+        LocalDate endDate;
+
+        if (event.getDays() != null && !event.getDays().isEmpty()) {
+            EventDay last = event.getDays().stream()
+                    .max(Comparator.comparing(EventDay::getDate))
+                    .orElseThrow();
+            endDate = last.getDate();
+        } else {
+            endDate = event.getEndDate();  // fallback
+        }
+
+        // Trigger monthly activity calculation
         activityEngineService.recalculateForMembership(
                 membership.getMembershipId(),
-                event.getDate().getYear(),
-                event.getDate().getMonthValue()
+                endDate.getYear(),
+                endDate.getMonthValue()
         );
 
         return perf;
     }
-
 
     // ============================================================================
     // 2) LIST EVALUATIONS BY EVENT
@@ -139,7 +153,7 @@ public class StaffPerformanceServiceImpl implements StaffPerformanceService {
         LocalDate end = start.plusMonths(1).minusDays(1);
 
         List<StaffPerformance> list =
-                staffPerformanceRepo.findByMembership_Club_ClubIdAndEvent_DateBetween(
+                staffPerformanceRepo.findByMembership_Club_ClubIdAndEvent_StartDateGreaterThanEqualAndEvent_EndDateLessThanEqual(
                         clubId,
                         start,
                         end

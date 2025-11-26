@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.*;
+import com.example.uniclub.dto.response.EventDayResponse;
 import com.example.uniclub.dto.response.EventRegistrationResponse;
 import com.example.uniclub.dto.response.EventResponse;
 import com.example.uniclub.dto.response.EventStaffResponse;
@@ -9,26 +10,24 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
-import com.example.uniclub.service.*;
+import com.example.uniclub.service.EmailService;
+import com.example.uniclub.service.EventPointsService;
+import com.example.uniclub.service.EventService;
 import com.example.uniclub.util.CsvExportUtil;
 import com.example.uniclub.util.ExcelExportUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.uniclub.repository.ProductRepository;
-
-import java.time.format.DateTimeFormatter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
-
-import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -46,6 +45,7 @@ public class EventServiceImpl implements EventService {
     private final EventRegistrationRepository regRepo;
     private final EventPointsService eventPointsService;
     private final EmailService emailService;
+    private final EventDayRepository eventDayRepo;
 
 
     // =================================================================
@@ -57,9 +57,21 @@ public class EventServiceImpl implements EventService {
                 .name(event.getName())
                 .description(event.getDescription())
                 .type(event.getType())
-                .date(event.getDate())
-                .startTime(event.getStartTime())
-                .endTime(event.getEndTime())
+                // 🔥 ADD: Multi-Day range
+                .startDate(event.getStartDate())
+                .endDate(event.getEndDate())
+
+                // 🔥 ADD: List of days
+                .days(event.getDays() == null ? List.of() :
+                        event.getDays().stream()
+                                .map(day -> EventDayResponse.builder()
+                                        .id(day.getId())
+                                        .date(day.getDate())
+                                        .startTime(day.getStartTime().toString())
+                                        .endTime(day.getEndTime().toString())
+                                        .build()
+                                ).toList()
+                )
                 .status(event.getStatus())
                 .checkInCode(event.getCheckInCode())
                 .commitPointCost(event.getCommitPointCost())
@@ -92,15 +104,49 @@ public class EventServiceImpl implements EventService {
 
         LocalDate today = LocalDate.now();
 
-        if (req.date().isBefore(today))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event date cannot be in the past.");
+        // -------------------------------------------------------------
+        // 🔍 Validate danh sách ngày
+        // -------------------------------------------------------------
+        if (req.days() == null || req.days().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event must have at least 1 day.");
+        }
 
-        if (req.startTime() != null && req.endTime() != null && req.endTime().isBefore(req.startTime()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time.");
+        // Lọc các ngày và validate từng ngày
+        for (EventDayRequest day : req.days()) {
 
-        if (req.date().isEqual(today) && req.startTime() != null && req.startTime().isBefore(LocalTime.now()))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Start time must be after the current time.");
+            if (day.getDate().isBefore(today)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Event day " + day.getDate() + " cannot be in the past.");
+            }
 
+            if (day.getStartTime().isAfter(day.getEndTime())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Start time must be before end time for date " + day.getDate());
+            }
+
+            if (day.getDate().isEqual(today)
+                    && day.getStartTime().isBefore(LocalTime.now())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Start time for today must be in the future.");
+            }
+        }
+
+        // -------------------------------------------------------------
+        // 📅 Tính ngày bắt đầu / kết thúc
+        // -------------------------------------------------------------
+        LocalDate startDate = req.days().stream()
+                .map(EventDayRequest::getDate)
+                .min(LocalDate::compareTo)
+                .orElseThrow();
+
+        LocalDate endDate = req.days().stream()
+                .map(EventDayRequest::getDate)
+                .max(LocalDate::compareTo)
+                .orElseThrow();
+
+        // -------------------------------------------------------------
+        // 📍 Validate location
+        // -------------------------------------------------------------
         Location location = locationRepo.findById(req.locationId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Location not found."));
 
@@ -108,10 +154,14 @@ public class EventServiceImpl implements EventService {
                 ? req.maxCheckInCount()
                 : location.getCapacity();
 
-        if (maxCheckIn > location.getCapacity())
+        if (maxCheckIn > location.getCapacity()) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "This location can only accommodate up to " + location.getCapacity() + " people.");
+        }
 
+        // -------------------------------------------------------------
+        // 🏛 CLB chủ trì & đồng chủ trì
+        // -------------------------------------------------------------
         Club hostClub = clubRepo.findById(req.hostClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Host club not found."));
 
@@ -119,17 +169,22 @@ public class EventServiceImpl implements EventService {
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
 
+        // -------------------------------------------------------------
+        // 💰 Commit Point Cost
+        // -------------------------------------------------------------
         int commitCost = (req.type() == EventTypeEnum.PUBLIC) ? 0 :
                 (req.commitPointCost() != null ? req.commitPointCost() : 0);
 
+        // -------------------------------------------------------------
+        // 🧱 Tạo EVENT
+        // -------------------------------------------------------------
         Event event = Event.builder()
                 .hostClub(hostClub)
                 .name(req.name())
                 .description(req.description())
                 .type(req.type())
-                .date(req.date())
-                .startTime(req.startTime())
-                .endTime(req.endTime())
+                .startDate(startDate)
+                .endDate(endDate)
                 .location(location)
                 .status(coHosts.isEmpty() ? EventStatusEnum.PENDING_UNISTAFF : EventStatusEnum.PENDING_COCLUB)
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
@@ -141,16 +196,32 @@ public class EventServiceImpl implements EventService {
                 .registrationDeadline(req.registrationDeadline())
                 .build();
 
+        // -------------------------------------------------------------
+        // 🎯 Validate theo loại sự kiện
+        // -------------------------------------------------------------
         if (req.type() == EventTypeEnum.PUBLIC) {
             event.setCommitPointCost(0);
             event.setRegistrationDeadline(null);
+
         } else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
-            if (req.commitPointCost() == null || req.commitPointCost() <= 0)
+
+            if (req.commitPointCost() == null || req.commitPointCost() <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Commit points required.");
-            if (req.registrationDeadline() == null)
+            }
+
+            if (req.registrationDeadline() == null) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline required.");
+            }
+
+            if (req.registrationDeadline().isAfter(startDate)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Registration deadline cannot be after the first event day.");
+            }
         }
 
+        // -------------------------------------------------------------
+        // 🔗 Đồng tổ chức (Co-host relations)
+        // -------------------------------------------------------------
         if (!coHosts.isEmpty()) {
             List<EventCoClub> coRelations = coHosts.stream()
                     .map(c -> EventCoClub.builder()
@@ -159,14 +230,35 @@ public class EventServiceImpl implements EventService {
                             .status(EventCoHostStatusEnum.PENDING)
                             .build())
                     .toList();
+
             event.setCoHostRelations(coRelations);
         }
 
-        // 1️⃣ Lưu EVENT TRƯỚC
+        // -------------------------------------------------------------
+        // 💾 Lưu EVENT trước
+        // -------------------------------------------------------------
         eventRepo.save(event);
         eventRepo.flush();
 
-        // 2️⃣ Tạo ví EVENT (KHÔNG set club, KHÔNG set user)
+        // -------------------------------------------------------------
+        // 📆 Lưu danh sách EVENT DAYS
+        // -------------------------------------------------------------
+        List<EventDay> eventDays = req.days().stream()
+                .map(d -> EventDay.builder()
+                        .event(event)
+                        .date(d.getDate())
+                        .startTime(d.getStartTime())
+                        .endTime(d.getEndTime())
+                        .build())
+                .toList();
+
+        eventDayRepo.saveAll(eventDays);
+        event.setDays(eventDays);
+
+
+        // -------------------------------------------------------------
+        // 💳 Tạo ví EVENT
+        // -------------------------------------------------------------
         Wallet wallet = Wallet.builder()
                 .ownerType(WalletOwnerTypeEnum.EVENT)
                 .event(event)
@@ -187,7 +279,7 @@ public class EventServiceImpl implements EventService {
             emailService.sendEventAwaitingUniStaffReviewEmail(
                     "unistaff@uniclub.id.vn",
                     event.getName(),
-                    event.getDate().toString()
+                    startDate.toString()
             );
 
         } else {
@@ -211,13 +303,8 @@ public class EventServiceImpl implements EventService {
         return mapToResponse(event);
     }
 
-
-
-
-
-
     // =================================================================
-    // 🔹 CO-HOST PHẢN HỒI
+    // 🔹 CO-HOST PHẢN HỒI (MULTI-DAY FIXED)
     // =================================================================
     @Override
     @Transactional
@@ -282,6 +369,7 @@ public class EventServiceImpl implements EventService {
         if (approved > 0 && (approved + rejected == total)) {
             event.setStatus(EventStatusEnum.PENDING_UNISTAFF);
 
+            // remove non-approved relations
             event.getCoHostRelations()
                     .removeIf(r -> r.getStatus() != EventCoHostStatusEnum.APPROVED);
 
@@ -290,7 +378,7 @@ public class EventServiceImpl implements EventService {
             emailService.sendEventAwaitingUniStaffReviewEmail(
                     "unistaff@uniclub.id.vn",
                     event.getName(),
-                    event.getDate().toString()
+                    event.getStartDate().toString()   // 🔥 FIXED
             );
 
             return "Event submitted to UniStaff review.";
@@ -313,7 +401,7 @@ public class EventServiceImpl implements EventService {
             emailService.sendEventAwaitingUniStaffReviewEmail(
                     "unistaff@uniclub.id.vn",
                     event.getName(),
-                    event.getDate().toString()
+                    event.getStartDate().toString()   // 🔥 FIXED
             );
 
             return "All co-hosts approved. Event pending UniStaff.";
@@ -322,12 +410,9 @@ public class EventServiceImpl implements EventService {
         return "Response recorded.";
     }
 
-
-
-
     // =================================================================
-// 🔹 KẾT THÚC SỰ KIỆN (CHUẨN)
-// =================================================================
+    // 🔹 KẾT THÚC SỰ KIỆN (MULTI-DAY SUPPORTED)
+    // =================================================================
     @Override
     @Transactional
     public String finishEvent(Long eventId, CustomUserDetails principal) {
@@ -369,8 +454,16 @@ public class EventServiceImpl implements EventService {
         if (event.getWallet().getStatus() == WalletStatusEnum.CLOSED)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event wallet is closed. Cannot finish event.");
 
-        // ❗❗ KHÔNG CHECK THỜI GIAN
-        // → Leader và UniStaff có quyền kết thúc event bất kỳ lúc nào.
+        // ❗❗ MULTI-DAY LOGIC
+        // Leader/UniStaff có thể kết thúc sớm → không validate thời gian.
+        // Nhưng nếu muốn check event đã tự kết thúc thì dùng:
+        //
+        // if (LocalDate.now().isBefore(event.getEndDate())) {
+        //     throw new ApiException(BAD_REQUEST,
+        //             "Event has not ended yet. Last day is " + event.getEndDate());
+        // }
+        //
+        // Tuy nhiên do bạn CHỦ ĐÍCH muốn cho phép kết thúc sớm → bỏ check này.
 
         // 4️⃣ Run settlement
         String result = eventPointsService.endEvent(principal, new EventEndRequest(eventId));
@@ -379,29 +472,26 @@ public class EventServiceImpl implements EventService {
         event.setCompletedAt(LocalDateTime.now());
         eventRepo.save(event);
 
-        log.info("🏁 Event '{}' completed EARLY/NORMAL by {} ({}) – Settlement executed",
-                event.getName(), user.getEmail(), roleName);
+        log.info("🏁 Event '{}' ({} → {}) completed EARLY/NORMAL by {} ({}) – Settlement executed",
+                event.getName(),
+                event.getStartDate(),   // 🔥 multi-day
+                event.getEndDate(),     // 🔥 multi-day
+                user.getEmail(),
+                roleName
+        );
 
         return result;
     }
 
-
-
-
-
-
-
-
     // =================================================================
-// 🔹 LOOKUP & FILTER
-// =================================================================
+    // 🔹 LOOKUP & FILTER
+    // =================================================================
     @Override
     public EventResponse get(Long id) {
         return eventRepo.findById(id)
                 .map(this::mapToResponse)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
     }
-
 
     @Override
     public Page<EventResponse> list(Pageable pageable) {
@@ -410,17 +500,13 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public Page<EventResponse> filter(String name, LocalDate date, EventStatusEnum status, Pageable pageable) {
-        name = (name == null) ? "" : name;
-        Page<Event> page;
-        if (date != null && status != null) {
-            page = eventRepo.findByNameContainingIgnoreCaseAndDateAndStatus(name, date, status, pageable);
-        } else if (status != null) {
-            page = eventRepo.findByNameContainingIgnoreCaseAndStatus(name, status, pageable);
-        } else {
-            page = eventRepo.findByNameContainingIgnoreCase(name, pageable);
-        }
+        String keyword = (name == null) ? "" : name;
+
+        Page<Event> page = eventRepo.filterEvents(keyword, date, status, pageable);
+
         return page.map(this::mapToResponse);
     }
+
 
     @Override
     public EventResponse findByCheckInCode(String code) {
@@ -440,9 +526,12 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<EventResponse> getUpcomingEvents() {
         LocalDate today = LocalDate.now();
-        return eventRepo.findByDateAfter(today).stream()
-                .filter(e -> List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING).contains(e.getStatus()))
-                .map(this::mapToResponse).toList();
+
+        return eventRepo.findUpcomingEvents(today).stream()
+                .filter(e -> e.getStatus() == EventStatusEnum.APPROVED) // 🔥 upcoming = APPROVED
+                .sorted(Comparator.comparing(Event::getStartDate))
+                .map(this::mapToResponse)
+                .toList();
     }
 
     @Override
@@ -454,9 +543,10 @@ public class EventServiceImpl implements EventService {
     @Override
     public List<EventResponse> getActiveEvents() {
         LocalDate today = LocalDate.now();
-        return eventRepo.findActiveEvents(EventStatusEnum.APPROVED, today).stream()
-                .filter(e -> List.of(EventStatusEnum.APPROVED, EventStatusEnum.ONGOING).contains(e.getStatus()))
-                .map(this::mapToResponse).toList();
+
+        return eventRepo.findActiveEvents(today).stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     @Override
@@ -592,23 +682,27 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
+
     @Override
     public List<EventRegistrationResponse> getRegisteredEventsByUser(Long userId) {
         return eventRegistrationRepo.findByUser_UserIdOrderByRegisteredAtDesc(userId)
                 .stream()
-                .map(r -> new EventRegistrationResponse(
-                        r.getEvent().getEventId(),
-                        r.getEvent().getName(),
-                        r.getEvent().getDate(),
-                        r.getStatus().name(),
-                        (r.getEvent().getHostClub() != null)
-                                ? r.getEvent().getHostClub().getName()
-                                : "Unknown Club",
-                        r.getCreatedAt()
-                ))
+                .map(r -> {
+                    var event = r.getEvent();
+                    return new EventRegistrationResponse(
+                            event.getEventId(),
+                            event.getName(),
+                            event.getStartDate(),
+                            event.getEndDate(),
+                            r.getStatus().name(),
+                            (event.getHostClub() != null)
+                                    ? event.getHostClub().getName()
+                                    : "Unknown Club",
+                            r.getCreatedAt()
+                    );
+                })
                 .toList();
     }
-
 
     @Override
     public List<EventResponse> getSettledEvents() {
@@ -617,8 +711,11 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
+
     @Override
+    @Transactional
     public EventResponse extendEvent(Long eventId, EventExtendRequest req) {
+
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
@@ -626,57 +723,44 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot modify a completed event");
         }
 
-        // 🔹 Parse chuỗi "HH:mm" linh hoạt (chấp nhận "8:00" hoặc "08:00")
-        LocalTime newStart;
-        LocalTime newEnd;
+        if (req.getDayId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "dayId is required");
+        }
+
+        EventDay day = eventDayRepo.findById(req.getDayId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event day not found"));
+
+        if (!day.getEvent().getEventId().equals(eventId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This day does not belong to the event");
+        }
+
+        // ===================== 1️⃣ Parse time ======================
+        LocalTime newStart, newEnd;
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm");
             newStart = LocalTime.parse(req.getNewStartTime().trim(), formatter);
-            newEnd = LocalTime.parse(req.getNewEndTime().trim(), formatter);
+            newEnd   = LocalTime.parse(req.getNewEndTime().trim(), formatter);
         } catch (Exception e) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid time format. Please use HH:mm (e.g. 09:00)");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid time format. Use HH:mm (e.g. 09:00)");
         }
 
         if (newEnd.isBefore(newStart)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time");
         }
 
-        if (req.getNewDate() != null) {
-            event.setDate(req.getNewDate());
-        }
+        // ===================== 3️⃣ Apply update ======================
+        day.setStartTime(newStart);
+        day.setEndTime(newEnd);
 
-        event.setStartTime(newStart);
-        event.setEndTime(newEnd);
+        eventDayRepo.save(day);
+
+        // ===================== 4️⃣ Recompute start/end ======================
         eventRepo.save(event);
 
-        // 🔹 Map thủ công thay vì dùng mapper (để tránh lỗi 'mapper not found')
-        return EventResponse.builder()
-                .id(event.getEventId())
-                .name(event.getName())
-                .description(event.getDescription())
-                .date(event.getDate())
-                .startTime(event.getStartTime())
-                .endTime(event.getEndTime())
-                .status(event.getStatus())
-                .checkInCode(event.getCheckInCode())
-                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
-                .commitPointCost(event.getCommitPointCost())
-                .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(event.getCurrentCheckInCount())
-                .hostClub(new EventResponse.SimpleClub(
-                        event.getHostClub().getClubId(),
-                        event.getHostClub().getName(),
-                        EventCoHostStatusEnum.APPROVED
-                ))
-                .coHostedClubs(event.getCoHostRelations() == null ? List.of() :
-                        event.getCoHostRelations().stream()
-                                .map(rel -> new EventResponse.SimpleClub(
-                                        rel.getClub().getClubId(),
-                                        rel.getClub().getName(),
-                                        rel.getStatus()))
-                                .toList())
-                .build();
+        // ===================== 5️⃣ Return ======================
+        return mapToResponse(event);
     }
+
 
     @Override
     @Transactional
@@ -801,47 +885,6 @@ public class EventServiceImpl implements EventService {
         return transaction;
     }
 
-    // =====================================================
-// 🧩 Helper: Convert Event -> EventResponse
-// =====================================================
-    private EventResponse toEventResponse(Event event) {
-        if (event == null) return null;
-
-        return EventResponse.builder()
-                .id(event.getEventId())
-                .name(event.getName())
-                .description(event.getDescription())
-                .type(event.getType())
-                .date(event.getDate())
-                .startTime(event.getStartTime())
-                .endTime(event.getEndTime())
-                .status(event.getStatus())
-                .checkInCode(event.getCheckInCode())
-                .budgetPoints(event.getBudgetPoints())
-                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
-                .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(event.getCurrentCheckInCount())
-                .commitPointCost(event.getCommitPointCost())
-                .hostClub(event.getHostClub() != null
-                        ? new EventResponse.SimpleClub(
-                        event.getHostClub().getClubId(),
-                        event.getHostClub().getName(),
-                        null
-                )
-                        : null)
-                .coHostedClubs(
-                        event.getCoHostedClubs() != null
-                                ? event.getCoHostedClubs().stream()
-                                .map(club -> new EventResponse.SimpleClub(
-                                        club.getClubId(),
-                                        club.getName(),
-                                        null
-                                ))
-                                .toList()
-                                : null
-                )
-                .build();
-    }
     @Override
     public byte[] exportAttendanceData(Long eventId, String format) {
         List<EventRegistration> list = eventRegistrationRepo.findByEvent_EventId(eventId);
@@ -912,7 +955,6 @@ public class EventServiceImpl implements EventService {
         );
     }
 
-
     @Override
     @Transactional
     public String cancelEvent(Long eventId, EventCancelRequest req, CustomUserDetails principal) {
@@ -937,13 +979,21 @@ public class EventServiceImpl implements EventService {
         }
 
         // 2) CHỈ HỦY SỰ KIỆN CHƯA DIỄN RA
-        LocalDateTime startTime = LocalDateTime.of(event.getDate(), event.getStartTime());
-        if (LocalDateTime.now().isAfter(startTime)) {
+        // 🔥 Kiểm tra multi-day
+        EventDay earliest = event.getDays().stream()
+                .sorted(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Event has no days"));
+
+        LocalDateTime earliestStart = LocalDateTime.of(earliest.getDate(), earliest.getStartTime());
+
+        if (LocalDateTime.now().isAfter(earliestStart)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Cannot cancel an event that has already started");
         }
 
-        // 3) CHỈ HỦY KHI EVENT TRONG TRẠNG THÁI HỢP LỆ
+        // 3) CHECK TRẠNG THÁI HỢP LỆ
         if (!(event.getStatus() == EventStatusEnum.APPROVED
                 || event.getStatus() == EventStatusEnum.PENDING_UNISTAFF
                 || event.getStatus() == EventStatusEnum.PENDING_COCLUB)) {
@@ -979,13 +1029,13 @@ public class EventServiceImpl implements EventService {
         }
         eventStaffRepo.saveAll(staffs);
 
-        // 7) BUDGET — KHÁC NHAU TÙY AI HỦY
+        // 7) XỬ LÝ BUDGET TUỲ THEO AI HỦY
         Wallet eventWallet = event.getWallet();
 
         if (eventWallet != null && eventWallet.getBalancePoints() > 0) {
 
             if (isUniStaff) {
-                // UNI STAFF HỦY — CLB ĐƯỢC HOÀN ĐIỂM
+
                 Wallet clubWallet = walletRepo.findByClub_ClubId(event.getHostClub().getClubId())
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
                                 "Club wallet not found"));
@@ -1007,7 +1057,6 @@ public class EventServiceImpl implements EventService {
                 );
 
             } else {
-                // CLUB LEADER HỦY — KHÔNG HOÀN ĐIỂM
                 walletTransactionRepo.save(WalletTransaction.builder()
                         .wallet(eventWallet)
                         .amount(0L)
@@ -1017,32 +1066,29 @@ public class EventServiceImpl implements EventService {
                         .build()
                 );
 
-                // Nếu muốn KHÓA ví sự kiện
                 eventWallet.setStatus(WalletStatusEnum.CLOSED);
                 walletRepo.save(eventWallet);
             }
         }
 
-        // 8) SET STATUS CANCELLED
+        // 8) SET STATUS = CANCELLED
         event.setRejectReason(req.reason());
         event.setStatus(EventStatusEnum.CANCELLED);
         event.setCancelledAt(LocalDateTime.now());
         eventRepo.save(event);
 
-        // 9) GỬI EMAIL
+        // 9) EMAIL (multi-day: gửi theo startDate - endDate)
         String leaderEmail = membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
         try {
             emailService.sendEventCancelledEmail(
                     leaderEmail,
                     event.getName(),
-                    event.getDate().toString(),
+                    event.getStartDate() + " - " + event.getEndDate(),
                     req.reason()
             );
         } catch (Exception ignored) {}
 
         return "Event has been cancelled successfully";
     }
-
-
 
 }

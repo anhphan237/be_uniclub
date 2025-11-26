@@ -343,6 +343,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         regRepo.save(reg);
         return "Verified full attendance (100%) for user ID " + userId;
     }
+
     @Override
     @Transactional
     public void handlePublicCheckin(User user, Event event) {
@@ -352,6 +353,21 @@ public class AttendanceServiceImpl implements AttendanceService {
                     "Public check-in only for PUBLIC events.");
         }
 
+        // 🔍 Xác định ngày hôm nay có nằm trong bất kỳ EventDay nào không
+        LocalDateTime now = LocalDateTime.now();
+
+        boolean insideAnyDay = event.getDays().stream().anyMatch(day -> {
+            LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
+            LocalDateTime end   = LocalDateTime.of(day.getDate(), day.getEndTime());
+            return !now.isBefore(start) && !now.isAfter(end);
+        });
+
+        if (!insideAnyDay) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Event is not active at this time.");
+        }
+
+        // 🔹 Check-in count
         int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
         int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(Integer.MAX_VALUE);
 
@@ -365,7 +381,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
             }
 
-            reg.setCheckinAt(LocalDateTime.now());
+            reg.setCheckinAt(now);
             reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
             reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
             regRepo.save(reg);
@@ -377,7 +393,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .user(user)
                     .attendanceLevel(AttendanceLevelEnum.FULL)
                     .status(RegistrationStatusEnum.CHECKED_IN)
-                    .checkinAt(LocalDateTime.now())
+                    .checkinAt(now)
                     .committedPoints(0)
                     .build());
         }
@@ -393,7 +409,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         boolean eligibleForReward = (current < max);
 
         if (eligibleForReward) {
-            long rewardPoints = 10; // <— sửa số này nếu bạn muốn
+            long rewardPoints = 10;
 
             Wallet userWallet = walletService.getOrCreateUserWallet(user);
             walletService.increase(userWallet, rewardPoints);
@@ -410,14 +426,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                 user.getEmail(),
                 user.getFullName(),
                 event.getName(),
-                event.getStartTime(),
+                now.toLocalTime(), // gửi giờ thực tế check-in
                 event.getLocation() != null ? event.getLocation().getName() : "Unknown"
         );
 
         log.info("User {} checked in for PUBLIC event {} (rewarded: {})",
                 user.getEmail(), event.getName(), eligibleForReward);
     }
-
-
 
 }

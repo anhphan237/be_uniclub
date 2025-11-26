@@ -82,13 +82,30 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void archiveIfExpiredEventItem(Product p) {
-        if (p.getType() == ProductTypeEnum.EVENT_ITEM && p.getEvent() != null) {
-            LocalDate today = LocalDate.now();
-            if (p.getEvent().getDate() != null && p.getEvent().getDate().isBefore(today)) {
-                if (p.getStatus() != ProductStatusEnum.ARCHIVED) {
-                    p.setStatus(ProductStatusEnum.ARCHIVED);
-                    productRepo.save(p);
-                }
+        if (p.getType() != ProductTypeEnum.EVENT_ITEM) return;
+        if (p.getEvent() == null) return;
+
+        Event event = p.getEvent();
+
+        // Không có ngày → không archive
+        if (event.getDays() == null || event.getDays().isEmpty()) return;
+
+        // Lấy ngày-end cuối cùng của event
+        EventDay lastDay = event.getDays().stream()
+                .max(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElse(null);
+
+        if (lastDay == null) return;
+
+        LocalDate lastDate = lastDay.getDate();
+        LocalDate today = LocalDate.now();
+
+        // Nếu event đã kết thúc (ngày cuối < hôm nay)
+        if (lastDate.isBefore(today)) {
+            if (p.getStatus() != ProductStatusEnum.ARCHIVED) {
+                p.setStatus(ProductStatusEnum.ARCHIVED);
+                productRepo.save(p);
             }
         }
     }
@@ -115,9 +132,11 @@ public class ProductServiceImpl implements ProductService {
             }
 
             LocalDate today = LocalDate.now();
-            if (event.getDate() != null && event.getDate().isBefore(today)) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Event has already ended. Cannot create EVENT_ITEM product.");
+            if (event.getEndDate().isBefore(today)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Event has already ended. Cannot create EVENT_ITEM product.");
             }
+
         }
 
         // ✅ Kiểm tra trùng tên
@@ -196,9 +215,6 @@ public class ProductServiceImpl implements ProductService {
 
         return toResp(p);
     }
-
-
-
 
     private void syncTags(Product product, List<Long> tagIds) {
         List<Long> inputTagIds = (tagIds == null) ? List.of() : tagIds;
@@ -361,8 +377,12 @@ public class ProductServiceImpl implements ProductService {
                 if (!Objects.equals(ev.getHostClub().getClubId(), p.getClub().getClubId()))
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Event does not belong to this club");
 
-                if (ev.getDate() != null && ev.getDate().isBefore(LocalDate.now()))
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "Event has already ended and cannot be assigned");
+                LocalDate today = LocalDate.now();
+
+                if (ev.getEndDate().isBefore(today)) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST,
+                            "Event has already ended. Cannot create EVENT_ITEM product.");
+                }
 
                 p.setEvent(ev);
             } else {
@@ -511,6 +531,7 @@ public class ProductServiceImpl implements ProductService {
         productRepo.save(product);
         return toResp(product);
     }
+
     @Override
     public EventValidityResponse checkEventValidity(Long productId) {
 
@@ -530,7 +551,7 @@ public class ProductServiceImpl implements ProductService {
         Event ev = p.getEvent();
 
         // Tính thời điểm kết thúc sự kiện
-        LocalDateTime eventEnd = LocalDateTime.of(ev.getDate(), ev.getEndTime());
+        LocalDateTime eventEnd = ev.getEventEnd();
         LocalDateTime now = LocalDateTime.now();
 
         boolean expired =
@@ -591,6 +612,7 @@ public class ProductServiceImpl implements ProductService {
                         : List.of()
         );
     }
+
     @Override
     public List<EventProductResponse> listEventProductsByClub(Long clubId) {
 
@@ -602,14 +624,25 @@ public class ProductServiceImpl implements ProductService {
 
             Event e = p.getEvent();
 
-            LocalDateTime eventEnd = LocalDateTime.of(
-                    e.getDate(),
-                    e.getEndTime()
-            );
+            // ❗Không có event → đánh expired luôn
+            if (e == null || e.getDays() == null || e.getDays().isEmpty()) {
+                return EventProductResponse.builder()
+                        .productId(p.getProductId())
+                        .name(p.getName())
+                        .pointCost(p.getPointCost())
+                        .eventId(null)
+                        .eventName(null)
+                        .eventStatus(null)
+                        .expired(true)
+                        .build();
+            }
+
+            // 🔹 Lấy thời điểm kết thúc thực (multi–day)
+            LocalDateTime eventEnd = getEventEnd(e);
 
             boolean expired =
                     e.getStatus() == EventStatusEnum.COMPLETED ||
-                            eventEnd.isBefore(now);
+                            (eventEnd != null && eventEnd.isBefore(now));
 
             return EventProductResponse.builder()
                     .productId(p.getProductId())
@@ -623,8 +656,25 @@ public class ProductServiceImpl implements ProductService {
 
         }).toList();
     }
+
+    private LocalDateTime getEventEnd(Event e) {
+        if (e.getDays() == null || e.getDays().isEmpty()) return null;
+
+        EventDay latest = e.getDays().stream()
+                .max(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElse(null);
+
+        if (latest == null) return null;
+
+        return LocalDateTime.of(latest.getDate(), latest.getEndTime());
+    }
+
     @Override
-    public List<EventProductResponse> listEventProductsByClubAndStatuses(Long clubId, List<EventStatusEnum> statuses) {
+    public List<EventProductResponse> listEventProductsByClubAndStatuses(
+            Long clubId,
+            List<EventStatusEnum> statuses
+    ) {
 
         List<Product> list = productRepo.findByClubClubIdAndType(clubId, ProductTypeEnum.EVENT_ITEM);
 
@@ -633,10 +683,35 @@ public class ProductServiceImpl implements ProductService {
         return list.stream()
                 .filter(p -> p.getEvent() != null && statuses.contains(p.getEvent().getStatus()))
                 .map(p -> {
-                    Event e = p.getEvent();
-                    LocalDateTime eventEnd = LocalDateTime.of(e.getDate(), e.getEndTime());
 
-                    boolean expired = (e.getStatus() == EventStatusEnum.COMPLETED || eventEnd.isBefore(now));
+                    Event e = p.getEvent();
+
+                    if (e.getDays() == null || e.getDays().isEmpty()) {
+                        return EventProductResponse.builder()
+                                .productId(p.getProductId())
+                                .name(p.getName())
+                                .pointCost(p.getPointCost())
+                                .eventId(null)
+                                .eventName(null)
+                                .eventStatus(EventStatusEnum.CANCELLED)
+                                .expired(true)
+                                .build();
+                    }
+
+                    EventDay latest = e.getDays().stream()
+                            .max(Comparator
+                                    .comparing(EventDay::getDate)
+                                    .thenComparing(EventDay::getEndTime))
+                            .orElse(null);
+
+                    LocalDateTime eventEnd = LocalDateTime.of(
+                            latest.getDate(),
+                            latest.getEndTime()
+                    );
+
+                    boolean expired =
+                            e.getStatus() == EventStatusEnum.COMPLETED ||
+                                    now.isAfter(eventEnd);
 
                     return EventProductResponse.builder()
                             .productId(p.getProductId())
@@ -650,6 +725,7 @@ public class ProductServiceImpl implements ProductService {
                 })
                 .toList();
     }
+
     @Override
     public List<ProductResponse> getEventProductsByStatuses(Long clubId, List<EventStatusEnum> statuses) {
 
@@ -660,6 +736,5 @@ public class ProductServiceImpl implements ProductService {
                 .map(this::toResp)
                 .toList();
     }
-
 
 }

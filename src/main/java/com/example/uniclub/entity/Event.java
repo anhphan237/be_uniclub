@@ -7,7 +7,8 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Entity
@@ -42,13 +43,11 @@ public class Event {
     @Enumerated(EnumType.STRING)
     private EventTypeEnum type = EventTypeEnum.PUBLIC;
 
-    private LocalDate date;
+    @Column(nullable = false)
+    private LocalDate startDate;
 
     @Column(nullable = false)
-    private LocalTime startTime;
-
-    @Column(nullable = false)
-    private LocalTime endTime;
+    private LocalDate endDate;
 
     @ManyToOne
     @JoinColumn(name = "location_id")
@@ -65,6 +64,8 @@ public class Event {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EventDay> days = new ArrayList<>();
 
     @Builder.Default
     @Column(nullable = false)
@@ -137,4 +138,31 @@ public class Event {
     public boolean isOngoing() {
         return this.status == EventStatusEnum.ONGOING;
     }
+
+    @Transient
+    public LocalDateTime getEventStart() {
+        if (days == null || days.isEmpty()) return null;
+
+        EventDay earliest = days.stream()
+                .min(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .orElse(null);
+
+        if (earliest == null) return null;
+        return LocalDateTime.of(earliest.getDate(), earliest.getStartTime());
+    }
+
+    @Transient
+    public LocalDateTime getEventEnd() {
+        if (days == null || days.isEmpty()) return null;
+
+        EventDay latest = days.stream()
+                .max(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElse(null);
+
+        if (latest == null) return null;
+        return LocalDateTime.of(latest.getDate(), latest.getEndTime());
+    }
+
 }

@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.time.LocalTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -54,20 +57,41 @@ public class EventPointsServiceImpl implements EventPointsService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Public events do not require registration.");
         }
 
-        // ❌ Event không ở trạng thái cho đăng ký
+        // ❌ Event không ở trạng thái mở đăng ký
         if (!(event.getStatus() == EventStatusEnum.APPROVED
                 || event.getStatus() == EventStatusEnum.ONGOING)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not open for registration.");
         }
 
-        // ❌ Event đã qua ngày
-        if (event.getDate() != null && event.getDate().isBefore(LocalDate.now())) {
+        // ⭐ Lấy earliestDay và latestDay (multi-day logic)
+        EventDay earliestDay = event.getDays().stream()
+                .sorted(Comparator
+                        .comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Event days missing"));
+
+        EventDay latestDay = event.getDays().stream()
+                .max(Comparator
+                        .comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElseThrow();
+
+        LocalDate today = LocalDate.now();
+
+        // ❌ Event đã kết thúc (multi-day check)
+        if (latestDay.getDate().isBefore(today)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "The event has already ended.");
+        }
+
+        // ❌ Không được đăng ký khi event đã bắt đầu
+        if (!earliestDay.getDate().isAfter(today)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already started.");
         }
 
         // ❌ Deadline quá hạn
         if (event.getRegistrationDeadline() != null
-                && LocalDate.now().isAfter(event.getRegistrationDeadline())) {
+                && today.isAfter(event.getRegistrationDeadline())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline has passed.");
         }
 
@@ -76,7 +100,7 @@ public class EventPointsServiceImpl implements EventPointsService {
             throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event.");
         }
 
-        // 🔐 Quyền PRIVATE
+        // 🔐 PRIVATE = chỉ member CLB chủ trì mới được đăng ký
         if (event.getType() == EventTypeEnum.PRIVATE) {
             boolean isHostMember = membershipRepo
                     .existsByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId());
@@ -87,15 +111,19 @@ public class EventPointsServiceImpl implements EventPointsService {
             }
         }
 
-        // 🤝 Quyền SPECIAL (host + cohost)
+        // 🤝 SPECIAL = member host hoặc member cohost
         if (event.getType() == EventTypeEnum.SPECIAL) {
 
             boolean isMemberHost = membershipRepo
                     .existsByUser_UserIdAndClub_ClubId(user.getUserId(), event.getHostClub().getClubId());
 
-            boolean isMemberCoHost = event.getCoHostedClubs().stream()
-                    .anyMatch(c -> membershipRepo.existsByUser_UserIdAndClub_ClubId(
-                            user.getUserId(), c.getClubId()));
+            boolean isMemberCoHost = event.getCoHostRelations().stream()
+                    .anyMatch(rel ->
+                            membershipRepo.existsByUser_UserIdAndClub_ClubId(
+                                    user.getUserId(),
+                                    rel.getClub().getClubId()
+                            )
+                    );
 
             if (!isMemberHost && !isMemberCoHost) {
                 throw new ApiException(HttpStatus.FORBIDDEN,
@@ -119,7 +147,7 @@ public class EventPointsServiceImpl implements EventPointsService {
                 WalletTransactionTypeEnum.COMMIT_LOCK
         );
 
-        // 💾 Tạo registration
+        // 💾 Lưu registration
         EventRegistration registration = EventRegistration.builder()
                 .event(event)
                 .user(user)
@@ -131,7 +159,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         regRepo.save(registration);
 
-        // 📧 Gửi email xác nhận
+        // 📧 Email confirm — MULTI-DAY VERSION
         emailService.sendEventRegistrationEmail(
                 user.getEmail(),
                 user.getFullName(),
@@ -141,7 +169,6 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         return "Registered successfully. " + commitPoint + " commitment points locked.";
     }
-
 
     // =========================================================
     // 🔹 CHECK-IN
@@ -209,14 +236,28 @@ public class EventPointsServiceImpl implements EventPointsService {
             return "Event was cancelled by the host. Your points were refunded automatically if applicable.";
         }
 
-        // ❌ Already cancelled
+        // ❌ Already canceled
         if (reg.getStatus() == RegistrationStatusEnum.CANCELED) {
             return "Registration already canceled.";
         }
 
-        // ❌ Không hủy được nếu event bắt đầu / ongoing
-        LocalDateTime start = LocalDateTime.of(event.getDate(), event.getStartTime());
-        if (LocalDateTime.now().isAfter(start)) {
+        // ============================================================
+        // 🔥 MULTI-DAY: LẤY NGÀY BẮT ĐẦU
+        // ============================================================
+        EventDay earliestDay = event.getDays().stream()
+                .sorted(Comparator
+                        .comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event has no days"));
+
+        LocalDate eventStartDate = earliestDay.getDate();
+        LocalTime eventStartTime = earliestDay.getStartTime();
+        LocalDateTime eventStartDateTime = LocalDateTime.of(eventStartDate, eventStartTime);
+        LocalDateTime now = LocalDateTime.now();
+
+        // ❌ Không được hủy nếu event đã bắt đầu
+        if (now.isAfter(eventStartDateTime)) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Cannot cancel registration after event has started.");
         }
@@ -227,22 +268,24 @@ public class EventPointsServiceImpl implements EventPointsService {
                     "You cannot cancel because you have already checked in.");
         }
 
-        // ❗ Không refund commit point cho user
+        // ============================================================
+        // 🔥 KHÔNG REFUND COMMIT POINT CHO REGISTRATION CANCELED
+        // ============================================================
         long committed = Optional.ofNullable(reg.getCommittedPoints())
                 .map(Integer::longValue)
                 .orElse(0L);
 
-        // 🔄 Update registration status
+        // 🔄 Update status
         reg.setStatus(RegistrationStatusEnum.CANCELED);
         reg.setCancelledAt(LocalDateTime.now());
         regRepo.save(reg);
 
-        // 📧 Email: bạn có thể sửa nội dung email NO-REFUND
+        // 📧 Email NO-REFUND (multi-day version)
         emailService.sendEventCancellationEmail(
                 user.getEmail(),
                 user.getFullName(),
-                event,
-                0  // ❗ Refund = 0
+                event,          // email tự lấy range ngày
+                0               // refund = 0
         );
 
         return "Registration cancelled. Commitment points will not be refunded.";
@@ -360,8 +403,6 @@ public class EventPointsServiceImpl implements EventPointsService {
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
 
-
-
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();
         if (w == null)
@@ -374,6 +415,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         return w;
     }
+
     @Override
     public void refundCommitPoints(User user, long points, Event event) {
         Wallet wallet = walletRepo.findByUser_UserId(user.getUserId())

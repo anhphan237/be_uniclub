@@ -3,11 +3,10 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.enums.EventStatusEnum;
 import org.springframework.data.domain.Page;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,34 +15,114 @@ import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    Page<Event> findByNameContainingIgnoreCaseAndDateAndStatus(
-            String name, LocalDate date, EventStatusEnum status, Pageable pageable
-    );
+    // ============================================================
+    // 🔍 BASIC LOOKUP
+    // ============================================================
+    Optional<Event> findByCheckInCode(String checkInCode);
+
+    List<Event> findByHostClub_ClubId(Long clubId);
+
+    List<Event> findByStatus(EventStatusEnum status);
+
+    long countByStatus(EventStatusEnum status);
+
+    long countByHostClub_ClubId(Long clubId);
+
+    List<Event> findAllByStatus(EventStatusEnum status);
+
+    long countByHostClub_ClubIdAndStatus(Long clubId, EventStatusEnum status);
+
+    // ============================================================
+    // 🔍 TEXT SEARCH (KHÔNG DÍNH NGÀY)
+    // ============================================================
+    Page<Event> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
     Page<Event> findByNameContainingIgnoreCaseAndStatus(
             String name, EventStatusEnum status, Pageable pageable
     );
 
-    List<Event> findByHostClub_ClubIdAndDateBetween(
-            Long clubId, LocalDate start, LocalDate end
+    // ============================================================
+    // 🔥 FILTER MULTI-DAY (NAME + DATE + STATUS)
+    // ============================================================
+    @Query("""
+        SELECT DISTINCT e FROM Event e
+        LEFT JOIN e.days d
+        WHERE LOWER(e.name) LIKE LOWER(CONCAT('%', :name, '%'))
+          AND (:status IS NULL OR e.status = :status)
+          AND (:date IS NULL OR d.date = :date)
+        ORDER BY e.startDate ASC
+    """)
+    Page<Event> filterEvents(
+            @Param("name") String name,
+            @Param("date") LocalDate date,
+            @Param("status") EventStatusEnum status,
+            Pageable pageable
     );
 
-    Page<Event> findByNameContainingIgnoreCase(
-            String name, Pageable pageable
+
+    // ============================================================
+    // 🔥 UPCOMING / ACTIVE / SETTLED (MULTI-DAY)
+    // ============================================================
+    // Sắp diễn ra: startDate > hôm nay
+    @Query("""
+        SELECT e FROM Event e
+        WHERE e.startDate > :today
+        ORDER BY e.startDate ASC
+    """)
+    List<Event> findUpcomingEvents(@Param("today") LocalDate today);
+
+    // Đang diễn ra: today giữa startDate - endDate + status = ONGOING
+    @Query("""
+        SELECT e FROM Event e
+        WHERE :today BETWEEN e.startDate AND e.endDate
+          AND e.status = com.example.uniclub.enums.EventStatusEnum.ONGOING
+        ORDER BY e.startDate ASC
+    """)
+    List<Event> findActiveEvents(@Param("today") LocalDate today);
+
+    // Đã kết toán (COMPLETED) → sort theo endDate
+    @Query("""
+        SELECT e FROM Event e
+        WHERE e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
+        ORDER BY e.endDate DESC
+    """)
+    List<Event> findAllSettledEvents();
+
+
+    // ============================================================
+    // 🔥 THỐNG KÊ THEO CLB + KHOẢNG THỜI GIAN
+    // ============================================================
+    @Query("""
+        SELECT COUNT(e) FROM Event e
+        WHERE e.hostClub.clubId = :clubId
+          AND e.status = :status
+          AND e.endDate BETWEEN :start AND :end
+    """)
+    int countCompletedInRange(
+            @Param("clubId") Long clubId,
+            @Param("status") EventStatusEnum status,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
     );
 
-    Optional<Event> findByCheckInCode(String checkInCode);
+    @Query("""
+        SELECT e FROM Event e
+        WHERE e.hostClub.clubId = :clubId
+          AND e.status = :status
+          AND e.endDate BETWEEN :start AND :end
+        ORDER BY e.endDate DESC
+    """)
+    List<Event> findCompletedEventsOfClubInRange(
+            @Param("clubId") Long clubId,
+            @Param("status") EventStatusEnum status,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
 
-    // ✅ Sửa lại theo tên field mới "hostClub"
-    List<Event> findByHostClub_ClubId(Long clubId);
 
-    List<Event> findByDateAfter(LocalDate date);
-
-    @Query("SELECT r.event FROM EventRegistration r WHERE r.user.userId = :userId")
-    List<Event> findEventsByUserId(@Param("userId") Long userId);
-
-    long countByStatus(EventStatusEnum status);
-
+    // ============================================================
+    // 🔥 PARTICIPATION (HOST + CO-HOST)
+    // ============================================================
     @Query("""
         SELECT DISTINCT e FROM Event e
         LEFT JOIN e.coHostRelations r
@@ -53,71 +132,43 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByClubParticipation(@Param("clubId") Long clubId);
 
     @Query("""
-    SELECT DISTINCT e FROM Event e
-    JOIN e.coHostRelations rel
-    WHERE rel.club.clubId = :clubId
-      AND e.hostClub.clubId <> :clubId
-""")
+        SELECT DISTINCT e FROM Event e
+        JOIN e.coHostRelations rel
+        WHERE rel.club.clubId = :clubId
+          AND e.hostClub.clubId <> :clubId
+    """)
     List<Event> findCoHostedEvents(@Param("clubId") Long clubId);
 
+
+    // ============================================================
+    // 🔥 EVENT + CO-HOST RELATIONS (DÙNG CHO DETAIL)
+    // ============================================================
     @Query("""
-    SELECT e FROM Event e
-    WHERE e.status = :status AND e.date >= :date
-    ORDER BY e.date ASC
-""")
-    List<Event> findActiveEvents(@Param("status") EventStatusEnum status, @Param("date") LocalDate date);
+        SELECT e FROM Event e
+        LEFT JOIN FETCH e.coHostRelations rel
+        LEFT JOIN FETCH rel.club
+        WHERE e.eventId = :eventId
+    """)
+    Optional<Event> findByIdWithCoHostRelations(@Param("eventId") Long eventId);
 
-    @Query("SELECT e FROM Event e " +
-            "LEFT JOIN FETCH e.coHostRelations r " +
-            "LEFT JOIN FETCH r.club " +
-            "WHERE e.eventId = :eventId")
-    Optional<Event> findByIdWithCoHostRelations(Long eventId);
 
-    List<Event> findAllByStatusAndDate(EventStatusEnum status, LocalDate date);
+    // ============================================================
+    // 🔥 "MY EVENTS" (EVENTS CỦA USER)
+    // ============================================================
+    @Query("SELECT r.event FROM EventRegistration r WHERE r.user.userId = :userId")
+    List<Event> findEventsByUserId(@Param("userId") Long userId);
 
+
+    // ============================================================
+    // 🔥 NHẮC HẠN ĐĂNG KÝ
+    // ============================================================
     @Query("""
-    SELECT e FROM Event e
-    WHERE e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
-    ORDER BY e.date DESC
-""")
-    List<Event> findAllSettledEvents();
-    long countByHostClub_ClubIdAndStatus(Long clubId, EventStatusEnum status);
-
-    // 🔹 Lấy tất cả sự kiện theo trạng thái (dùng cho scheduler)
-    List<Event> findAllByStatus(EventStatusEnum status);
-
-    int countByHostClub_ClubId(Long clubId);
-
-
-
-    // THÊM vào EventRepository
-    @Query("""
-    SELECT e FROM Event e
-    WHERE e.hostClub.clubId = :clubId
-      AND e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
-      AND e.date BETWEEN :startDate AND :endDate
-""")
-    List<Event> findCompletedEventsOfClubInRange(
-            @Param("clubId") Long clubId,
-            @Param("startDate") java.time.LocalDate startDate,
-            @Param("endDate") java.time.LocalDate endDate
-    );
-
-    int countByHostClub_ClubIdAndStatusAndDateBetween(
-            Long clubId,
-            EventStatusEnum status,
-            LocalDate start,
-            LocalDate end
-    );
-    @Query("""
-    SELECT e FROM Event e
-    WHERE e.status = 'APPROVED'
-      AND e.registrationDeadline BETWEEN :now AND :threshold
-""")
+        SELECT e FROM Event e
+        WHERE e.status = 'APPROVED'
+          AND e.registrationDeadline BETWEEN :now AND :threshold
+    """)
     List<Event> findEventsWithUpcomingRegistrationDeadline(
             @Param("now") LocalDateTime now,
             @Param("threshold") LocalDateTime threshold
     );
-    List<Event> findByStatus(EventStatusEnum status);
-
 }

@@ -6,8 +6,10 @@ import java.time.LocalDateTime;
 public record EventRegistrationResponse(
         Long eventId,
         String eventName,
-        LocalDate date,
+        LocalDate startDate,
+        LocalDate endDate,
         String status,
-        String hostClub,
+        String hostClubName,
         LocalDateTime registeredAt
 ) {}
+

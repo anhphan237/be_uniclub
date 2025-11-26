@@ -55,7 +55,7 @@ public class AdminClubServiceImpl implements AdminClubService {
 
     private AdminClubResponse toResponse(Club club) {
         int memberCount = membershipRepo.countByClub_ClubId(club.getClubId());
-        int eventCount = eventRepo.countByHostClub_ClubId(club.getClubId());
+        int eventCount = (int) eventRepo.countByHostClub_ClubId(club.getClubId());
 
         return AdminClubResponse.builder()
                 .id(club.getClubId())

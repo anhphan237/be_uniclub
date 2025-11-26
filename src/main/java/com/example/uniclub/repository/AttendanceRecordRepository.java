@@ -74,13 +74,14 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("eventId") Long eventId
     );
 
-    @Query("""
-    SELECT COUNT(DISTINCT DATE(ar.startCheckInTime))
-    FROM AttendanceRecord ar
-    WHERE ar.user.id = :userId
-      AND ar.attendanceLevel <> 'NONE'
-""")
+    @Query(value = """
+        SELECT COUNT(DISTINCT DATE(start_check_in_time))
+        FROM attendance_records
+        WHERE user_id = :userId
+          AND attendance_level <> 'NONE'
+    """, nativeQuery = true)
     long countAttendanceDaysByUserId(@Param("userId") Long userId);
+
     // THÊM vào AttendanceRecordRepository
     @Query("""
     SELECT COUNT(ar) FROM AttendanceRecord ar
@@ -93,16 +94,17 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("eventIds") java.util.List<Long> eventIds,
             @Param("levels") java.util.List<com.example.uniclub.enums.AttendanceLevelEnum> levels
     );
+
     @Query("""
-    SELECT ar FROM AttendanceRecord ar
-    WHERE ar.user.userId = :userId
-      AND ar.event.date BETWEEN :start AND :end
-""")
+        SELECT ar FROM AttendanceRecord ar
+        WHERE ar.user.userId = :userId
+          AND ar.event.startDate <= :end
+          AND ar.event.endDate >= :start
+    """)
     List<AttendanceRecord> findByUserIdAndEventDateBetween(
             @Param("userId") Long userId,
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
-
 
 }

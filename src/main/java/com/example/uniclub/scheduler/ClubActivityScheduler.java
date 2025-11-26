@@ -33,34 +33,27 @@ public class ClubActivityScheduler {
         LocalDate start = lastMonth.atDay(1);
         LocalDate end = lastMonth.atEndOfMonth();
 
-        // 📌 Lấy chính sách dành cho CLUB
         List<MultiplierPolicy> policies = policyRepo
                 .findByTargetTypeAndActivityTypeAndActiveTrue(
                         PolicyTargetTypeEnum.CLUB,
                         PolicyActivityTypeEnum.CLUB_EVENT_ACTIVITY
-
                 );
 
         List<Club> clubs = clubRepo.findAll();
 
         for (Club club : clubs) {
 
-            // Đếm số event CLB đã tổ chức tháng trước
             long count = eventRepo.findByHostClub_ClubId(club.getClubId())
                     .stream()
-                    .filter(ev -> ev.getDate() != null &&
-                            !ev.getDate().isBefore(start) &&
-                            !ev.getDate().isAfter(end))
+                    .filter(ev -> ev.getStartDate() != null &&
+                            !ev.getStartDate().isBefore(start) &&
+                            !ev.getStartDate().isAfter(end))
                     .count();
 
-            // 🔍 Chọn policy tương ứng
             MultiplierPolicy matched = findMatchedPolicy(policies, (int) count);
 
-            // ⚙️ Cập nhật vào CLB
             if (matched != null) {
                 club.setClubMultiplier(matched.getMultiplier());
-
-                // Nếu tên rule khớp enum → set activityStatus
                 try {
                     club.setActivityStatus(
                             ClubActivityStatusEnum.valueOf(matched.getRuleName().toUpperCase())

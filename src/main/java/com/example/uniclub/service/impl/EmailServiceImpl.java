@@ -211,17 +211,44 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendEventRegistrationEmail(String to, String fullName, Event event, long commitPoints) {
+
+        // 🔹 Build date text cho multi-day
+        String dateText = "TBA";
+        if (event.getStartDate() != null && event.getEndDate() != null) {
+            if (event.getStartDate().isEqual(event.getEndDate())) {
+                // Event 1 ngày
+                dateText = event.getStartDate().toString();
+            } else {
+                // Event nhiều ngày
+                dateText = event.getStartDate() + " - " + event.getEndDate();
+            }
+        }
+
+        // 🔹 Location safe null
+        String locationName = (event.getLocation() != null)
+                ? event.getLocation().getName()
+                : "To be announced";
+
         String content = """
-            <h2 style="color:#1E88E5;">Event Registration Confirmed 🎉</h2>
-            <p>Hello %s,</p>
-            <p>You successfully registered for <b>%s</b>.</p>
-            <p><b>Date:</b> %s<br>
-               <b>Location:</b> %s<br>
-               <b>Commitment Points Locked:</b> %d</p>
-        """.formatted(fullName, event.getName(), event.getDate(), event.getLocation().getName(), commitPoints);
+        <h2 style="color:#1E88E5;">Event Registration Confirmed 🎉</h2>
+        <p>Hello %s,</p>
+        <p>You successfully registered for <b>%s</b>.</p>
+        <p>
+           <b>Date:</b> %s<br>
+           <b>Location:</b> %s<br>
+           <b>Commitment Points Locked:</b> %d
+        </p>
+        """.formatted(
+                fullName,
+                event.getName(),
+                dateText,
+                locationName,
+                commitPoints
+        );
 
         sendEmail(to, "[UniClub] Event Registration Confirmation", content);
     }
+
 
     @Override
     public void sendEventSummaryEmail(
@@ -289,16 +316,32 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendEventStaffAssignmentEmail(String to, String fullName, Event event, String duty) {
+
+        String dateText;
+        if (event.getStartDate() != null && event.getEndDate() != null) {
+            if (event.getStartDate().equals(event.getEndDate())) {
+                dateText = event.getStartDate().toString();
+            } else {
+                dateText = event.getStartDate() + " - " + event.getEndDate();
+            }
+        } else {
+            dateText = "To be announced";
+        }
+
+        String location = (event.getLocation() != null)
+                ? event.getLocation().getName()
+                : "Unknown";
+
         String content = """
-            <h2 style="color:#1E88E5;">You Have Been Assigned as Event Staff 🎉</h2>
-            <p>Hello <b>%s</b>,</p>
-            <p>You are assigned as <b>%s</b> for event <b>%s</b>.</p>
-            <p>Date: %s<br>Location: %s</p>
-        """.formatted(fullName, duty, event.getName(), event.getDate(),
-                event.getLocation() != null ? event.getLocation().getName() : "Unknown");
+        <h2 style="color:#1E88E5;">You Have Been Assigned as Event Staff 🎉</h2>
+        <p>Hello <b>%s</b>,</p>
+        <p>You are assigned as <b>%s</b> for event <b>%s</b>.</p>
+        <p>Date: %s<br>Location: %s</p>
+    """.formatted(fullName, duty, event.getName(), dateText, location);
 
         sendEmail(to, "[UniClub] Event Staff Assignment", content);
     }
+
 
     @Override
     public void sendMemberApplicationSubmitted(String to, String fullName, String clubName) {

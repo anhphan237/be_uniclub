@@ -37,6 +37,7 @@ public class ActivityReportController {
     private final MemberMonthlyActivityRepository monthlyRepo;
     private final ClubRepository clubRepo;
     private final EventRepository eventRepo;
+    private final EventDayRepository eventDayRepo;
     private final ActivityEngineService activityService;
 
     // ==========================================================
@@ -143,7 +144,9 @@ public class ActivityReportController {
             @RequestParam Integer month,
             HttpServletRequest req
     ) {
+
         validateMonth(year, month);
+
         User user = jwtUtil.getUserFromRequest(req);
         ensureLeaderRights(user, clubId);
 
@@ -153,9 +156,33 @@ public class ActivityReportController {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end   = start.plusMonths(1).minusDays(1);
 
-        int totalEvents = eventRepo.countByHostClub_ClubIdAndStatusAndDateBetween(
-                clubId, EventStatusEnum.COMPLETED, start, end);
+        // ⭐ LẤY EVENT THEO THÁNG = DỰA TRÊN EVENT DAY
+        List<Long> eventIds = eventDayRepo.findEventIdsByClubAndMonth(clubId, start, end);
 
+        if (eventIds.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.ok(
+                    ClubMonthlyActivitySummaryResponse.builder()
+                            .clubId(club.getClubId())
+                            .clubName(club.getName())
+                            .year(year)
+                            .month(month)
+                            .totalEventsCompleted(0)
+                            .memberCount(0L)
+                            .fullMembersCount(0L)
+                            .memberOfMonth(null)
+                            .clubMultiplier(1.0)
+                            .build()
+            ));
+        }
+
+        List<Event> events = eventRepo.findAllById(eventIds);
+
+        // ⭐ ĐẾM SỐ SỰ KIỆN ĐÃ COMPLETED (tính 1 event duy nhất)
+        int totalEventsCompleted = (int) events.stream()
+                .filter(e -> e.getStatus() == EventStatusEnum.COMPLETED)
+                .count();
+
+        // ⭐ LẤY HOẠT ĐỘNG MEMBER
         List<MemberMonthlyActivity> activities =
                 monthlyRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
 
@@ -164,7 +191,7 @@ public class ActivityReportController {
                 .clubName(club.getName())
                 .year(year)
                 .month(month)
-                .totalEventsCompleted(totalEvents)
+                .totalEventsCompleted(totalEventsCompleted)
                 .memberCount((long) activities.size())
                 .fullMembersCount(0L)
                 .memberOfMonth(null)
@@ -173,6 +200,7 @@ public class ActivityReportController {
 
         return ResponseEntity.ok(ApiResponse.ok(summary));
     }
+
 
     // ==========================================================
     // PREVIEW SCORE

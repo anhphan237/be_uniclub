@@ -2,6 +2,7 @@ package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.AdminEventResponse;
 import com.example.uniclub.entity.Event;
+import com.example.uniclub.entity.EventDay;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.EventRegistrationRepository;
@@ -9,9 +10,13 @@ import com.example.uniclub.repository.EventRepository;
 import com.example.uniclub.service.AdminEventService;
 import com.example.uniclub.service.EmailService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -79,7 +84,33 @@ public class AdminEventServiceImpl implements AdminEventService {
     }
 
     private AdminEventResponse toResponse(Event event) {
+
         int participants = regRepo.countByEvent_EventId(event.getEventId());
+
+        // ⏰ Lấy ngày đầu – ngày cuối từ event.getDays()
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+
+        if (event.getDays() != null && !event.getDays().isEmpty()) {
+
+            EventDay earliest = event.getDays().stream()
+                    .min(Comparator.comparing(EventDay::getDate)
+                            .thenComparing(EventDay::getStartTime))
+                    .orElse(null);
+
+            EventDay latest = event.getDays().stream()
+                    .max(Comparator.comparing(EventDay::getDate)
+                            .thenComparing(EventDay::getEndTime))
+                    .orElse(null);
+
+            if (earliest != null) {
+                start = LocalDateTime.of(earliest.getDate(), earliest.getStartTime());
+            }
+
+            if (latest != null) {
+                end = LocalDateTime.of(latest.getDate(), latest.getEndTime());
+            }
+        }
 
         return AdminEventResponse.builder()
                 .id(event.getEventId())
@@ -88,10 +119,11 @@ public class AdminEventServiceImpl implements AdminEventService {
                 .clubName(event.getHostClub() != null ? event.getHostClub().getName() : null)
                 .majorName(event.getHostClub() != null && event.getHostClub().getMajor() != null
                         ? event.getHostClub().getMajor().getName() : null)
-                .startTime(event.getStartTime() != null ? event.getStartTime().atDate(event.getDate()) : null)
-                .endTime(event.getEndTime() != null ? event.getEndTime().atDate(event.getDate()) : null)
+                .startTime(start)
+                .endTime(end)
                 .status(event.getStatus())
                 .totalParticipants(participants)
                 .build();
     }
+
 }

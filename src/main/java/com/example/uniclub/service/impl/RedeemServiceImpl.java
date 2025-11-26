@@ -11,15 +11,14 @@ import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.uniclub.repository.TagRepository;
-import com.example.uniclub.repository.ProductTagRepository;
+
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @Slf4j
 @Service
@@ -618,11 +617,31 @@ public class RedeemServiceImpl implements RedeemService {
     }
 
     private boolean isEventStillActive(Event event) {
+
+        if (event.getDays() == null || event.getDays().isEmpty()) {
+            return false;
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime start = event.getDate().atStartOfDay();
-        LocalDateTime end = event.getDate().atTime(LocalTime.MAX);
-        return !now.isBefore(start) && !now.isAfter(end);
+
+        EventDay earliest = event.getDays().stream().min(Comparator
+                        .comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .orElse(null);
+
+        EventDay latest = event.getDays().stream().max(Comparator
+                        .comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElse(null);
+
+        if (earliest == null || latest == null) return false;
+
+        LocalDateTime eventStart = LocalDateTime.of(earliest.getDate(), earliest.getStartTime());
+        LocalDateTime eventEnd   = LocalDateTime.of(latest.getDate(), latest.getEndTime());
+
+        return !now.isBefore(eventStart) && !now.isAfter(eventEnd);
     }
+
 
     @Override
     @Transactional(readOnly = true)

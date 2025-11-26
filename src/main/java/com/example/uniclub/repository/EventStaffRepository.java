@@ -26,11 +26,15 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
     // 🔹 Lấy danh sách EventStaff ACTIVE nhưng event đã kết thúc
     @Query("""
         SELECT es FROM EventStaff es
+        JOIN es.event.days d
         WHERE es.state = 'ACTIVE'
-          AND ( es.event.date < CURRENT_DATE
-                OR (es.event.date = CURRENT_DATE AND es.event.endTime <= CURRENT_TIME) )
-        """)
+          AND (
+                d.date < CURRENT_DATE
+             OR (d.date = CURRENT_DATE AND d.endTime <= CURRENT_TIME)
+          )
+    """)
     List<EventStaff> findActiveWhereEventEnded();
+
 
     // 🔹 Tìm EventStaff ACTIVE theo Event + Membership (để kiểm tra đang làm việc)
     @Query("""
@@ -69,9 +73,9 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
     @Query("""
     SELECT es FROM EventStaff es
     WHERE es.membership.membershipId = :membershipId
-      AND es.event.date BETWEEN :start AND :end
+      AND es.event.startDate BETWEEN :start AND :end
       AND es.state = com.example.uniclub.enums.EventStaffStateEnum.ACTIVE
-""")
+    """)
     List<EventStaff> findByMembershipAndEventDateBetween(
             @Param("membershipId") Long membershipId,
             @Param("start") LocalDate start,

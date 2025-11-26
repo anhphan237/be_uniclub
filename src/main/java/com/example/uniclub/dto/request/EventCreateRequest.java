@@ -1,12 +1,11 @@
 package com.example.uniclub.dto.request;
 
 import com.example.uniclub.enums.EventTypeEnum;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
 public record EventCreateRequest(
@@ -24,16 +23,8 @@ public record EventCreateRequest(
         @NotNull(message = "Event type is required")
         EventTypeEnum type, // ✅ PUBLIC / SPECIAL / PRIVATE
 
-        @NotNull(message = "Event date is required")
-        LocalDate date,
-
-        @Schema(type = "string", example = "09:00")
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
-        LocalTime startTime,
-
-        @Schema(type = "string", example = "15:00")
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
-        LocalTime endTime,
+        @NotEmpty(message = "Event must have at least 1 day")
+        List<@Valid EventDayRequest> days,
 
         @NotNull(message = "Location ID is required")
         Long locationId,

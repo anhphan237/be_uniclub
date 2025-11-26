@@ -119,7 +119,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         // ================= STAFF PERFORMANCE ================
         List<StaffPerformance> staffList =
-                staffPerformanceRepo.findByMembership_MembershipIdAndEvent_DateBetween(
+                staffPerformanceRepo.findPerformanceInRange(
                         membershipId, start, end);
 
         PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
@@ -436,7 +436,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         int attendanceTotal  = (int) Math.round(attendanceBase * attendanceMul);
 
         List<StaffPerformance> staffList =
-                staffPerformanceRepo.findByMembership_MembershipIdAndEvent_DateBetween(
+                staffPerformanceRepo.findPerformanceInRange(
                         membershipId, start, end);
 
         PerformanceLevelEnum best = resolveBestStaffEvaluation(staffList);
@@ -492,7 +492,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                     int attTotal  = (int) Math.round(attendanceBase * attMul);
 
                     List<StaffPerformance> staffList = staffPerformanceRepo
-                            .findByMembership_MembershipIdAndEvent_DateBetween(
+                            .findPerformanceInRange(
                                     membershipId, start, end);
 
                     PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);

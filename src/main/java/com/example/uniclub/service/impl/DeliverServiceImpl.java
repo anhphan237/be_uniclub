@@ -12,8 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -32,18 +32,30 @@ public class DeliverServiceImpl implements DeliverService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Redeem not found or already processed"));
 
         Event event = redeem.getEvent();
+
         if (event != null) {
+
+            // 🔹 CHECK: Staff phải ACTIVE trong event này
             EventStaff staff = eventStaffRepository
                     .findActiveByEventAndMembership(event.getEventId(), staffMembershipId)
                     .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not assigned as ACTIVE staff of this event"));
 
-            boolean ended = event.getDate().isBefore(LocalDate.now())
-                    || (event.getDate().isEqual(LocalDate.now()) && event.getEndTime().isBefore(LocalTime.now()));
+            // 🔹 CHECK: Event đã hết hạn chưa (dựa trên EventDay)
+            LocalDateTime eventEnd = getEventEnd(event);   // <— dùng helper mới
+            LocalDateTime now = LocalDateTime.now();
 
-            if (ended || staff.getState() != EventStaffStateEnum.ACTIVE) {
+            if (eventEnd == null || now.isAfter(eventEnd)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Event already ended or staff expired");
             }
+
+            if (staff.getState() != EventStaffStateEnum.ACTIVE) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Your staff assignment is no longer active");
+            }
         }
+
+        // ================================
+        // 🔹 Handle product stock
+        // ================================
 
         Product product = redeem.getProduct();
         if (product.getStockQuantity() < redeem.getQuantity())
@@ -51,6 +63,10 @@ public class DeliverServiceImpl implements DeliverService {
 
         product.setStockQuantity(product.getStockQuantity() - redeem.getQuantity());
         productRepository.save(product);
+
+        // ================================
+        // 🔹 Create product transaction
+        // ================================
 
         ProductTransaction tx = ProductTransaction.builder()
                 .product(product)
@@ -60,16 +76,45 @@ public class DeliverServiceImpl implements DeliverService {
                 .build();
         productTxRepository.save(tx);
 
-        redeem.setStatus(RedeemStatusEnum.DELIVERED);
-        redeem.setDeliveredAt(java.time.LocalDateTime.now());
+        // ================================
+        // 🔹 Update redeem status
+        // ================================
 
-        // ⭐⭐ FIX QUAN TRỌNG — KHÔNG TẠO Membership MỚI
-        if (redeem.getEvent() != null) {
+        redeem.setStatus(RedeemStatusEnum.DELIVERED);
+        redeem.setDeliveredAt(LocalDateTime.now());
+
+        // ⭐ Không tạo membership mới — dùng reference
+        if (event != null) {
             Membership staffRef = membershipRepo.getReferenceById(staffMembershipId);
             redeem.setStaff(staffRef);
         }
 
         redeemRepository.save(redeem);
     }
+
+    public LocalDateTime getEventStart(Event event) {
+        if (event.getDays() == null || event.getDays().isEmpty()) return null;
+
+        EventDay earliest = event.getDays().stream()
+                .min(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getStartTime))
+                .orElse(null);
+
+        return (earliest == null) ? null :
+                LocalDateTime.of(earliest.getDate(), earliest.getStartTime());
+    }
+
+    public LocalDateTime getEventEnd(Event event) {
+        if (event.getDays() == null || event.getDays().isEmpty()) return null;
+
+        EventDay latest = event.getDays().stream()
+                .max(Comparator.comparing(EventDay::getDate)
+                        .thenComparing(EventDay::getEndTime))
+                .orElse(null);
+
+        return (latest == null) ? null :
+                LocalDateTime.of(latest.getDate(), latest.getEndTime());
+    }
+
 
 }
