@@ -7,6 +7,7 @@ import com.example.uniclub.dto.response.LocationResponse;
 import com.example.uniclub.service.LocationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -112,44 +113,44 @@ public class LocationController {
         return ResponseEntity.ok(ApiResponse.ok(locationService.update(id, req)));
     }
 
+
+
     @GetMapping("/{id}/conflicts")
-    @Operation(
-            summary = "Kiểm tra trùng lịch tại địa điểm",
-            description = """
-            Nhập khoảng thời gian và kiểm tra xem địa điểm có sự kiện nào đang dùng trong khoảng đó không.
-            Chỉ cần trùng 1 phút cũng sẽ hiện.
-            """
-    )
+    @Operation(summary = "Kiểm tra trùng lịch tại địa điểm")
     public ResponseEntity<?> checkConflicts(
             @RequestParam Long locationId,
 
             @RequestParam
             @DateTimeFormat(pattern = "dd-MM-yyyy")
             @Parameter(
-                    description = "Ngày (format: dd-MM-yyyy)",
-                    example = "28-11-2025"
+                    description = "Ngày (dd-MM-yyyy)",
+                    example = "20-12-2025"
             )
             LocalDate date,
 
             @RequestParam
             @DateTimeFormat(pattern = "HH:mm")
             @Parameter(
-                    description = "Giờ bắt đầu (format: HH:mm)",
-                    example = "09:00"
+                    description = "Giờ bắt đầu (HH:mm)",
+                    example = "09:00",
+                    schema = @Schema(type = "string", format = "time")
             )
             LocalTime startTime,
 
             @RequestParam
             @DateTimeFormat(pattern = "HH:mm")
             @Parameter(
-                    description = "Giờ kết thúc (format: HH:mm)",
-                    example = "11:00"
+                    description = "Giờ kết thúc (HH:mm)",
+                    example = "11:00",
+                    schema = @Schema(type = "string", format = "time")
             )
             LocalTime endTime
     ) {
-        var result = locationService.checkConflict(locationId, date, startTime, endTime);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(
+                locationService.checkConflict(locationId, date, startTime, endTime)
+        );
     }
+
 
 
 

@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.LocationCreateRequest;
 import com.example.uniclub.dto.request.LocationUpdateRequest;
 import com.example.uniclub.dto.response.ConflictEventResponse;
@@ -97,8 +98,12 @@ public class LocationServiceImpl implements LocationService {
     }
 
     @Override
-    public List<ConflictEventResponse> checkConflict(Long locationId, LocalDate date,
-                                                     LocalTime start, LocalTime end) {
+    public ApiResponse<List<ConflictEventResponse>> checkConflict(
+            Long locationId,
+            LocalDate date,
+            LocalTime start,
+            LocalTime end
+    ) {
 
         List<Event> events = eventRepo.findConflictedEvents(locationId, date, start, end);
 
@@ -106,16 +111,25 @@ public class LocationServiceImpl implements LocationService {
 
         for (Event e : events) {
             for (EventDay d : e.getDays()) {
-                if (d.getDate().equals(date) &&
-                        d.getStartTime().isBefore(end) &&
-                        d.getEndTime().isAfter(start)) {
+                boolean sameDate = d.getDate().equals(date);
+                boolean overlap = d.getStartTime().isBefore(end) &&
+                        d.getEndTime().isAfter(start);
+
+                if (sameDate && overlap) {
                     result.add(toConflictResponse(e, d));
                 }
             }
         }
 
-        return result;
+        if (result.isEmpty()) {
+            // KHÔNG TRÙNG LỊCH => trả message
+            return ApiResponse.msg("No conflicts found");
+        }
+
+        // CÓ TRÙNG LỊCH => trả data
+        return ApiResponse.ok(result);
     }
+
 
     public ConflictEventResponse toConflictResponse(Event e, EventDay d) {
         return new ConflictEventResponse(

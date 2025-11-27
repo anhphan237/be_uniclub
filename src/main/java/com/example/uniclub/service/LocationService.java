@@ -1,5 +1,6 @@
 package com.example.uniclub.service;
 
+import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.LocationCreateRequest;
 import com.example.uniclub.dto.request.LocationUpdateRequest;
 import com.example.uniclub.dto.response.ConflictEventResponse;
@@ -26,5 +27,11 @@ public interface LocationService {
 
     void delete(Long id);
 
-    List<ConflictEventResponse> checkConflict(Long locationId, LocalDate date, LocalTime start, LocalTime end);
+    ApiResponse<List<ConflictEventResponse>> checkConflict(
+            Long locationId,
+            LocalDate date,
+            LocalTime start,
+            LocalTime end
+    );
+
 }
