@@ -6,12 +6,14 @@ import com.example.uniclub.dto.request.LocationUpdateRequest;
 import com.example.uniclub.dto.response.LocationResponse;
 import com.example.uniclub.service.LocationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -120,12 +122,35 @@ public class LocationController {
     )
     public ResponseEntity<?> checkConflicts(
             @RequestParam Long locationId,
-            @RequestParam LocalDate date,
-            @RequestParam LocalTime startTime,
-            @RequestParam LocalTime endTime
+
+            @RequestParam
+            @DateTimeFormat(pattern = "dd-MM-yyyy")
+            @Parameter(
+                    description = "Ngày (format: dd-MM-yyyy)",
+                    example = "28-11-2025"
+            )
+            LocalDate date,
+
+            @RequestParam
+            @DateTimeFormat(pattern = "HH:mm")
+            @Parameter(
+                    description = "Giờ bắt đầu (format: HH:mm)",
+                    example = "09:00"
+            )
+            LocalTime startTime,
+
+            @RequestParam
+            @DateTimeFormat(pattern = "HH:mm")
+            @Parameter(
+                    description = "Giờ kết thúc (format: HH:mm)",
+                    example = "11:00"
+            )
+            LocalTime endTime
     ) {
         var result = locationService.checkConflict(locationId, date, startTime, endTime);
         return ResponseEntity.ok(result);
     }
+
+
 
 }
