@@ -1090,5 +1090,12 @@ public class EventServiceImpl implements EventService {
 
         return "Event has been cancelled successfully";
     }
+    @Override
+    public List<EventResponse> getEventsByDate(LocalDate date) {
+        List<Event> events = eventRepo.findEventsByDate(date);
+        return events.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 
 }

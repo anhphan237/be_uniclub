@@ -187,5 +187,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    JOIN e.days d
+    WHERE d.date = :date
+    ORDER BY e.startDate ASC
+""")
+    List<Event> findEventsByDate(@Param("date") LocalDate date);
 
 }

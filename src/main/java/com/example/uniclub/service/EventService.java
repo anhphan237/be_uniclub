@@ -82,5 +82,6 @@ public interface EventService {
     byte[] exportAttendanceData(Long eventId, String format);
     Map<String, Object> getEventAttendanceSummary(Long eventId);
     public String cancelEvent(Long eventId, EventCancelRequest req, CustomUserDetails principal);
+    List<EventResponse> getEventsByDate(LocalDate date);
 
 }

@@ -823,5 +823,14 @@ public class EventController {
                 )
         ));
     }
+    @Operation(summary = "Lấy tất cả sự kiện theo ngày (dd-MM-yyyy)")
+    @GetMapping("/by-date")
+    public ResponseEntity<ApiResponse<List<EventResponse>>> getEventsByDate(
+            @RequestParam
+            @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate date
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(eventService.getEventsByDate(date)));
+    }
+
 
 }
