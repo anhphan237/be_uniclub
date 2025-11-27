@@ -104,6 +104,11 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 firstLogin = user.isFirstLogin();
             }
 
+            // =============================
+            // 🔥 FLAG QUAN TRỌNG NHẤT
+            // =============================
+            boolean needCompleteProfile = (user.getStudentCode() == null);
+
             // 🔐 Sinh JWT token
             String token = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
@@ -120,14 +125,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
             // ⭐ Redirect kèm thông tin
             String redirect = String.format(
-                    "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s&firstLogin=%s",
+                    "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s&firstLogin=%s&needCompleteProfile=%s",
                     redirectSuccessUrl,
                     token,
                     user.getRole().getRoleName(),
                     clubIdsParam,
                     isStaff,
                     isNewUser,
-                    firstLogin
+                    firstLogin,
+                    needCompleteProfile
             );
 
             // ⭐ Reset firstLogin sau khi gửi cho FE (chỉ 1 lần duy nhất)
@@ -143,7 +149,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.sendRedirect(redirectFailUrl + "?error=server_error");
         }
     }
-
-
 
 }

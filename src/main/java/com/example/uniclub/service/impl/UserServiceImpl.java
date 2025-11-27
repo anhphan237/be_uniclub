@@ -333,12 +333,25 @@ public class UserServiceImpl implements UserService {
         if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
             user.setBackgroundUrl(req.getBackgroundUrl());
 
+        // ======================================================
+        //  🔥 Validate Student Code thật (điểm quan trọng nhất)
+        // ======================================================
         if (req.getStudentCode() != null && !req.getStudentCode().isBlank()) {
+
+            // Nếu MSSV mới khác MSSV cũ
             if (!req.getStudentCode().equals(user.getStudentCode())) {
+
+                // MSSV đã bị user khác dùng?
                 if (userRepo.existsByStudentCode(req.getStudentCode())) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Student code already in use");
                 }
-                user.setStudentCode(req.getStudentCode());
+
+                // Validate MSSV theo registry (format + major + tồn tại)
+                StudentRegistry reg = studentRegistryService.validate(req.getStudentCode());
+
+                // Cập nhật MSSV + tên thật
+                user.setStudentCode(reg.getStudentCode());
+                user.setFullName(reg.getFullName());
             }
         }
 
@@ -349,6 +362,7 @@ public class UserServiceImpl implements UserService {
         resp.setWallet(wallet);
         return resp;
     }
+
 
     @Override
     public UserResponse updateAvatarResponse(String email, String avatarUrl) {
