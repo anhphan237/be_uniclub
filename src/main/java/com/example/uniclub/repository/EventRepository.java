@@ -4,12 +4,13 @@ import com.example.uniclub.entity.Event;
 import com.example.uniclub.enums.EventStatusEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -171,4 +172,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("now") LocalDateTime now,
             @Param("threshold") LocalDateTime threshold
     );
+
+    @Query("""
+        SELECT e FROM Event e
+        JOIN e.days d
+        WHERE e.location.locationId = :locationId
+          AND d.date = :date
+          AND d.startTime < :endTime
+          AND d.endTime > :startTime
+    """)
+    List<Event> findConflictedEvents(
+            @Param("locationId") Long locationId,
+            @Param("date") LocalDate date,
+            @Param("startTime") LocalTime startTime,
+            @Param("endTime") LocalTime endTime
+    );
+
 }

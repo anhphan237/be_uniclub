@@ -16,6 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 @Tag(
         name = "Location Management",
         description = """
@@ -106,4 +109,23 @@ public class LocationController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(locationService.update(id, req)));
     }
+
+    @GetMapping("/{id}/conflicts")
+    @Operation(
+            summary = "Kiểm tra trùng lịch tại địa điểm",
+            description = """
+            Nhập khoảng thời gian và kiểm tra xem địa điểm có sự kiện nào đang dùng trong khoảng đó không.
+            Chỉ cần trùng 1 phút cũng sẽ hiện.
+            """
+    )
+    public ResponseEntity<?> checkConflicts(
+            @RequestParam Long locationId,
+            @RequestParam LocalDate date,
+            @RequestParam LocalTime startTime,
+            @RequestParam LocalTime endTime
+    ) {
+        var result = locationService.checkConflict(locationId, date, startTime, endTime);
+        return ResponseEntity.ok(result);
+    }
+
 }
