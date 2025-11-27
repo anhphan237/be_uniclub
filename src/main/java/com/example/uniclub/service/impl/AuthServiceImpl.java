@@ -11,6 +11,7 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.security.JwtUtil;
 import com.example.uniclub.service.EmailService;
+import com.example.uniclub.service.StudentRegistryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +19,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.uniclub.entity.Major;
+import com.example.uniclub.entity.StudentRegistry;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +41,7 @@ public class AuthServiceImpl {
     private final PasswordResetTokenRepository tokenRepository;
     private final EmailService emailService;
     private final MajorRepository majorRepository;
+    private final StudentRegistryService studentRegistryService;
 
     // ==============================================
     // 🔹 Đăng nhập (Email / Password) — FIXED FULLY
@@ -112,6 +116,7 @@ public class AuthServiceImpl {
     // 🔹 Đăng ký
     // ==============================================
     public AuthResponse register(RegisterRequest req) {
+
         if (userRepository.existsByEmail(req.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
         }
@@ -120,29 +125,36 @@ public class AuthServiceImpl {
             throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
         }
 
+        // Validate MSSV thật
+        StudentRegistry registry = studentRegistryService.validate(req.studentCode());
+
+        // Validate Major
+        Major major = majorRepository.findByName(req.majorName())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+                        "Major not found: " + req.majorName()));
+
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .fullName(req.fullName())
+
+                // ⭐ Lấy tên từ student_registry
+                .fullName(registry.getFullName())
+
                 .phone(req.phone())
+                .studentCode(req.studentCode())
+                .major(major)
+
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
+
                 .status(UserStatusEnum.ACTIVE.name())
-                .studentCode(req.studentCode())
-                .major(
-                        majorRepository.findByName(req.majorName())
-                                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                                        "Major not found: " + req.majorName()))
-                )
                 .isFirstLogin(true)
                 .build();
 
-        user = userRepository.save(user);
+        userRepository.save(user);
 
-        // Send Email
         emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
 
-        // Create JWT
         String token = jwtUtil.generateToken(
                 user.getEmail(),
                 user.getRole().getRoleName()

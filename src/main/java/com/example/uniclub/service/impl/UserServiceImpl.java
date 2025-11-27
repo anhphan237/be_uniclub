@@ -8,6 +8,7 @@ import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.EmailService;
+import com.example.uniclub.service.StudentRegistryService;
 import com.example.uniclub.service.UserService;
 import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class UserServiceImpl implements UserService {
     private final MembershipRepository membershipRepo;
     private final WalletService walletService;
     private final EventStaffRepository eventStaffRepository;
+    private final StudentRegistryService studentRegistryService;
 
     // ===================== Helper =====================
     private UserResponse toResp(User u) {
@@ -88,38 +90,66 @@ public class UserServiceImpl implements UserService {
     // ===================== CRUD =====================
     @Override
     public UserResponse create(UserCreateRequest req) {
+
+        // =============================
+        // 1) Check email tồn tại
+        // =============================
         if (userRepo.existsByEmail(req.email()))
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
 
-        if (req.studentCode() != null && userRepo.existsByStudentCode(req.studentCode()))
-            throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
+        // =============================
+        // 2) Validate MSSV nếu có nhập
+        // =============================
+        StudentRegistry registry = null;
 
+        if (req.studentCode() != null && !req.studentCode().isBlank()) {
+
+            // MSSV đã tồn tại trong bảng users?
+            if (userRepo.existsByStudentCode(req.studentCode())) {
+                throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
+            }
+
+            // Validate MSSV thật + lấy full name
+            registry = studentRegistryService.validate(req.studentCode());
+        }
+
+        // =============================
+        // 3) Validate Major ID
+        // =============================
         Major major = null;
         if (req.majorId() != null) {
             major = majorRepo.findById(req.majorId())
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
         }
 
+        // =============================
+        // 4) Build User
+        // =============================
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .fullName(req.fullName())
                 .phone(req.phone())
                 .studentCode(req.studentCode())
                 .major(major)
                 .bio(req.bio())
                 .role(Role.builder().roleId(req.roleId()).build())
                 .status(UserStatusEnum.ACTIVE.name())
+
+                // Nếu có MSSV thật → dùng fullName từ registry
+                .fullName(registry != null ? registry.getFullName() : req.fullName())
+
                 .build();
+
 
         userRepo.save(user);
 
         try {
-            emailService.sendWelcomeEmail(req.email(), req.fullName());
+            emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
         } catch (Exception ignored) {}
 
         return toResp(user);
     }
+
 
     @Override
     public UserResponse update(Long id, UserUpdateRequest req) {
