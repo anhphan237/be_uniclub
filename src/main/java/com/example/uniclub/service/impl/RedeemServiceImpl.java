@@ -3,6 +3,7 @@ package com.example.uniclub.service.impl;
 import com.example.uniclub.dto.request.RedeemOrderRequest;
 import com.example.uniclub.dto.response.OrderResponse;
 import com.example.uniclub.dto.response.RedeemScanResponse;
+import com.example.uniclub.dto.response.ReturnImageResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -14,11 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.Base64;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -39,9 +39,15 @@ public class RedeemServiceImpl implements RedeemService {
     private final EmailService emailService;
     private final NotificationRepository notificationRepo;
     private final WalletNotificationService walletNotificationService;
+    private final ReturnImageRepository returnImageRepo;
+    private final CloudinaryService cloudinaryService;
 
 
     private OrderResponse toResponse(ProductOrder o) {
+        List<String> images = returnImageRepo.findByOrder_OrderId(o.getOrderId())
+                .stream()
+                .map(img -> img.getImageUrl())
+                .toList();
         return new OrderResponse(
                 o.getOrderId(),
                 o.getOrderCode(),
@@ -56,7 +62,8 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getProduct().getEvent() != null ? o.getProduct().getEvent().getEventId() : null,
                 o.getClub().getName(),
                 o.getMembership().getUser().getFullName(),
-                o.getReasonRefund()
+                o.getReasonRefund(),
+                images
         );
     }
     @Override
@@ -449,20 +456,27 @@ public class RedeemServiceImpl implements RedeemService {
         if (clubWallet.getBalancePoints() < refundPoints)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet insufficient points");
 
-        // 🔁 Refund points
+        // =============================================================
+        // 🔥 CHECK: MUST HAVE refund images uploaded BEFORE REFUND
+        // =============================================================
+        List<ReturnImage> images = returnImageRepo.findByOrder_OrderId(orderId);
+        if (images.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Please upload refund images before refunding.");
+        }
+
+        // =============================================================
+        // 🔁 Refund Points
+        // =============================================================
         userWallet.setBalancePoints(userWallet.getBalancePoints() + refundPoints);
         clubWallet.setBalancePoints(clubWallet.getBalancePoints() - refundPoints);
 
-        // 🔁 Return stock
         product.setStockQuantity(product.getStockQuantity() + order.getQuantity());
         product.decreaseRedeemCount(order.getQuantity());
 
-        // 🔁 Update order
         order.setStatus(OrderStatusEnum.REFUNDED);
         order.setCompletedAt(LocalDateTime.now());
-        order.setReasonRefund(reason != null ? reason : "Refund processed by staff ID " + staffUserId);
+        order.setReasonRefund(reason);
 
-        // 🔁 Log wallet transactions
         WalletTransaction txUser = WalletTransaction.builder()
                 .wallet(userWallet)
                 .amount(refundPoints)
@@ -488,7 +502,6 @@ public class RedeemServiceImpl implements RedeemService {
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
 
-        // ⛳ EMAIL SERVICE CHUẨN
         emailService.sendRefundEmail(
                 order.getMembership().getUser().getEmail(),
                 order.getMembership().getUser().getFullName(),
@@ -499,9 +512,11 @@ public class RedeemServiceImpl implements RedeemService {
                 order.getOrderCode()
         );
 
-
         return toResponse(order);
     }
+
+
+
 
     // 🟡 Hoàn hàng một phần
     @Override
@@ -538,29 +553,36 @@ public class RedeemServiceImpl implements RedeemService {
 
         long refundPoints = product.getPointCost() * quantityToRefund;
 
-        // ✅ Check club có đủ điểm refund
         if (clubWallet.getBalancePoints() < refundPoints)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet has insufficient points to refund");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet has insufficient points");
 
-        // 🔁 Cập nhật ví & kho
+        // =============================================================
+        // 🔥 CHECK: MUST HAVE refund images uploaded BEFORE REFUND
+        // =============================================================
+        List<ReturnImage> images = returnImageRepo.findByOrder_OrderId(orderId);
+        if (images.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Please upload refund images before refunding.");
+        }
+
+        // =============================================================
+        // 🔁 Update wallets & stock
+        // =============================================================
         userWallet.setBalancePoints(userWallet.getBalancePoints() + refundPoints);
         clubWallet.setBalancePoints(clubWallet.getBalancePoints() - refundPoints);
+
         product.setStockQuantity(product.getStockQuantity() + quantityToRefund);
         product.decreaseRedeemCount(quantityToRefund);
 
-        // 🔁 Update order
         order.setQuantity(order.getQuantity() - quantityToRefund);
         order.setTotalPoints(order.getQuantity() * product.getPointCost());
+
         order.setStatus(order.getQuantity() == 0
                 ? OrderStatusEnum.REFUNDED
                 : OrderStatusEnum.PARTIALLY_REFUNDED);
 
-        order.setReasonRefund(reason != null ? reason :
-                "Partial refund (" + quantityToRefund + " items) processed by staff ID " + staffUserId);
-
+        order.setReasonRefund(reason);
         order.setCompletedAt(LocalDateTime.now());
 
-        // 🔁 Transactions
         WalletTransaction txUser = WalletTransaction.builder()
                 .wallet(userWallet)
                 .amount(refundPoints)
@@ -586,7 +608,6 @@ public class RedeemServiceImpl implements RedeemService {
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
 
-        // ⛳ EMAIL SERVICE CHUẨN – THAY THẾ EMAIL THÔ
         emailService.sendPartialRefundEmail(
                 order.getMembership().getUser().getEmail(),
                 order.getMembership().getUser().getFullName(),
@@ -597,9 +618,10 @@ public class RedeemServiceImpl implements RedeemService {
                 order.getOrderCode()
         );
 
-
         return toResponse(order);
     }
+
+
 
     @Override
     @Transactional
@@ -780,6 +802,94 @@ public class RedeemServiceImpl implements RedeemService {
                 )
                 .stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<String> uploadRefundImages(Long orderId, List<MultipartFile> files) {
+
+        ProductOrder order = orderRepo.findById(orderId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
+
+        if (files == null || files.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Please upload at least one image.");
+        }
+
+        if (files.size() > 5) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You can upload up to 5 images only.");
+        }
+
+        List<String> urls = new ArrayList<>();
+
+        int nextOrder = returnImageRepo.countByOrder_OrderId(orderId);
+
+        for (MultipartFile file : files) {
+
+            if (file.getContentType() == null ||
+                    !file.getContentType().toLowerCase().startsWith("image/")) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Invalid file type: " + file.getOriginalFilename());
+            }
+
+            try {
+                Map<?, ?> result = cloudinaryService.uploadRefundImageRaw(file, orderId);
+
+                String url = (String) result.get("secure_url");
+                String publicId = (String) result.get("public_id");
+
+                ReturnImage img = ReturnImage.builder()
+                        .order(order)
+                        .imageUrl(url)
+                        .publicId(publicId)
+                        .displayOrder(nextOrder++)
+                        .build();
+
+                returnImageRepo.save(img);
+                urls.add(url);
+
+            } catch (Exception e) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Failed to upload image: " + file.getOriginalFilename());
+            }
+        }
+
+        return urls;
+    }
+
+
+
+    @Override
+    @Transactional
+    public void deleteRefundImage(Long orderId, Long imageId) {
+
+        ReturnImage img = returnImageRepo.findById(imageId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Refund image not found"));
+
+        if (!img.getOrder().getOrderId().equals(orderId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Image does not belong to this order");
+        }
+
+        try {
+            cloudinaryService.deleteRefundImage(img.getPublicId());
+        } catch (Exception ignored) {}
+
+        returnImageRepo.delete(img);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReturnImageResponse> listRefundImages(Long orderId) {
+
+        List<ReturnImage> images = returnImageRepo.findByOrder_OrderIdOrderByDisplayOrderAsc(orderId);
+
+        return images.stream()
+                .map(img -> new ReturnImageResponse(
+                        img.getId(),
+                        img.getImageUrl(),
+                        img.getPublicId(),
+                        img.getDisplayOrder()
+                ))
                 .toList();
     }
 

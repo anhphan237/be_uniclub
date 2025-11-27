@@ -1,6 +1,7 @@
 package com.example.uniclub.dto.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record OrderResponse(
         Long orderId,
@@ -18,5 +19,7 @@ public record OrderResponse(
 
         String clubName,
         String memberName,
-        String reasonRefund
+        String reasonRefund,
+
+        List<String> errorImages
 ) {}

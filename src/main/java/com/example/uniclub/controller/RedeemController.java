@@ -7,6 +7,7 @@ import com.example.uniclub.dto.request.RefundRequest;
 import com.example.uniclub.dto.request.ScanQrRequest;
 import com.example.uniclub.dto.response.OrderResponse;
 import com.example.uniclub.dto.response.RedeemScanResponse;
+import com.example.uniclub.dto.response.ReturnImageResponse;
 import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.RedeemService;
@@ -15,10 +16,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.security.PermitAll;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -45,10 +48,10 @@ public class RedeemController {
     @Operation(
             summary = "Member đặt hàng từ kho CLB",
             description = """
-                Dành cho **STUDENT**.<br>
-                Khi thành viên đặt hàng sản phẩm từ kho CLB, điểm sẽ bị trừ ngay lập tức và đơn được tạo ở trạng thái `PENDING`.<br>
-                Sau đó CLB sẽ xác nhận để hoàn tất đơn hàng.
-                """,
+                    Dành cho **STUDENT**.<br>
+                    Khi thành viên đặt hàng sản phẩm từ kho CLB, điểm sẽ bị trừ ngay lập tức và đơn được tạo ở trạng thái `PENDING`.<br>
+                    Sau đó CLB sẽ xác nhận để hoàn tất đơn hàng.
+                    """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Tạo đơn hàng thành công")
     )
@@ -69,9 +72,9 @@ public class RedeemController {
     @Operation(
             summary = "Staff đổi quà trực tiếp tại booth sự kiện",
             description = """
-                Dành cho **CLUB_LEADER**, **VICE_LEADER** hoặc **STAFF**.<br>
-                Khi staff đổi quà trực tiếp cho người tham gia tại sự kiện, hệ thống sẽ trừ điểm và hoàn tất đơn (`COMPLETED`) ngay lập tức.
-                """,
+                    Dành cho **CLUB_LEADER**, **VICE_LEADER** hoặc **STAFF**.<br>
+                    Khi staff đổi quà trực tiếp cho người tham gia tại sự kiện, hệ thống sẽ trừ điểm và hoàn tất đơn (`COMPLETED`) ngay lập tức.
+                    """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Đổi quà thành công")
     )
@@ -92,9 +95,9 @@ public class RedeemController {
     @Operation(
             summary = "Xác nhận hoàn tất đơn hàng CLB (COMPLETE)",
             description = """
-                Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STAFF**.<br>
-                Sau khi thành viên đến nhận quà, CLB xác nhận đơn từ `PENDING` → `COMPLETED`.
-                """,
+                    Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STAFF**.<br>
+                    Sau khi thành viên đến nhận quà, CLB xác nhận đơn từ `PENDING` → `COMPLETED`.
+                    """,
             responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200", description = "Đơn hàng đã được hoàn tất")
     )
@@ -108,17 +111,56 @@ public class RedeemController {
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
-    // ==========================================================
-    // 🟤 4. HOÀN ĐIỂM ĐƠN HÀNG (FULL REFUND)
-    // ==========================================================
+
+
+
     @Operation(
-            summary = "Hoàn điểm toàn bộ cho đơn hàng (có lý do)",
+            summary = "Upload ảnh lỗi sản phẩm khi hoàn hàng",
             description = """
-            Dành cho **CLUB_LEADER**, **VICE_LEADER**, hoặc **STAFF**.<br>
-            Khi sản phẩm lỗi hoặc giao sai. Nhập lý do refund để hệ thống ghi log.
-            """,
-            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "Hoàn điểm thành công")
+            Dùng khi xử lý **refund**.<br>
+            FE upload tối đa 5 ảnh, BE trả về danh sách URL để dùng cho refund.<br>
+            Ảnh được lưu trên Cloudinary theo folder từng order.
+            """
+    )
+    @PostMapping(value = "/order/{orderId}/refund/upload-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    public ResponseEntity<ApiResponse<List<String>>> uploadRefundImages(
+            @PathVariable Long orderId,
+            @RequestPart("files") List<MultipartFile> files
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                redeemService.uploadRefundImages(orderId, files)
+        ));
+    }
+
+
+
+    @Operation(
+            summary = "Xoá 1 ảnh lỗi hoàn hàng",
+            description = """
+            Xoá ảnh lỗi trong DB và trên Cloudinary.<br>
+            Chỉ STAFF/LEADER của CLB đang sở hữu đơn mới được xoá.
+            """
+    )
+    @DeleteMapping("/order/{orderId}/refund/image/{imageId}")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    public ResponseEntity<ApiResponse<String>> deleteRefundImage(
+            @PathVariable Long orderId,
+            @PathVariable Long imageId
+    ) {
+        redeemService.deleteRefundImage(orderId, imageId);
+        return ResponseEntity.ok(ApiResponse.msg("Image deleted"));
+    }
+
+
+
+    @Operation(
+            summary = "Hoàn điểm toàn phần (FULL REFUND)",
+            description = """
+            Áp dụng khi sản phẩm lỗi hoàn toàn.<br>
+            BE hoàn lại toàn bộ điểm, trả stock, lưu ảnh lỗi và log lịch sử ví.<br>
+            Cần FE gửi: reason + danh sách URL ảnh lỗi sau khi upload.
+            """
     )
     @PutMapping("/order/refund")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
@@ -126,25 +168,24 @@ public class RedeemController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody RefundRequest req
     ) {
-        OrderResponse res = redeemService.refund(
-                req.orderId(),
-                principal.getUser().getUserId(),
-                req.reason()
-        );
-        return ResponseEntity.ok(ApiResponse.ok(res));
+        return ResponseEntity.ok(ApiResponse.ok(
+                redeemService.refund(
+                        req.orderId(),
+                        principal.getUser().getUserId(),
+                        req.reason()
+                )
+        ));
     }
 
-    // ==========================================================
-    // 🟡 5. HOÀN ĐIỂM MỘT PHẦN (PARTIAL REFUND)
-    // ==========================================================
+
+
     @Operation(
-            summary = "Hoàn điểm một phần cho đơn hàng (có lý do)",
+            summary = "Hoàn điểm một phần (PARTIAL REFUND)",
             description = """
-            Dành cho **CLUB_LEADER** hoặc **VICE_LEADER**.<br>
-            Cho phép hoàn lại một phần điểm kèm lý do hoàn hàng.
-            """,
-            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200", description = "Hoàn điểm một phần thành công")
+            Dùng khi chỉ một phần sản phẩm bị lỗi.<br>
+            BE hoàn lại điểm theo số lượng bị lỗi, cập nhật stock và log ví.<br>
+            FE phải upload ảnh lỗi rồi gửi URL vào API này.
+            """
     )
     @PutMapping("/order/refund-partial")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
@@ -152,14 +193,19 @@ public class RedeemController {
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody RefundRequest req
     ) {
+
         OrderResponse res = redeemService.refundPartial(
                 req.orderId(),
                 req.quantityToRefund(),
                 principal.getUser().getUserId(),
                 req.reason()
+
         );
+
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
+
+
 
 
     // ==========================================================

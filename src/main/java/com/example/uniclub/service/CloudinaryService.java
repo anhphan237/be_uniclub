@@ -2,6 +2,7 @@ package com.example.uniclub.service;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.example.uniclub.dto.response.ReturnImageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,6 +52,24 @@ public class CloudinaryService {
             cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete file from Cloudinary: " + publicId, e);
+        }
+    }
+    public Map<?, ?> uploadRefundImageRaw(MultipartFile file, Long orderId) throws IOException {
+        return cloudinary.uploader().upload(
+                file.getBytes(),
+                ObjectUtils.asMap(
+                        "folder", "uniclub/refunds/order-" + orderId,
+                        "resource_type", "image",
+                        "overwrite", false
+                )
+        );
+    }
+
+    public void deleteRefundImage(String publicId) {
+        try {
+            cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete refund image: " + publicId);
         }
     }
 

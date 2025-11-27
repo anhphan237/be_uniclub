@@ -3,6 +3,8 @@ package com.example.uniclub.service;
 import com.example.uniclub.dto.request.RedeemOrderRequest;
 import com.example.uniclub.dto.response.OrderResponse;
 import com.example.uniclub.dto.response.RedeemScanResponse;
+import com.example.uniclub.dto.response.ReturnImageResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -17,11 +19,17 @@ public interface RedeemService {
     // 🟢 Staff xác nhận hoàn tất đơn hàng
     OrderResponse complete(Long orderId, Long staffUserId);
 
-    // 🟡 Hoàn hàng toàn phần
     OrderResponse refund(Long orderId, Long staffUserId, String reason);
 
-    // 🟡 Hoàn hàng một phần
     OrderResponse refundPartial(Long orderId, Integer quantityToRefund, Long staffUserId, String reason);
+
+    List<String> uploadRefundImages(Long orderId, List<MultipartFile> files);
+
+    List<ReturnImageResponse> listRefundImages(Long orderId);
+
+
+
+    void deleteRefundImage(Long orderId, Long imageId);
 
 
     OrderResponse getOrderByCode(String orderCode);
