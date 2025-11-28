@@ -60,6 +60,7 @@ public class EventController {
     private final EventRepository eventRepo;
     private final StaffPerformanceService staffPerformanceService;
     private final ProductService productService;
+    private final EventFeedbackService feedbackService;
     // =========================================================
     // 🔹 1. CRUD
     // =========================================================
@@ -840,6 +841,29 @@ public class EventController {
         return ResponseEntity.ok(ApiResponse.ok(
                 eventStaffService.getMyActiveStaff(userId)
         ));
+    }
+    @GetMapping("/event/{eventId}/rating-summary")
+    @Operation(
+            summary = "Get event rating summary",
+            description = "Return the average rating and total number of feedbacks for a specific event."
+    )
+    public ResponseEntity<?> getEventRatingSummary(@PathVariable Long eventId) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(feedbackService.getEventRatingSummary(eventId))
+        );
+    }
+
+
+
+    @GetMapping("/club/{clubId}/rating-summary")
+    @Operation(
+            summary = "Get club rating summary",
+            description = "Return total rating, total feedback count, and average rating from all events hosted or co-hosted by the club."
+    )
+    public ResponseEntity<?> getClubRatingSummary(@PathVariable Long clubId) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(feedbackService.getClubRatingSummary(clubId))
+        );
     }
 
 

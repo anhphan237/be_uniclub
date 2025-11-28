@@ -24,5 +24,45 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
     List<EventFeedback> findByMembership_User_UserId(Long userId);
 
     Optional<EventFeedback> findByEvent_EventIdAndMembership_MembershipId(Long eventId, Long membershipId);
+    // ⭐ Lấy trung bình rating của 1 event
+    @Query("""
+    SELECT AVG(f.rating) 
+    FROM EventFeedback f 
+    WHERE f.event.eventId = :eventId
+""")
+    Double getAverageRatingForEvent(@Param("eventId") Long eventId);
+
+
+    // ⭐ Đếm số feedback của event
+    @Query("""
+    SELECT COUNT(f.feedbackId)
+    FROM EventFeedback f
+    WHERE f.event.eventId = :eventId
+""")
+    Long getTotalFeedbacksForEvent(@Param("eventId") Long eventId);
+
+
+    // ⭐ Tổng toàn bộ rating của 1 club (bao gồm host + co-host)
+    @Query("""
+    SELECT SUM(f.rating)
+    FROM EventFeedback f
+    JOIN f.event e
+    LEFT JOIN e.coHostRelations ec
+    WHERE e.hostClub.clubId = :clubId
+       OR ec.club.clubId = :clubId
+""")
+    Long getTotalRatingForClub(@Param("clubId") Long clubId);
+
+
+    // ⭐ Tổng số lượt feedback của club (host + cohost)
+    @Query("""
+    SELECT COUNT(f.feedbackId)
+    FROM EventFeedback f
+    JOIN f.event e
+    LEFT JOIN e.coHostRelations ec
+    WHERE e.hostClub.clubId = :clubId
+       OR ec.club.clubId = :clubId
+""")
+    Long getTotalFeedbackCountForClub(@Param("clubId") Long clubId);
 
 }

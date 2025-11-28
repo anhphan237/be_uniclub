@@ -1,7 +1,9 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.request.EventFeedbackRequest;
+import com.example.uniclub.dto.response.ClubRatingSummaryDTO;
 import com.example.uniclub.dto.response.EventFeedbackResponse;
+import com.example.uniclub.dto.response.EventRatingSummaryDTO;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
@@ -164,6 +166,29 @@ public class EventFeedbackServiceImpl implements EventFeedbackService {
                 .stream()
                 .map(EventFeedbackResponse::fromEntity)
                 .toList();
+    }
+    @Override
+    public EventRatingSummaryDTO getEventRatingSummary(Long eventId) {
+        Double avg = feedbackRepo.getAverageRatingForEvent(eventId);
+        Long count = feedbackRepo.getTotalFeedbacksForEvent(eventId);
+
+        if (avg == null) avg = 0.0;
+        if (count == null) count = 0L;
+
+        return new EventRatingSummaryDTO(eventId, avg, count);
+    }
+
+    @Override
+    public ClubRatingSummaryDTO getClubRatingSummary(Long clubId) {
+        Long totalRating = feedbackRepo.getTotalRatingForClub(clubId);
+        Long totalFeedbacks = feedbackRepo.getTotalFeedbackCountForClub(clubId);
+
+        if (totalRating == null) totalRating = 0L;
+        if (totalFeedbacks == null) totalFeedbacks = 0L;
+
+        double avg = (totalFeedbacks > 0) ? (double) totalRating / totalFeedbacks : 0.0;
+
+        return new ClubRatingSummaryDTO(clubId, totalRating, totalFeedbacks, avg);
     }
 
 
