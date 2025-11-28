@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.EventStaffResponse;
+import com.example.uniclub.dto.response.StaffInfoResponse;
 import com.example.uniclub.entity.EventStaff;
 
 import java.util.List;
@@ -19,8 +20,7 @@ public interface EventStaffService {
      */
     List<EventStaff> expireStaffOfCompletedEvent(Long eventId);
 
-    /**
-     * Lấy staff sau khi event đã hoàn thành (mapped DTO)
-     */
+    List<StaffInfoResponse> getMyActiveStaff(Long userId);
+
     List<EventStaffResponse> getCompletedEventStaff(Long eventId);
 }

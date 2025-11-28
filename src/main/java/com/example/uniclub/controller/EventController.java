@@ -831,6 +831,16 @@ public class EventController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(eventService.getEventsByDate(date)));
     }
+    @GetMapping("/my/staff")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<List<StaffInfoResponse>>> getMyStaff(
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long userId = principal.getUser().getUserId();
+        return ResponseEntity.ok(ApiResponse.ok(
+                eventStaffService.getMyActiveStaff(userId)
+        ));
+    }
 
 
 }

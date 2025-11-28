@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.EventStaffResponse;
+import com.example.uniclub.dto.response.StaffInfoResponse;
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.entity.EventStaff;
 import com.example.uniclub.entity.Membership;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -49,12 +51,29 @@ public class EventStaffServiceImpl implements EventStaffService {
         Membership membership = membershipRepository.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
-        boolean exists = eventStaffRepository
-                .existsByEvent_EventIdAndMembership_MembershipId(eventId, membershipId);
+        Optional<EventStaff> existingOpt =
+                eventStaffRepository.findByEvent_EventIdAndMembership_MembershipId(eventId, membershipId);
 
-        if (exists) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "This member is already assigned for this event");
+        if (existingOpt.isPresent()) {
+            EventStaff es = existingOpt.get();
+
+            // Nếu trước đó bị REMOVED hoặc EXPIRED → kích hoạt lại
+            if (es.getState() == EventStaffStateEnum.REMOVED || es.getState() == EventStaffStateEnum.EXPIRED) {
+
+                es.setState(EventStaffStateEnum.ACTIVE);
+                es.setDuty(duty);
+                es.setAssignedAt(LocalDateTime.now());
+                es.setUnassignedAt(null);
+
+                EventStaff saved = eventStaffRepository.save(es);
+                return EventStaffResponse.from(saved);
+            }
+
+            // Nếu đang ACTIVE → không cho assign lại
+            if (es.getState() == EventStaffStateEnum.ACTIVE) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "Member is already assigned as staff for this event");
+            }
         }
 
         EventStaff saved = eventStaffRepository.save(
@@ -165,4 +184,21 @@ public class EventStaffServiceImpl implements EventStaffService {
                 .map(EventStaffResponse::from)
                 .toList();
     }
+    @Override
+    public List<StaffInfoResponse> getMyActiveStaff(Long userId) {
+
+        List<EventStaff> list = eventStaffRepository.findActiveStaffByUserId(userId);
+
+        return list.stream()
+                .map(es -> new StaffInfoResponse(
+                        es.getEvent().getEventId(),
+                        es.getEvent().getName(),
+                        es.getEvent().getHostClub().getClubId(),
+                        es.getEvent().getHostClub().getName(),
+                        es.getDuty(),
+                        es.getState()
+                ))
+                .toList();
+    }
+
 }

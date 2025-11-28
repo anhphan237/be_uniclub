@@ -81,5 +81,11 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
+    @Query("""
+    SELECT es FROM EventStaff es
+    WHERE es.membership.user.userId = :userId
+      AND es.state = 'ACTIVE'
+""")
+    List<EventStaff> findActiveStaffByUserId(@Param("userId") Long userId);
 
 }

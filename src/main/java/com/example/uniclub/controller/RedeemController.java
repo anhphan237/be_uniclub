@@ -79,7 +79,7 @@ public class RedeemController {
                     responseCode = "200", description = "Đổi quà thành công")
     )
     @PostMapping("/event/{eventId}/redeem")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<OrderResponse>> eventRedeem(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long eventId,
@@ -386,7 +386,7 @@ public class RedeemController {
     }
 
     @GetMapping("/event/club/{clubId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','ADMIN')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','ADMIN','STUDENT')")
     @Operation(
             summary = "Get all event redeem orders for a club",
             description = "Return list of EVENT_ITEM orders belonging to a specific club"
