@@ -133,6 +133,22 @@ public class RedeemController {
         ));
     }
 
+    @Operation(
+            summary = "Lấy danh sách ảnh lỗi của order",
+            description = """
+            Trả về toàn bộ ảnh lỗi đã upload cho 1 order (theo đúng thứ tự hiển thị).
+            FE gọi API này để hiển thị danh sách ảnh trước khi bấm Refund.
+        """
+    )
+    @GetMapping("/order/{orderId}/refund/images")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    public ResponseEntity<ApiResponse<List<ReturnImageResponse>>> listRefundImages(
+            @PathVariable Long orderId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                redeemService.listRefundImages(orderId)
+        ));
+    }
 
 
     @Operation(
