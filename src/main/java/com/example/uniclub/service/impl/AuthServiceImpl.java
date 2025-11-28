@@ -34,8 +34,6 @@ public class AuthServiceImpl {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final WalletRepository walletRepository;
-    private final ClubRepository clubRepository;
     private final MembershipRepository membershipRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetTokenRepository tokenRepository;
@@ -125,28 +123,23 @@ public class AuthServiceImpl {
             throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
         }
 
-        // Validate MSSV thật
+        // Validate real MSSV
         StudentRegistry registry = studentRegistryService.validate(req.studentCode());
 
-        // Validate Major
-        Major major = majorRepository.findByName(req.majorName())
+        // Auto-map major from registry
+        Major major = majorRepository.findByMajorCode(registry.getMajorCode())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "Major not found: " + req.majorName()));
+                        "Major not found for code: " + registry.getMajorCode()));
 
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
-
-                // ⭐ Lấy tên từ student_registry
-                .fullName(registry.getFullName())
-
+                .fullName(registry.getFullName())  // real name
                 .phone(req.phone())
                 .studentCode(req.studentCode())
                 .major(major)
-
                 .role(roleRepository.findByRoleName(req.roleName())
                         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid role name")))
-
                 .status(UserStatusEnum.ACTIVE.name())
                 .isFirstLogin(true)
                 .build();
@@ -170,6 +163,7 @@ public class AuthServiceImpl {
                 .staff(false)
                 .build();
     }
+
 
 
 

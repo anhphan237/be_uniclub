@@ -15,6 +15,6 @@ public record UserCreateRequest(
 
         // ✅ Thay thế majorName → majorId
         String studentCode,   // Mã số sinh viên
-        @NotNull Long majorId, // ID của chuyên ngành (tham chiếu bảng majors)
+        Long majorId, // ID của chuyên ngành (tham chiếu bảng majors)
         String bio             // Giới thiệu bản thân (optional)
 ) {}

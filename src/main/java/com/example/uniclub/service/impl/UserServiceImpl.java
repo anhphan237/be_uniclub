@@ -91,40 +91,33 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse create(UserCreateRequest req) {
 
-        // =============================
-        // 1) Check email tồn tại
-        // =============================
         if (userRepo.existsByEmail(req.email()))
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
 
-        // =============================
-        // 2) Validate MSSV nếu có nhập
-        // =============================
         StudentRegistry registry = null;
 
         if (req.studentCode() != null && !req.studentCode().isBlank()) {
 
-            // MSSV đã tồn tại trong bảng users?
             if (userRepo.existsByStudentCode(req.studentCode())) {
                 throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
             }
 
-            // Validate MSSV thật + lấy full name
+            // Validate + load fullName + major
             registry = studentRegistryService.validate(req.studentCode());
         }
 
-        // =============================
-        // 3) Validate Major ID
-        // =============================
         Major major = null;
-        if (req.majorId() != null) {
+
+        // Nếu có MSSV -> major phải tự map theo registry
+        if (registry != null) {
+            major = majorRepo.findByMajorCode(registry.getMajorCode())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+        }
+        else if (req.majorId() != null) {
             major = majorRepo.findById(req.majorId())
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
         }
 
-        // =============================
-        // 4) Build User
-        // =============================
         User user = User.builder()
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
@@ -134,12 +127,8 @@ public class UserServiceImpl implements UserService {
                 .bio(req.bio())
                 .role(Role.builder().roleId(req.roleId()).build())
                 .status(UserStatusEnum.ACTIVE.name())
-
-                // Nếu có MSSV thật → dùng fullName từ registry
                 .fullName(registry != null ? registry.getFullName() : req.fullName())
-
                 .build();
-
 
         userRepo.save(user);
 
@@ -149,6 +138,7 @@ public class UserServiceImpl implements UserService {
 
         return toResp(user);
     }
+
 
 
     @Override
@@ -321,38 +311,35 @@ public class UserServiceImpl implements UserService {
         if (req.getBio() != null && !req.getBio().isBlank())
             user.setBio(req.getBio());
 
-        if (req.getMajorId() != null) {
-            Major major = majorRepo.findById(req.getMajorId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
-            user.setMajor(major);
-        }
-
-        if (req.getAvatarUrl() != null && !req.getAvatarUrl().isBlank())
-            user.setAvatarUrl(req.getAvatarUrl());
-
-        if (req.getBackgroundUrl() != null && !req.getBackgroundUrl().isBlank())
-            user.setBackgroundUrl(req.getBackgroundUrl());
-
-        // ======================================================
-        //  🔥 Validate Student Code thật (điểm quan trọng nhất)
-        // ======================================================
+        // Nếu người dùng gửi studentCode -> major sẽ tự động set lại
         if (req.getStudentCode() != null && !req.getStudentCode().isBlank()) {
 
-            // Nếu MSSV mới khác MSSV cũ
             if (!req.getStudentCode().equals(user.getStudentCode())) {
 
-                // MSSV đã bị user khác dùng?
                 if (userRepo.existsByStudentCode(req.getStudentCode())) {
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Student code already in use");
                 }
 
-                // Validate MSSV theo registry (format + major + tồn tại)
                 StudentRegistry reg = studentRegistryService.validate(req.getStudentCode());
 
-                // Cập nhật MSSV + tên thật
                 user.setStudentCode(reg.getStudentCode());
                 user.setFullName(reg.getFullName());
+
+                Major autoMajor = majorRepo.findByMajorCode(reg.getMajorCode())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+                user.setMajor(autoMajor);
             }
+        }
+        else if (req.getMajorId() != null) {
+            // Chỉ cho update major khi KHÔNG có MSSV
+            if (user.getStudentCode() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Cannot manually update major when student code is set.");
+            }
+
+            Major major = majorRepo.findById(req.getMajorId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Major not found"));
+            user.setMajor(major);
         }
 
         userRepo.save(user);
@@ -362,6 +349,7 @@ public class UserServiceImpl implements UserService {
         resp.setWallet(wallet);
         return resp;
     }
+
 
 
     @Override

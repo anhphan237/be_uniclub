@@ -16,8 +16,8 @@ public class ProfileUpdateRequest {
     private String avatarUrl;
     private String backgroundUrl;
     @Pattern(
-            regexp = "^[A-Z]{2}\\d{6}$",
-            message = "Student code must match format e.g., SE123456"
+            regexp = "^[A-Z]{2}(1[5-9]|2[0-9])[0-9]{4}$",
+            message = "Student code must match format e.g., SE170458"
     )
     private String studentCode;
 
