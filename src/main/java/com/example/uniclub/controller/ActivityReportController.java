@@ -89,7 +89,7 @@ public class ActivityReportController {
     // ==========================================================
     @GetMapping("/clubs/{clubId}/members/activity")
     @Operation(summary = "Leader xem điểm hoạt động của toàn CLB")
-    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getClubMonthlyActivities(
+    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityLiteResponse>>> getClubMonthlyActivities(
             @PathVariable Long clubId,
             @RequestParam Integer year,
             @RequestParam Integer month,
@@ -102,13 +102,14 @@ public class ActivityReportController {
         List<MemberMonthlyActivity> list =
                 activityService.getClubMonthlyActivities(clubId, year, month);
 
-        List<MemberMonthlyActivityResponse> result = list.stream()
-                .map(MemberMonthlyActivityResponse::from)
-                .sorted(Comparator.comparingDouble(MemberMonthlyActivityResponse::getFinalScore).reversed())
+        List<MemberMonthlyActivityLiteResponse> result = list.stream()
+                .map(MemberMonthlyActivityResponse::toLite) // dùng converter mới
+                .sorted(Comparator.comparing(MemberMonthlyActivityLiteResponse::getTotalClubPresent).reversed())
                 .toList();
 
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
 
 
     // ==========================================================

@@ -79,4 +79,27 @@ public class MemberMonthlyActivityResponse {
                 .finalScore(m.getFinalScore())
                 .build();
     }
+    public static MemberMonthlyActivityLiteResponse toLite(MemberMonthlyActivity m) {
+        return MemberMonthlyActivityLiteResponse.builder()
+                .membershipId(m.getMembership().getMembershipId())
+                .userId(m.getMembership().getUser().getUserId())
+                .fullName(m.getMembership().getUser().getFullName())
+                .studentCode(m.getMembership().getUser().getStudentCode())
+
+                .clubId(m.getMembership().getClub().getClubId())
+                .clubName(m.getMembership().getClub().getName())
+
+                .year(m.getYear())
+                .month(m.getMonth())
+
+                .totalEventRegistered(m.getTotalEventRegistered())
+                .totalEventAttended(m.getTotalEventAttended())
+                .totalPenaltyPoints(m.getTotalPenaltyPoints())
+                .totalStaffCount(m.getTotalStaffCount())
+
+                .totalClubSessions(m.getTotalClubSessions())
+                .totalClubPresent(m.getTotalClubPresent())
+                .build();
+    }
+
 }
