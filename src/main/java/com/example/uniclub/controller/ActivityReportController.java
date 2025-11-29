@@ -238,7 +238,7 @@ public class ActivityReportController {
     // ==========================================================
     @GetMapping("/clubs/{clubId}/members/activity-live")
     @Operation(summary = "Leader xem điểm LIVE real-time của CLB")
-    public ResponseEntity<ApiResponse<List<CalculateLiveActivityResponse>>> getLiveActivity(
+    public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getLiveActivity(
             @PathVariable Long clubId,
             @RequestParam(defaultValue = "100") int attendanceBase,
             @RequestParam(defaultValue = "100") int staffBase,
@@ -247,10 +247,11 @@ public class ActivityReportController {
         User user = jwtUtil.getUserFromRequest(request);
         ensureLeaderRights(user, clubId);
 
-        List<CalculateLiveActivityResponse> result =
+        List<MemberMonthlyActivityResponse> result =
                 activityService.calculateLiveActivities(clubId, attendanceBase, staffBase);
 
         return ResponseEntity.ok(ApiResponse.ok(result));
+
     }
 
     // ==========================================================
