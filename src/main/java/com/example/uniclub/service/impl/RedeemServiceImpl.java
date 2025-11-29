@@ -11,6 +11,8 @@ import com.example.uniclub.repository.*;
 import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,7 @@ public class RedeemServiceImpl implements RedeemService {
     private final WalletNotificationService walletNotificationService;
     private final ReturnImageRepository returnImageRepo;
     private final CloudinaryService cloudinaryService;
+    private final UserRepository userRepo;
 
 
     private OrderResponse toResponse(ProductOrder o) {
@@ -622,21 +625,33 @@ public class RedeemServiceImpl implements RedeemService {
     }
 
 
-
     @Override
     @Transactional
     public OrderResponse complete(Long orderId, Long staffUserId) {
+
         ProductOrder order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Order not found"));
 
         if (order.getStatus() != OrderStatusEnum.PENDING)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Order not in PENDING");
 
+        // Lấy staff xử lý đơn
+        User staff = userRepo.findById(staffUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Staff not found"));
+
+        // Ghi nhận staff xử lý
+        order.setHandledBy(staff);
+
+        // Cập nhật trạng thái
         order.setStatus(OrderStatusEnum.COMPLETED);
         order.setCompletedAt(LocalDateTime.now());
+
         orderRepo.save(order);
+
         return toResponse(order);
     }
+
+
 
     private boolean isEventStillActive(Event event) {
 
@@ -893,5 +908,14 @@ public class RedeemServiceImpl implements RedeemService {
                 .toList();
     }
 
+    @Override
+    public Page<OrderResponse> getStaffApprovedOrders(Long staffUserId, Long eventId, Pageable pageable) {
+        Page<ProductOrder> orders = orderRepo
+                .findByHandledBy_UserIdAndProduct_Event_EventIdOrderByCompletedAtDesc(
+                        staffUserId, eventId, pageable
+                );
+
+        return orders.map(this::toResponse);
+    }
 
 }

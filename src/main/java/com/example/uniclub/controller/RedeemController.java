@@ -16,6 +16,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.security.PermitAll;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -204,7 +206,7 @@ public class RedeemController {
             """
     )
     @PutMapping("/order/refund-partial")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
     public ResponseEntity<ApiResponse<OrderResponse>> refundPartial(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody RefundRequest req
@@ -237,7 +239,7 @@ public class RedeemController {
                     responseCode = "200", description = "Lấy danh sách đơn hàng thành công")
     )
     @GetMapping("/orders/member")
-    @PreAuthorize("hasAnyRole('MEMBER','STUDENT','CLUB_LEADER','VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('MEMBER','STUDENT','CLUB_LEADER','VICE_LEADER','STAFF')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrdersByMember(
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
@@ -259,7 +261,7 @@ public class RedeemController {
                     responseCode = "200", description = "Lấy danh sách thành công")
     )
     @GetMapping("/orders/club/{clubId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> listClubOrders(
             @PathVariable Long clubId
     ) {
@@ -281,7 +283,7 @@ public class RedeemController {
                     responseCode = "200", description = "Lấy danh sách thành công")
     )
     @GetMapping("/orders/event/{eventId}")
-    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER')")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','STAFF')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> listEventOrders(
             @PathVariable Long eventId
     ) {
@@ -397,5 +399,37 @@ public class RedeemController {
         List<OrderResponse> data = redeemService.getEventOrdersByClub(clubId);
         return ResponseEntity.ok(ApiResponse.ok(data));
     }
+    @Operation(
+            summary = "Xem tất cả redeem của event mà bạn đã từng xác nhận",
+            description = """
+            API này trả về tất cả các đơn hàng (EVENT_ITEM) mà người dùng hiện tại 
+            (dựa trên token) đã từng xác nhận trước đây.
+
+            - Không yêu cầu user còn là STAFF
+            - Không yêu cầu user còn thuộc CLB
+            - Không yêu cầu user còn trong event
+            - Không phụ thuộc vào membership hiện tại
+            - Chỉ cần token là hợp lệ
+            
+            Đây là nghiệp vụ STAFF HISTORY LOG.
+            """
+    )
+    @GetMapping("/event/{eventId}/my-approvals")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getMyApprovedRedeems(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long eventId,
+            Pageable pageable
+    ) {
+        Long staffId = principal.getUser().getUserId();
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        redeemService.getStaffApprovedOrders(staffId, eventId, pageable)
+                )
+        );
+    }
+
+
 
 }

@@ -55,6 +55,10 @@ public class ProductOrder {
     // 💰 Tổng điểm trừ = pointCost * quantity
     @Column(nullable = false)
     private Long totalPoints;
+    // 🔗 Staff người đã xử lý đơn (COMPLETE / REFUND)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "handled_by_user_id")
+    private User handledBy;
 
     // ⚙️ Trạng thái đơn
     @Enumerated(EnumType.STRING)

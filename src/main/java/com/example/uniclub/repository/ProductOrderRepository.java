@@ -40,4 +40,11 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
     List<ProductOrder> findByClub_ClubIdAndProduct_Type(Long clubId, ProductTypeEnum type);
 
     List<ProductOrder> findByMembership_MembershipId(Long membershipId);
+
+    Page<ProductOrder> findByHandledBy_UserIdAndProduct_Event_EventIdOrderByCompletedAtDesc(
+            Long staffUserId,
+            Long eventId,
+            Pageable pageable
+    );
+
 }
