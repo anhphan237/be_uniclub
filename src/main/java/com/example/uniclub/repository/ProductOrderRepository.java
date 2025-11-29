@@ -46,5 +46,9 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
             Long eventId,
             Pageable pageable
     );
+    Page<ProductOrder> findByHandledBy_UserIdOrderByCompletedAtDesc(
+            Long staffUserId,
+            Pageable pageable
+    );
 
 }

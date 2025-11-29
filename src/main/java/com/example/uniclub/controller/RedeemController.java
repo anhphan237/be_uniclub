@@ -429,6 +429,23 @@ public class RedeemController {
                 )
         );
     }
+    @Operation(
+            summary = "Xem toàn bộ đơn hàng mà bạn đã từng xác nhận",
+            description = "Không cần nhập tham số. Nhấn Execute để xem toàn bộ lịch sử xử lý đơn của bạn."
+    )
+    @GetMapping("/my-approvals")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getMyAllApprovedOrders(
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long staffId = principal.getUser().getUserId();
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        redeemService.getStaffAllApprovedOrders(staffId)
+                )
+        );
+    }
 
 
 

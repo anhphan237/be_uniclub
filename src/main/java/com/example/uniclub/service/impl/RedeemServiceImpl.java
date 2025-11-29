@@ -12,7 +12,9 @@ import com.example.uniclub.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -914,6 +916,16 @@ public class RedeemServiceImpl implements RedeemService {
                 .findByHandledBy_UserIdAndProduct_Event_EventIdOrderByCompletedAtDesc(
                         staffUserId, eventId, pageable
                 );
+
+        return orders.map(this::toResponse);
+    }
+
+    public Page<OrderResponse> getStaffAllApprovedOrders(Long staffId) {
+
+        Pageable pageable = PageRequest.of(0, 20, Sort.by("completedAt").descending());
+
+        Page<ProductOrder> orders = orderRepo
+                .findByHandledBy_UserIdOrderByCompletedAtDesc(staffId, pageable);
 
         return orders.map(this::toResponse);
     }

@@ -50,4 +50,6 @@ public interface RedeemService {
     RedeemScanResponse scanMemberQr(String qrToken, Long staffUserId);
     Page<OrderResponse> getStaffApprovedOrders(Long staffUserId, Long eventId, Pageable pageable);
 
+    Page<OrderResponse> getStaffAllApprovedOrders(Long staffId);
+
 }
