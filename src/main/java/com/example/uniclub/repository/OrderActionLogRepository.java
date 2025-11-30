@@ -7,8 +7,10 @@ import java.util.List;
 
 public interface OrderActionLogRepository extends JpaRepository<OrderActionLog, Long> {
 
-    // 🔹 Lấy log theo targetUser (người sở hữu order – user redeem)
-    List<OrderActionLog> findByTargetUser_UserIdOrderByCreatedAtDesc(Long userId);
+    List<OrderActionLog> findByTargetUser_UserIdAndOrder_Product_Event_EventIdOrderByCreatedAtDesc(
+            Long userId,
+            Long eventId
+    );
 
     // 🔹 Lấy log theo actor (staff/leader thực hiện hành động)
     List<OrderActionLog> findByActor_UserIdOrderByCreatedAtDesc(Long actorId);

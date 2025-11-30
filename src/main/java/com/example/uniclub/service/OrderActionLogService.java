@@ -21,8 +21,9 @@ public class OrderActionLogService {
                 .toList();
     }
 
-    public List<OrderActionLogResponse> getLogsByTargetUser(Long userId) {
-        return logRepo.findByTargetUser_UserIdOrderByCreatedAtDesc(userId)
+    public List<OrderActionLogResponse> getLogsByTargetUserAndEvent(Long userId, Long eventId) {
+        return logRepo
+                .findByTargetUser_UserIdAndOrder_Product_Event_EventIdOrderByCreatedAtDesc(userId, eventId)
                 .stream()
                 .map(this::toResponse)
                 .toList();

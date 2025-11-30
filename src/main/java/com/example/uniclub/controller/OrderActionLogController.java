@@ -29,12 +29,13 @@ public class OrderActionLogController {
     }
 
     // 🔹 Get logs by target user
-    @GetMapping("/user/{userId}")
-    @Operation(summary = "Get order logs by target user Id")
-    public ResponseEntity<List<OrderActionLogResponse>> getLogsByTargetUser(
-            @PathVariable Long userId) {
+    @GetMapping("/user/{userId}/event/{eventId}")
+    @Operation(summary = "Get order logs by userId and eventId")
+    public ResponseEntity<List<OrderActionLogResponse>> getLogsByTargetUserAndEvent(
+            @PathVariable Long userId,
+            @PathVariable Long eventId) {
 
-        return ResponseEntity.ok(logService.getLogsByTargetUser(userId));
+        return ResponseEntity.ok(logService.getLogsByTargetUserAndEvent(userId, eventId));
     }
 
     // 🔹 OPTIONAL: Get logs by actor (staff/leader)
