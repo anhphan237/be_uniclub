@@ -6,6 +6,7 @@ public enum OrderActionType {
     REFUND,
     PARTIAL_REFUND,
     CANCEL,
-    APPROVE
+    APPROVE,
+    COMPLETED
 }
 
