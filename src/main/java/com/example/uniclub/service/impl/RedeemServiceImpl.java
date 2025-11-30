@@ -171,6 +171,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(null)            // người đang APPROVE
                 .targetUser(membership.getUser())       // người đã redeem
+                .targetMember(membership)
                 .action(OrderActionType.CREATE)
                 .pointsChange(-totalPoints)
                 .quantity(req.quantity())
@@ -380,6 +381,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(actor)
                 .targetUser(membership.getUser())
+                .targetMember(membership)
                 .action(OrderActionType.COMPLETED)
                 .pointsChange(-totalPoints)
                 .quantity(req.quantity())
@@ -529,6 +531,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(userRepo.getReferenceById(staffUserId))
                 .targetUser(order.getMembership().getUser())
+                .targetMember(order.getMembership())
                 .action(OrderActionType.REFUND)
                 .pointsChange(refundPoints) // trả lại point
                 .quantity(order.getQuantity())
@@ -644,6 +647,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(userRepo.getReferenceById(staffUserId))
                 .targetUser(order.getMembership().getUser())
+                .targetMember(order.getMembership())
                 .action(OrderActionType.PARTIAL_REFUND)
                 .pointsChange(refundPoints)
                 .quantity(order.getQuantity())
@@ -698,6 +702,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(userRepo.getReferenceById(staffUserId))
                 .targetUser(order.getMembership().getUser())
+                .targetMember(order.getMembership())
                 .action(OrderActionType.COMPLETED)
                 .pointsChange(0)
                 .quantity(order.getQuantity())

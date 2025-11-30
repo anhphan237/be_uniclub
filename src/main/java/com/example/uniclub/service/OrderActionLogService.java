@@ -29,6 +29,14 @@ public class OrderActionLogService {
                 .toList();
     }
 
+    public List<OrderActionLogResponse> getLogsByTargetMembershipAndOrder(Long membershipId, Long orderId) {
+        List<OrderActionLog> logs = logRepo.findByOrderIdAndMembershipId(orderId, membershipId);
+
+        return logs.stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public List<OrderActionLogResponse> getLogsByActor(Long actorId) {
         return logRepo.findByActor_UserIdOrderByCreatedAtDesc(actorId)
                 .stream()

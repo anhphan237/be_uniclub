@@ -28,6 +28,10 @@ public class OrderActionLog {
     @JoinColumn(name = "target_user_id")
     private User targetUser;
 
+    @ManyToOne
+    @JoinColumn(name = "target_member_id")
+    private Membership targetMember;
+
     // Người thực hiện hành động (staff/leader/user)
     @ManyToOne
     @JoinColumn(name = "actor_user_id")

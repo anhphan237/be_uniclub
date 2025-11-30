@@ -38,6 +38,17 @@ public class OrderActionLogController {
         return ResponseEntity.ok(logService.getLogsByTargetUserAndOrder(userId, orderId));
     }
 
+    @GetMapping("/membership/{membershipId}/order/{orderId}")
+    @Operation(summary = "Get order logs by membershipId and orderId")
+    public ResponseEntity<List<OrderActionLogResponse>> getLogsByMembershipAndOrder(
+            @PathVariable Long membershipId,
+            @PathVariable Long orderId) {
+
+        return ResponseEntity.ok(
+                logService.getLogsByTargetMembershipAndOrder(membershipId, orderId)
+        );
+    }
+
     // 🔹 OPTIONAL: Get logs by actor (staff/leader)
     @GetMapping("/actor/{actorId}")
     @Operation(summary = "Get order logs by actor user Id")
