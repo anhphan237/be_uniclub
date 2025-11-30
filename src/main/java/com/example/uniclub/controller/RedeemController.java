@@ -103,7 +103,7 @@ public class RedeemController {
                     responseCode = "200", description = "Đơn hàng đã được hoàn tất")
     )
     @PutMapping("/order/{orderId}/complete")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<OrderResponse>> complete(
             @AuthenticationPrincipal CustomUserDetails principal,
             @PathVariable Long orderId
@@ -121,7 +121,7 @@ public class RedeemController {
             """
     )
     @PostMapping(value = "/order/{orderId}/refund/upload-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<List<String>>> uploadRefundImages(
             @PathVariable Long orderId,
             @RequestPart("files") List<MultipartFile> files
@@ -139,7 +139,7 @@ public class RedeemController {
         """
     )
     @GetMapping("/order/{orderId}/refund/images")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<List<ReturnImageResponse>>> listRefundImages(
             @PathVariable Long orderId
     ) {
@@ -157,7 +157,7 @@ public class RedeemController {
             """
     )
     @DeleteMapping("/order/{orderId}/refund/image/{imageId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<String>> deleteRefundImage(
             @PathVariable Long orderId,
             @PathVariable Long imageId
@@ -177,7 +177,7 @@ public class RedeemController {
             """
     )
     @PutMapping("/order/refund")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<OrderResponse>> refund(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody RefundRequest req
@@ -202,7 +202,7 @@ public class RedeemController {
             """
     )
     @PutMapping("/order/refund-partial")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<OrderResponse>> refundPartial(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestBody RefundRequest req
@@ -257,7 +257,7 @@ public class RedeemController {
                     responseCode = "200", description = "Lấy danh sách thành công")
     )
     @GetMapping("/orders/club/{clubId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> listClubOrders(
             @PathVariable Long clubId
     ) {
@@ -279,7 +279,7 @@ public class RedeemController {
                     responseCode = "200", description = "Lấy danh sách thành công")
     )
     @GetMapping("/orders/event/{eventId}")
-    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','STAFF')")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','CLUB_LEADER','STAFF','STUDENT')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> listEventOrders(
             @PathVariable Long eventId
     ) {
@@ -329,7 +329,7 @@ public class RedeemController {
                     ApiResponse(responseCode = "200", description = "Lấy chi tiết đơn hàng theo ID thành công")
     )
     @GetMapping("/order/id/{orderId}")
-    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','UNIVERSITY_STAFF','ADMIN')")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','STAFF','UNIVERSITY_STAFF','ADMIN','STUDENT')")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrderById(
             @PathVariable Long orderId
     ) {
