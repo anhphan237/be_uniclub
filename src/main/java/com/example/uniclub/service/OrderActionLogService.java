@@ -22,9 +22,9 @@ public class OrderActionLogService {
     }
 
     public List<OrderActionLogResponse> getLogsByTargetUserAndOrder(Long userId, Long orderId) {
-        return logRepo
-                .findByOrder_OrderIdAndTargetUser_UserIdOrderByCreatedAtDesc(userId, orderId)
-                .stream()
+        List<OrderActionLog> resultLogs = logRepo.findByOrderIdAndUserId(orderId, userId);
+
+        return resultLogs.stream()
                 .map(this::toResponse)
                 .toList();
     }
