@@ -8,7 +8,6 @@ import com.example.uniclub.dto.request.ScanQrRequest;
 import com.example.uniclub.dto.response.OrderResponse;
 import com.example.uniclub.dto.response.RedeemScanResponse;
 import com.example.uniclub.dto.response.ReturnImageResponse;
-import com.example.uniclub.entity.ProductOrder;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.RedeemService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -112,9 +111,6 @@ public class RedeemController {
         OrderResponse res = redeemService.complete(orderId, principal.getUser().getUserId());
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
-
-
-
 
     @Operation(
             summary = "Upload ảnh lỗi sản phẩm khi hoàn hàng",

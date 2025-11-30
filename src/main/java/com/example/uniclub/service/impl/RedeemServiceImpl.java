@@ -45,6 +45,7 @@ public class RedeemServiceImpl implements RedeemService {
     private final WalletNotificationService walletNotificationService;
     private final ReturnImageRepository returnImageRepo;
     private final CloudinaryService cloudinaryService;
+    private final OrderActionLogRepository orderActionLogRepo;
     private final UserRepository userRepo;
 
 
@@ -165,6 +166,16 @@ public class RedeemServiceImpl implements RedeemService {
                 .receiverName(club.getName())
                 .build();
 
+        OrderActionLog orderActionLog = OrderActionLog.builder()
+                .order(order)
+                .actor(null)            // người đang APPROVE
+                .targetUser(membership.getUser())       // người đã redeem
+                .action(OrderActionType.CREATE)
+                .pointsChange(-totalPoints)
+                .quantity(req.quantity())
+                .createdAt(LocalDateTime.now())
+                .build();
+
         // 💾 Save tất cả
         walletRepo.save(userWallet);
         walletRepo.save(clubWallet);
@@ -172,6 +183,7 @@ public class RedeemServiceImpl implements RedeemService {
         orderRepo.save(order);
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
+        orderActionLogRepo.save(orderActionLog);
 
         walletNotificationService.sendWalletTransactionNotification(txUser);
         walletNotificationService.sendWalletTransactionNotification(txClub);
@@ -360,11 +372,22 @@ public class RedeemServiceImpl implements RedeemService {
                 .receiverName(clubWallet.getClub().getName())
                 .build();
 
+        OrderActionLog orderActionLog = OrderActionLog.builder()
+                .order(order)
+                .actor(null)
+                .targetUser(membership.getUser())       // người đã redeem
+                .action(OrderActionType.CREATE)
+                .pointsChange(-totalPoints)
+                .quantity(req.quantity())
+                .createdAt(LocalDateTime.now())
+                .build();
+
         walletRepo.save(userWallet);
         walletRepo.save(clubWallet);
         orderRepo.save(order);
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
+        orderActionLogRepo.save(orderActionLog);
 
         walletNotificationService.sendWalletTransactionNotification(txUser);
         walletNotificationService.sendWalletTransactionNotification(txClub);
@@ -373,8 +396,6 @@ public class RedeemServiceImpl implements RedeemService {
         String orderCode = "EV-" + Long.toHexString(order.getOrderId()).toUpperCase();
         String qrContent = orderCode;
         String qrUrl = qrService.generateQrAndUpload(qrContent);
-
-
 
         order.setOrderCode(orderCode);
         order.setQrCodeBase64(qrUrl);
@@ -500,12 +521,24 @@ public class RedeemServiceImpl implements RedeemService {
                 .receiverName(order.getMembership().getUser().getFullName())
                 .build();
 
+        OrderActionLog actionLog = OrderActionLog.builder()
+                .order(order)
+                .actor(userRepo.getReferenceById(staffUserId))
+                .targetUser(order.getMembership().getUser())
+                .action(OrderActionType.REFUND)
+                .pointsChange(refundPoints) // trả lại point
+                .quantity(order.getQuantity())
+                .reason(reason)
+                .createdAt(LocalDateTime.now())
+                .build();
+
         walletRepo.save(userWallet);
         walletRepo.save(clubWallet);
         productRepo.save(product);
         orderRepo.save(order);
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
+        orderActionLogRepo.save(actionLog);
 
         emailService.sendRefundEmail(
                 order.getMembership().getUser().getEmail(),
@@ -519,9 +552,6 @@ public class RedeemServiceImpl implements RedeemService {
 
         return toResponse(order);
     }
-
-
-
 
     // 🟡 Hoàn hàng một phần
     @Override
@@ -606,12 +636,24 @@ public class RedeemServiceImpl implements RedeemService {
                 .receiverName(order.getMembership().getUser().getFullName())
                 .build();
 
+        OrderActionLog actionLog = OrderActionLog.builder()
+                .order(order)
+                .actor(userRepo.getReferenceById(staffUserId))
+                .targetUser(order.getMembership().getUser())
+                .action(OrderActionType.PARTIAL_REFUND)
+                .pointsChange(refundPoints)
+                .quantity(order.getQuantity())
+                .reason(reason)
+                .createdAt(LocalDateTime.now())
+                .build();
+
         walletRepo.save(userWallet);
         walletRepo.save(clubWallet);
         productRepo.save(product);
         orderRepo.save(order);
         walletTxRepo.save(txUser);
         walletTxRepo.save(txClub);
+        orderActionLogRepo.save(actionLog);
 
         emailService.sendPartialRefundEmail(
                 order.getMembership().getUser().getEmail(),
@@ -648,12 +690,22 @@ public class RedeemServiceImpl implements RedeemService {
         order.setStatus(OrderStatusEnum.COMPLETED);
         order.setCompletedAt(LocalDateTime.now());
 
+        OrderActionLog actionLog = OrderActionLog.builder()
+                .order(order)
+                .actor(userRepo.getReferenceById(staffUserId))
+                .targetUser(order.getMembership().getUser())
+                .action(OrderActionType.REFUND)
+                .pointsChange(order.getTotalPoints()) // trả lại point
+                .quantity(order.getQuantity())
+                .reason(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        orderActionLogRepo.save(actionLog);
         orderRepo.save(order);
 
         return toResponse(order);
     }
-
-
 
     private boolean isEventStillActive(Event event) {
 
