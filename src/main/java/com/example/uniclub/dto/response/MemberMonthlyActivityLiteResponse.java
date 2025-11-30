@@ -26,4 +26,6 @@ public class MemberMonthlyActivityLiteResponse {
 
     private int totalClubSessions;
     private int totalClubPresent;
+
+    private int finalScore;
 }
