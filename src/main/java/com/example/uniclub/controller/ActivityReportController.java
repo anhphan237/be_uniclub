@@ -392,6 +392,24 @@ public class ActivityReportController {
 
         e.setFinalScore(req.getFinalScore());
     }
+    @PostMapping("/clubs/{clubId}/activity/monthly/auto-generate")
+    @Operation(summary = "Leader tự động tạo & tính điểm hoạt động tháng cho toàn CLB ")
+    public ResponseEntity<ApiResponse<String>> autoGenerateMonthly(
+            @PathVariable Long clubId,
+            @RequestParam int year,
+            @RequestParam int month,
+            HttpServletRequest req
+    ) {
+
+        User user = jwtUtil.getUserFromRequest(req);
+        ensureLeaderRights(user, clubId);
+
+        validateMonth(year, month);
+
+        activityService.recalculateForClub(clubId, year, month);
+
+        return ResponseEntity.ok(ApiResponse.ok("Auto-generated monthly activity successfully."));
+    }
 
 
 }

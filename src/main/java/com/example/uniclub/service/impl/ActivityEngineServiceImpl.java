@@ -62,7 +62,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     public MemberMonthlyActivity autoCreateIfMissing(Membership membership, int year, int month) {
         return monthlyRepo.findByMembershipAndYearAndMonth(membership, year, month)
                 .orElseGet(() -> {
-                    // current month only
                     LocalDate now = LocalDate.now();
                     if (year == now.getYear() && month == now.getMonthValue()) {
                         return calculateMonthlyRecord(membership, year, month);
@@ -113,7 +112,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         double rate = totalSessions == 0 ? 0 : (double) presentSessions / totalSessions;
 
-        int attendanceBase = resolveAttendanceBaseScore();
+        // BASE SCORE = 100 cố định
+        int attendanceBase = 100;
         double attendanceMul = resolveAttendanceMultiplier(rate);
         int attendanceTotal = (int) Math.round(attendanceBase * attendanceMul);
 
@@ -124,11 +124,11 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
 
+        // STAFF BASE SCORE = 100 cố định
+        int staffBaseScore = 100;
         double staffMult = resolveStaffMultiplier(bestEval.name());
-        int staffBaseScore = resolveStaffBaseScore();
         int staffScore = (int) Math.round(staffBaseScore * staffMult);
 
-        // no penalty system (reserved)
         int finalScore = attendanceTotal + staffScore;
 
         // ================= SAVE =============================
@@ -153,6 +153,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         m.setStaffMultiplier(staffMult);
         m.setStaffScore(staffScore);
         m.setTotalStaffCount(staffList.size());
+
+        m.setStaffEvaluation(bestEval.name());
 
         m.setStaffTotalScore(staffScore);
         m.setActivityLevel(classifyActivityLevel(rate).name());
@@ -213,22 +215,8 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     }
 
     // =========================================================================
-    // POLICY RESOLVER
+    //  POLICY RESOLVER (NO BASE RULE NEEDED)
     // =========================================================================
-    private int resolveAttendanceBaseScore() {
-        return policyRepo
-                .findByTargetTypeAndActivityTypeAndRuleNameAndActiveTrue(
-                        PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.SESSION_ATTENDANCE,
-                        "BASE"
-                )
-                .map(MultiplierPolicy::getMinThreshold)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, "Missing Attendance BASE score"
-                ));
-    }
-
-
     private double resolveAttendanceMultiplier(double rate) {
         int percent = (int) (rate * 100);
 
@@ -238,7 +226,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                         PolicyActivityTypeEnum.SESSION_ATTENDANCE);
 
         for (MultiplierPolicy p : list) {
-            if ("BASE".equals(p.getRuleName())) continue;
 
             boolean okMin = percent >= p.getMinThreshold();
             boolean okMax = p.getMaxThreshold() == null || percent <= p.getMaxThreshold();
@@ -249,18 +236,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         return 1.0;
     }
 
-    private int resolveStaffBaseScore() {
-        return policyRepo
-                .findByTargetTypeAndActivityTypeAndRuleNameAndActiveTrue(
-                        PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.STAFF_EVALUATION,
-                        "BASE"
-                )
-                .map(MultiplierPolicy::getMinThreshold)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, "Missing Staff BASE score"));
-    }
-
     private double resolveStaffMultiplier(String ruleName) {
         return policyRepo
                 .findByTargetTypeAndActivityTypeAndRuleNameAndActiveTrue(
@@ -269,9 +244,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                         ruleName
                 )
                 .map(MultiplierPolicy::getMultiplier)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Missing staff rule=" + ruleName));
+                .orElse(1.0);
     }
 
     // =========================================================================
@@ -390,7 +363,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     public List<MemberMonthlyActivity> getClubMonthlyActivities(Long clubId, int year, int month) {
         validateMonth(year, month);
 
-        // 1) Lấy toàn bộ thành viên ACTIVE hoặc APPROVED
         List<Membership> members = membershipRepo.findByClub_ClubIdAndStateIn(
                 clubId,
                 List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
@@ -398,7 +370,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         List<MemberMonthlyActivity> result = new java.util.ArrayList<>();
 
-        // 2) Với mỗi member → lấy monthly activity, nếu chưa có → tự tạo
         for (Membership m : members) {
             MemberMonthlyActivity act = monthlyRepo
                     .findByMembershipAndYearAndMonth(m, year, month)
@@ -409,8 +380,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         return result;
     }
-
-
 
     // =========================================================================
     // 9) CLUB RANKING
@@ -496,6 +465,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                 List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
         );
 
+
         return members.stream().map(m -> {
 
                     Long membershipId = m.getMembershipId();
@@ -503,7 +473,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                     LocalDate start = LocalDate.of(year, month, 1);
                     LocalDate end   = start.plusMonths(1).minusDays(1);
 
-                    // ===================== ATTENDANCE =====================
                     int totalSessions = attendanceRepo
                             .countByMembership_MembershipIdAndSession_DateBetween(membershipId, start, end);
 
@@ -519,7 +488,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                     double attMul = resolveAttendanceMultiplier(rate);
                     int attTotal = (int) Math.round(attendanceBase * attMul);
 
-                    // ===================== STAFF ===========================
                     List<StaffPerformance> staffList =
                             staffPerformanceRepo.findPerformanceInRange(membershipId, start, end);
 
@@ -530,7 +498,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
                     int finalScore = attTotal + staffTotal;
 
-                    // ===================== BUILD FULL RESPONSE =============
                     return MemberMonthlyActivityResponse.builder()
                             .membershipId(m.getMembershipId())
                             .userId(m.getUser().getUserId())
@@ -543,41 +510,33 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                             .year(year)
                             .month(month)
 
-                            // Event (LIVE = không tính)
                             .totalEventRegistered(0)
                             .totalEventAttended(0)
                             .eventAttendanceRate(0)
 
-                            // Penalty (LIVE = 0)
                             .totalPenaltyPoints(0)
 
-                            // Activity Level
                             .activityLevel(classifyActivityLevel(rate).name())
 
-                            // Attendance
                             .attendanceBaseScore(attendanceBase)
                             .attendanceMultiplier(attMul)
                             .attendanceTotalScore(attTotal)
 
-                            // Staff
                             .staffBaseScore(staffBase)
                             .staffMultiplier(staffMul)
                             .staffTotalScore(staffTotal)
                             .staffEvaluation(bestEval.name())
                             .totalStaffCount(staffList.size())
 
-                            // Club Sessions
                             .totalClubSessions(totalSessions)
                             .totalClubPresent(presentSessions)
                             .sessionAttendanceRate(rate)
 
-                            // Final
                             .finalScore(finalScore)
                             .build();
 
                 }).sorted((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()))
                 .toList();
     }
-
 
 }
