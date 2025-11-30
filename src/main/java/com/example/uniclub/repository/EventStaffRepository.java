@@ -87,5 +87,14 @@ public interface EventStaffRepository extends JpaRepository<EventStaff, Long> {
       AND es.state = 'ACTIVE'
 """)
     List<EventStaff> findActiveStaffByUserId(@Param("userId") Long userId);
+    @Query("""
+    SELECT COUNT(es)
+    FROM EventStaff es
+    JOIN es.event e
+    LEFT JOIN e.coHostRelations r
+    WHERE es.state = com.example.uniclub.enums.EventStaffStateEnum.ACTIVE
+      AND (e.hostClub.clubId = :clubId OR r.club.clubId = :clubId)
+""")
+    Long countStaffAssignmentsByClub(@Param("clubId") Long clubId);
 
 }

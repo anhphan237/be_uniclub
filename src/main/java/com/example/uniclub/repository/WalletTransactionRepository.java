@@ -53,5 +53,15 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
 
 
+    @Query("""
+    SELECT COALESCE(SUM(wt.amount), 0)
+    FROM WalletTransaction wt
+    JOIN wt.wallet w
+    JOIN Event e ON e.wallet.walletId = w.walletId
+    LEFT JOIN e.coHostRelations r
+    WHERE wt.type = com.example.uniclub.enums.WalletTransactionTypeEnum.EVENT_BUDGET_GRANT
+      AND (e.hostClub.clubId = :clubId OR r.club.clubId = :clubId)
+""")
+    Long sumEventBudgetByClub(@Param("clubId") Long clubId);
 
 }

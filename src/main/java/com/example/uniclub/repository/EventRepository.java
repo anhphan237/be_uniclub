@@ -194,5 +194,29 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     ORDER BY e.startDate ASC
 """)
     List<Event> findEventsByDate(@Param("date") LocalDate date);
+    @Query("""
+    SELECT COALESCE(SUM(e.currentCheckInCount), 0)
+    FROM Event e
+    LEFT JOIN e.coHostRelations r
+    WHERE e.hostClub.clubId = :clubId
+       OR r.club.clubId = :clubId
+""")
+    Long sumTotalCheckinByClub(@Param("clubId") Long clubId);
+
+
+    @Query("""
+    SELECT AVG(
+        CASE 
+            WHEN e.maxCheckInCount IS NULL OR e.maxCheckInCount = 0 
+                THEN NULL
+            ELSE (e.currentCheckInCount * 1.0 / e.maxCheckInCount)
+        END
+    )
+    FROM Event e
+    LEFT JOIN e.coHostRelations r
+    WHERE e.hostClub.clubId = :clubId
+       OR r.club.clubId = :clubId
+""")
+    Double avgCheckinRateByClub(@Param("clubId") Long clubId);
 
 }

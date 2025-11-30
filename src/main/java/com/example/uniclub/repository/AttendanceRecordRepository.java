@@ -106,5 +106,27 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
+    @Query("""
+    SELECT ar
+    FROM AttendanceRecord ar
+    JOIN ar.event e
+    LEFT JOIN e.coHostRelations r
+    WHERE e.hostClub.clubId = :clubId
+       OR r.club.clubId = :clubId
+""")
+    List<AttendanceRecord> findAttendanceByClub(@Param("clubId") Long clubId);
+    @Query("""
+    SELECT ar
+    FROM AttendanceRecord ar
+    JOIN ar.event e
+    LEFT JOIN e.coHostRelations r
+    WHERE (e.hostClub.clubId = :clubId OR r.club.clubId = :clubId)
+      AND ar.startCheckInTime BETWEEN :start AND :end
+""")
+    List<AttendanceRecord> findAttendanceByClubAndDateRange(
+            @Param("clubId") Long clubId,
+            @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end
+    );
 
 }

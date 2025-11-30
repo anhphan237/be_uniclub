@@ -7,6 +7,8 @@ import com.example.uniclub.enums.ProductTypeEnum;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -50,5 +52,17 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
             Long staffUserId,
             Pageable pageable
     );
+    @Query("""
+    SELECT COALESCE(SUM(po.quantity), 0)
+    FROM ProductOrder po
+    JOIN po.product p
+    LEFT JOIN p.event e
+    LEFT JOIN e.coHostRelations r
+    WHERE p.type = com.example.uniclub.enums.ProductTypeEnum.EVENT_ITEM
+      AND (po.club.clubId = :clubId
+           OR e.hostClub.clubId = :clubId
+           OR r.club.clubId = :clubId)
+""")
+    Long sumEventProductsByClub(@Param("clubId") Long clubId);
 
 }
