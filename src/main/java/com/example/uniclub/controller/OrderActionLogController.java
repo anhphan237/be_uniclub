@@ -1,6 +1,6 @@
 package com.example.uniclub.controller;
 
-import com.example.uniclub.entity.OrderActionLog;
+import com.example.uniclub.dto.response.OrderActionLogResponse;
 import com.example.uniclub.service.OrderActionLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,26 +21,26 @@ public class OrderActionLogController {
 
     private final OrderActionLogService logService;
 
-    // 🔹 1. Get all logs
+    // 🔹 Get all logs
     @GetMapping
     @Operation(summary = "Get all order action logs")
-    public ResponseEntity<List<OrderActionLog>> getAllLogs() {
+    public ResponseEntity<List<OrderActionLogResponse>> getAllLogs() {
         return ResponseEntity.ok(logService.getAllLogs());
     }
 
-    // 🔹 2. Get logs by target user (người redeem)
+    // 🔹 Get logs by target user
     @GetMapping("/user/{userId}")
-    @Operation(summary = "Get order logs by userId (target user – người redeem)")
-    public ResponseEntity<List<OrderActionLog>> getLogsByUser(
+    @Operation(summary = "Get order logs by target user Id")
+    public ResponseEntity<List<OrderActionLogResponse>> getLogsByTargetUser(
             @PathVariable Long userId) {
 
         return ResponseEntity.ok(logService.getLogsByTargetUser(userId));
     }
 
-    // 🔹 3. OPTIONAL – Get logs by actor (staff/leader xử lý)
+    // 🔹 OPTIONAL: Get logs by actor (staff/leader)
     @GetMapping("/actor/{actorId}")
-    @Operation(summary = "Get order logs by actor userId (người thực hiện hành động)")
-    public ResponseEntity<List<OrderActionLog>> getLogsByActor(
+    @Operation(summary = "Get order logs by actor user Id")
+    public ResponseEntity<List<OrderActionLogResponse>> getLogsByActor(
             @PathVariable Long actorId) {
 
         return ResponseEntity.ok(logService.getLogsByActor(actorId));
