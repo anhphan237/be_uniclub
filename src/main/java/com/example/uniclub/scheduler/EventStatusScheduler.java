@@ -27,7 +27,7 @@ public class EventStatusScheduler {
      * - ONGOING → COMPLETED nếu quá giờ kết thúc
      * - Bỏ qua event COMPLETED, CANCELED
      */
-    @Scheduled(cron = "0 */5 * * * *") // mỗi 5 phút
+    @Scheduled(cron = "*/30 * * * * *")
     @Transactional
     public void autoUpdateEventStatuses() {
 
