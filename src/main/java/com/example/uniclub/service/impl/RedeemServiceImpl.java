@@ -47,6 +47,7 @@ public class RedeemServiceImpl implements RedeemService {
     private final CloudinaryService cloudinaryService;
     private final OrderActionLogRepository orderActionLogRepo;
     private final UserRepository userRepo;
+    private final EventStaffService eventStaffService;
 
 
     private OrderResponse toResponse(ProductOrder o) {
@@ -295,6 +296,9 @@ public class RedeemServiceImpl implements RedeemService {
         if (product.getStockQuantity() < req.quantity())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Out of stock");
 
+        User actor = userRepo.findById(staffUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Staff not found"));
+
         // 🔹 Membership check
         Membership membership = membershipRepo.findById(req.membershipId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
@@ -374,9 +378,9 @@ public class RedeemServiceImpl implements RedeemService {
 
         OrderActionLog orderActionLog = OrderActionLog.builder()
                 .order(order)
-                .actor(null)
-                .targetUser(membership.getUser())       // người đã redeem
-                .action(OrderActionType.CREATE)
+                .actor(actor)
+                .targetUser(membership.getUser())
+                .action(OrderActionType.COMPLETED)
                 .pointsChange(-totalPoints)
                 .quantity(req.quantity())
                 .createdAt(LocalDateTime.now())

@@ -184,6 +184,17 @@ public class EventStaffServiceImpl implements EventStaffService {
                 .map(EventStaffResponse::from)
                 .toList();
     }
+
+    @Override
+    public List<EventStaffResponse> getAllStaffByEvent(Long eventId) {
+
+        List<EventStaff> allStaffs = eventStaffRepository.findByEvent_EventId(eventId);
+
+        return allStaffs.stream()
+                .map(EventStaffResponse::from)
+                .toList();
+    }
+
     @Override
     public List<StaffInfoResponse> getMyActiveStaff(Long userId) {
 

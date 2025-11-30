@@ -23,4 +23,6 @@ public interface EventStaffService {
     List<StaffInfoResponse> getMyActiveStaff(Long userId);
 
     List<EventStaffResponse> getCompletedEventStaff(Long eventId);
+
+    List<EventStaffResponse> getAllStaffByEvent(Long eventId);
 }

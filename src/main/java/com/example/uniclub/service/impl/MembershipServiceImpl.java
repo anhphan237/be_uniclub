@@ -241,14 +241,6 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(newMembership);
     }
 
-
-
-
-
-
-
-
-
     // ========================== 🔹 2. Membership Approval Management ==========================
     @Override
     @Transactional
