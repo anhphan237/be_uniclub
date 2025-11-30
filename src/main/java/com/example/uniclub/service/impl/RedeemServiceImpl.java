@@ -694,7 +694,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .order(order)
                 .actor(userRepo.getReferenceById(staffUserId))
                 .targetUser(order.getMembership().getUser())
-                .action(OrderActionType.REFUND)
+                .action(OrderActionType.COMPLETED)
                 .pointsChange(order.getTotalPoints()) // trả lại point
                 .quantity(order.getQuantity())
                 .reason(null)
