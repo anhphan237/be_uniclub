@@ -699,7 +699,7 @@ public class RedeemServiceImpl implements RedeemService {
                 .actor(userRepo.getReferenceById(staffUserId))
                 .targetUser(order.getMembership().getUser())
                 .action(OrderActionType.COMPLETED)
-                .pointsChange(order.getTotalPoints()) // trả lại point
+                .pointsChange(0)
                 .quantity(order.getQuantity())
                 .reason(null)
                 .createdAt(LocalDateTime.now())
