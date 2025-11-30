@@ -7,9 +7,9 @@ import java.util.List;
 
 public interface OrderActionLogRepository extends JpaRepository<OrderActionLog, Long> {
 
-    List<OrderActionLog> findByTargetUser_UserIdAndOrder_Product_Event_EventIdOrderByCreatedAtDesc(
-            Long userId,
-            Long eventId
+    List<OrderActionLog> findByOrder_OrderIdAndTargetUser_UserIdOrderByCreatedAtDesc(
+            Long orderId,
+            Long userId
     );
 
     // 🔹 Lấy log theo actor (staff/leader thực hiện hành động)
