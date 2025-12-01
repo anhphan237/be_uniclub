@@ -70,7 +70,8 @@ public class RedeemServiceImpl implements RedeemService {
                 o.getClub().getName(),
                 o.getMembership().getUser().getFullName(),
                 o.getReasonRefund(),
-                images
+                images,
+                o.getMembership().getMembershipId()
         );
     }
     @Override

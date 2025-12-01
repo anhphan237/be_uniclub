@@ -21,5 +21,6 @@ public record OrderResponse(
         String memberName,
         String reasonRefund,
 
-        List<String> errorImages
+        List<String> errorImages,
+        Long membershipId
 ) {}
