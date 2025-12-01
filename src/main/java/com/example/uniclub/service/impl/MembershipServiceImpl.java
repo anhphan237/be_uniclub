@@ -154,12 +154,17 @@ public class MembershipServiceImpl implements MembershipService {
             MembershipStateEnum state = existing.getState();
 
             switch (state) {
+
                 case ACTIVE, APPROVED, PENDING -> {
                     throw new ApiException(HttpStatus.CONFLICT,
                             "You are already a member or have a pending request.");
                 }
 
                 case KICKED, INACTIVE, REJECTED -> {
+
+                    // ❗ FIX: validate major policy when re-joining
+                    validateMajorPolicy(user);
+
                     existing.setState(MembershipStateEnum.PENDING);
                     existing.setJoinedDate(LocalDate.now());
                     existing.setEndDate(null);
@@ -171,7 +176,7 @@ public class MembershipServiceImpl implements MembershipService {
 
                     membershipRepo.save(existing);
 
-                    // 🔥 Notify LEADER
+                    // 🔥 Notify leader
                     membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
                             emailService.sendNewMembershipRequestToLeader(
                                     leader.getEmail(),
@@ -196,7 +201,7 @@ public class MembershipServiceImpl implements MembershipService {
             }
         }
 
-        // Check major policies
+        // 🔍 First-time join → validate normally
         validateMajorPolicy(user);
 
         // Create new membership
@@ -221,7 +226,7 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        // 🔥 Notify LEADER
+        // 🔥 Notify Leader
         membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
                 emailService.sendNewMembershipRequestToLeader(
                         leader.getEmail(),
@@ -241,6 +246,7 @@ public class MembershipServiceImpl implements MembershipService {
         return toResp(newMembership);
     }
 
+
     // ========================== 🔹 2. Membership Approval Management ==========================
     @Override
     @Transactional
@@ -251,8 +257,7 @@ public class MembershipServiceImpl implements MembershipService {
 
         Club club = m.getClub();
 
-
-        //  1. Approver phải là Leader hoặc Vice Leader
+        // 1. Approver must be Leader or Vice Leader of the club
         Membership approver = membershipRepo
                 .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
@@ -262,29 +267,31 @@ public class MembershipServiceImpl implements MembershipService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can approve members");
         }
 
-        //  2. Không approve khi đã ACTIVE
+        // 2. Already approved
         if (m.getState() == MembershipStateEnum.ACTIVE) {
             throw new ApiException(HttpStatus.CONFLICT, "This member is already approved");
         }
 
-
-        //  3. Kiểm tra Major Policy trước khi duyệt
+        // 3. VALIDATE MAJOR POLICY BEFORE ACTIVATING
+        //    (prevent user from bypassing limit by repeated join->kick->approve tricks)
         validateMajorPolicy(m.getUser());
 
-
-        //  4. Reset thông tin cần thiết
+        // 4. Reset or ensure required fields
         if (m.getMemberMultiplier() == null) {
             m.setMemberMultiplier(1.0);
         }
         if (!m.isStaff()) {
             m.setStaff(false);
         }
-        // 🟢 5. Approve
+
+        // 5. Approve membership
         m.setState(MembershipStateEnum.ACTIVE);
         membershipRepo.save(m);
-        // Cập nhật số lượng thành viên
+
+        // 6. Update club member count
         clubService.updateMemberCount(club.getClubId());
-        //✉ 6. Gửi email qua EmailService CHUẨN
+
+        // 7. Send email
         emailService.sendMemberApplicationResult(
                 m.getUser().getEmail(),
                 m.getUser().getFullName(),
@@ -294,6 +301,7 @@ public class MembershipServiceImpl implements MembershipService {
 
         return toResp(m);
     }
+
 
 
 
