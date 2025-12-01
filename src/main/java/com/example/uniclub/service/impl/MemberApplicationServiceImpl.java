@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Objects;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,7 +34,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     private final ClubRepository clubRepo;
     private final MembershipRepository membershipRepo;
     private final EmailService emailService;
-
+    private final MajorPolicyRepository majorPolicyRepo;
 
     // =====================================================================================
     //  STUDENT SUBMITS APPLICATION
@@ -47,6 +48,34 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         Club club = clubRepo.findById(req.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        // =============== FIX: Validate Major Policy Before Submitting ===============
+        List<MembershipStateEnum> activeStates = List.of(
+                MembershipStateEnum.ACTIVE,
+                MembershipStateEnum.PENDING
+        );
+
+        int activeOrPendingCount = membershipRepo.countByUser_UserIdAndStateIn(
+                user.getUserId(),
+                activeStates
+        );
+
+        Major major = user.getMajor();
+        if (major != null) {
+            List<MajorPolicy> policies = majorPolicyRepo.findByMajor_IdAndActiveTrue(major.getId());
+            Integer maxJoin = policies.stream()
+                    .map(MajorPolicy::getMaxClubJoin)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+
+            if (maxJoin != null && activeOrPendingCount >= maxJoin) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "You have reached the maximum number of clubs allowed for your major (" +
+                                maxJoin + "). Current: " + activeOrPendingCount);
+            }
+        }
+        // ============================================================================
 
         // Check membership status (cannot join again)
         List<MembershipStateEnum> blockedStates = List.of(
@@ -95,6 +124,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
     }
 
 
+
     // =====================================================================================
     //  LEADER / ADMIN UPDATE APPLICATION STATUS
     // =====================================================================================
@@ -121,7 +151,41 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
         app.setUpdatedAt(LocalDateTime.now());
         app.setHandledBy(actor);
 
-        // Approve application
+        // =============== FIX: Validate Major Policy Before Approving ===============
+        if (newStatus == MemberApplicationStatusEnum.APPROVED) {
+
+            User user = app.getApplicant();
+
+            List<MembershipStateEnum> activeStatesCheck = List.of(
+                    MembershipStateEnum.ACTIVE,
+                    MembershipStateEnum.PENDING
+            );
+
+            int activeOrPendingCount = membershipRepo.countByUser_UserIdAndStateIn(
+                    user.getUserId(),
+                    activeStatesCheck
+            );
+
+            Major major = user.getMajor();
+            if (major != null) {
+                List<MajorPolicy> policies = majorPolicyRepo.findByMajor_IdAndActiveTrue(major.getId());
+                Integer maxJoin = policies.stream()
+                        .map(MajorPolicy::getMaxClubJoin)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null);
+
+                if (maxJoin != null && activeOrPendingCount >= maxJoin) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST,
+                            "User has reached the maximum number of clubs allowed for their major (" +
+                                    maxJoin + "). Current: " + activeOrPendingCount);
+                }
+            }
+        }
+        // ============================================================================
+
+
+        // Approve application (same logic)
         if (newStatus == MemberApplicationStatusEnum.APPROVED) {
 
             List<MembershipStateEnum> activeStates = List.of(
@@ -147,14 +211,11 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                     );
 
             if (existingOpt.isPresent()) {
-                // RE-ACTIVATE OLD MEMBERSHIP
                 Membership existing = existingOpt.get();
                 existing.setState(MembershipStateEnum.ACTIVE);
                 existing.setJoinedDate(LocalDate.now());
                 existing.setEndDate(null);
                 existing.setClubRole(ClubRoleEnum.MEMBER);
-
-                // default values
                 existing.setMemberMultiplier(1.0);
                 existing.setStaff(false);
 
@@ -162,15 +223,12 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
             } else {
 
-                // CREATE NEW MEMBERSHIP
                 Membership m = new Membership();
                 m.setUser(app.getApplicant());
                 m.setClub(app.getClub());
                 m.setClubRole(ClubRoleEnum.MEMBER);
                 m.setState(MembershipStateEnum.ACTIVE);
                 m.setJoinedDate(LocalDate.now());
-
-                // default values
                 m.setMemberMultiplier(1.0);
                 m.setStaff(false);
 
@@ -198,6 +256,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         return mapToResponse(appRepo.save(app));
     }
+
 
 
     // =====================================================================================
@@ -345,6 +404,36 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 !hasAdminRole(principal.getUser()))
             throw new ApiException(HttpStatus.FORBIDDEN, "Access denied");
 
+        // =============== FIX: Validate Major Policy Before Approving ===============
+        User user = app.getApplicant();
+
+        List<MembershipStateEnum> activeStatesCheck = List.of(
+                MembershipStateEnum.ACTIVE,
+                MembershipStateEnum.PENDING
+        );
+
+        int activeOrPendingCount = membershipRepo.countByUser_UserIdAndStateIn(
+                user.getUserId(),
+                activeStatesCheck
+        );
+
+        Major major = user.getMajor();
+        if (major != null) {
+            List<MajorPolicy> policies = majorPolicyRepo.findByMajor_IdAndActiveTrue(major.getId());
+            Integer maxJoin = policies.stream()
+                    .map(MajorPolicy::getMaxClubJoin)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+
+            if (maxJoin != null && activeOrPendingCount >= maxJoin) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "User has reached the maximum number of clubs allowed for their major (" +
+                                maxJoin + "). Current: " + activeOrPendingCount);
+            }
+        }
+        // ============================================================================
+
         app.setStatus(MemberApplicationStatusEnum.APPROVED);
         app.setHandledBy(principal.getUser());
         app.setUpdatedAt(LocalDateTime.now());
@@ -377,7 +466,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 existing.setJoinedDate(LocalDate.now());
                 existing.setEndDate(null);
                 existing.setClubRole(ClubRoleEnum.MEMBER);
-
                 existing.setMemberMultiplier(1.0);
                 existing.setStaff(false);
 
@@ -391,7 +479,6 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
                 m.setClubRole(ClubRoleEnum.MEMBER);
                 m.setState(MembershipStateEnum.ACTIVE);
                 m.setJoinedDate(LocalDate.now());
-
                 m.setMemberMultiplier(1.0);
                 m.setStaff(false);
 
@@ -408,6 +495,7 @@ public class MemberApplicationServiceImpl implements MemberApplicationService {
 
         return mapToResponse(app);
     }
+
 
 
     // =====================================================================================
