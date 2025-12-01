@@ -178,5 +178,24 @@ public interface EmailService {
     );
 
     void sendClubCreationOtpEmail(String to, String fullName, String otpCode);
+    void sendClubMonthlyLockedEmail(
+            String to,
+            String clubName,
+            int month,
+            int year,
+            String lockedBy
+    );
+
+
+    void sendClubMonthlyRewardApprovedEmail(
+            String to,
+            String clubName,
+            long rewardPoints,
+            long newBalance,
+            int month,
+            int year,
+            String approvedBy
+    );
+
 
 }

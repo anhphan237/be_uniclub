@@ -931,5 +931,52 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] Member Redeemed Reward #" + orderCode, content);
     }
+    @Override
+    public void sendClubMonthlyLockedEmail(String to, String clubName, int month, int year,  String lockedBy) {
+
+        String content = """
+    <h2 style="color:#1E88E5;">Monthly Report Has Been Locked 🔒</h2>
+
+    <p>The report for <b>%d/%d</b> of the club <b>%s</b> has been <b>locked</b> by UniStaff.</p>
+
+    <p>After locking, the club will no longer be able to edit the monthly report, scoring data, or reward points.</p>
+
+    <p>If you require any special adjustments, please contact UniStaff.</p>
+    """.formatted(month, year, clubName);
+
+        sendEmail(to, "[UniClub] Monthly Report Locked", content);
+    }
+    @Override
+    public void sendClubMonthlyRewardApprovedEmail(String to, String clubName,
+                                                   long rewardPoints, long newBalance,
+                                                   int month, int year, String staffName) {
+
+        String content = """
+    <h2 style="color:green;">Monthly Reward Approved 🎉</h2>
+
+    <p>The monthly reward for <b>%d/%d</b> of the club <b>%s</b> has been approved by UniStaff <b>%s</b>.</p>
+
+    <div style="
+            margin: 20px 0;
+            padding: 16px;
+            background:#F5F9FF;
+            border-left: 4px solid #1E88E5;
+            border-radius: 10px;
+    ">
+        <p><b>💰 Reward Points Granted:</b> %d</p>
+        <p><b>🏦 Club Wallet Balance After Approval:</b> %d</p>
+    </div>
+
+    <p>The club can use these points for:</p>
+    <ul>
+        <li>Distributing points to members</li>
+        <li>Redeeming items in the Store</li>
+        <li>Reserving for next month's events</li>
+    </ul>
+    """.formatted(month, year, clubName, staffName, rewardPoints, newBalance);
+
+        sendEmail(to, "[UniClub] Monthly Reward Approved", content);
+    }
+
 
 }

@@ -67,6 +67,9 @@ public class Club {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    // ===================== MEMBERSHIPS OF THE CLUB =====================
+    @OneToMany(mappedBy = "club", fetch = FetchType.LAZY)
+    private java.util.List<Membership> memberships = new java.util.ArrayList<>();
 
     @PrePersist
     public void prePersist() {

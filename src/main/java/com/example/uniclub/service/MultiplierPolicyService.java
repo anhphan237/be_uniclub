@@ -26,4 +26,10 @@ public interface MultiplierPolicyService {
             PolicyActivityTypeEnum activity,
             int value
     );
+    String resolveRuleName(
+            PolicyTargetTypeEnum target,
+            PolicyActivityTypeEnum activity,
+            int value
+    );
+
 }

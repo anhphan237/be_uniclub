@@ -31,5 +31,22 @@ public interface StaffPerformanceRepository extends JpaRepository<StaffPerforman
             LocalDate start,
             LocalDate end
     );
+    @Query("""
+    SELECT AVG(
+        CASE 
+            WHEN s.performance = 'POOR' THEN 40
+            WHEN s.performance = 'AVERAGE' THEN 70
+            WHEN s.performance = 'GOOD' THEN 90
+            WHEN s.performance = 'EXCELLENT' THEN 100
+            ELSE 50
+        END
+    )
+    FROM StaffPerformance s
+    WHERE s.event.hostClub.clubId = :clubId
+      AND s.event.endDate BETWEEN :start AND :end
+""")
+    Double avgPerformanceByClub(@Param("clubId") Long clubId,
+                                @Param("start") java.time.LocalDate start,
+                                @Param("end") java.time.LocalDate end);
 
 }

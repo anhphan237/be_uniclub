@@ -218,5 +218,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
        OR r.club.clubId = :clubId
 """)
     Double avgCheckinRateByClub(@Param("clubId") Long clubId);
+    @Query("""
+    SELECT e FROM Event e
+    WHERE e.hostClub.clubId = :clubId
+      AND e.status = com.example.uniclub.enums.EventStatusEnum.COMPLETED
+      AND e.endDate BETWEEN :start AND :end
+    ORDER BY e.endDate DESC
+""")
+    List<Event> findCompletedEventsForClub(Long clubId, LocalDate start, LocalDate end);
 
 }

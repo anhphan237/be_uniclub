@@ -58,10 +58,12 @@ public class Membership {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    // 🔰 Level thành viên
-//    @Enumerated(EnumType.STRING)
-//    @Column(nullable = false)
-//    private MemberLevelEnum memberLevel = MemberLevelEnum.BASIC;
+
+    public boolean isLeaderRole() {
+        return this.clubRole == ClubRoleEnum.LEADER ||
+                this.clubRole == ClubRoleEnum.VICE_LEADER;
+    }
+
 
     // ➗ Hệ số điểm
     @Column(nullable = false)

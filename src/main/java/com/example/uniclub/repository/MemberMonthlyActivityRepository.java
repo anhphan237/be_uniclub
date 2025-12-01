@@ -3,6 +3,8 @@ package com.example.uniclub.repository;
 import com.example.uniclub.entity.MemberMonthlyActivity;
 import com.example.uniclub.entity.Membership;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,5 +38,15 @@ public interface MemberMonthlyActivityRepository extends JpaRepository<MemberMon
     // Lịch sử theo membership (ví dụ cho API “history”)
     List<MemberMonthlyActivity> findByMembership_MembershipIdOrderByYearDescMonthDesc(Long membershipId);
 
+    @Query("""
+    SELECT AVG(m.finalScore)
+    FROM MemberMonthlyActivity m
+    WHERE m.membership.club.clubId = :clubId
+      AND m.year = :year
+      AND m.month = :month
+""")
+    Double avgFinalScoreByClub(@Param("clubId") Long clubId,
+                               @Param("year") int year,
+                               @Param("month") int month);
 
 }

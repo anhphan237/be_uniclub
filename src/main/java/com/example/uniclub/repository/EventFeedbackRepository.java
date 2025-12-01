@@ -64,5 +64,20 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
        OR ec.club.clubId = :clubId
 """)
     Long getTotalFeedbackCountForClub(@Param("clubId") Long clubId);
+    @Query("""
+    SELECT AVG(f.rating)
+    FROM EventFeedback f
+    WHERE f.event.hostClub.clubId = :clubId
+      AND f.event.endDate BETWEEN :start AND :end
+""")
+    Double avgRatingByClub(@Param("clubId") Long clubId,
+                           @Param("start") java.time.LocalDate start,
+                           @Param("end") java.time.LocalDate end);
+    @Query("""
+    SELECT AVG(f.rating)
+    FROM EventFeedback f
+    WHERE f.event.eventId = :eventId
+""")
+    Double avgRatingByEvent(@Param("eventId") Long eventId);
 
 }

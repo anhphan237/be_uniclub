@@ -144,6 +144,24 @@ public class MultiplierPolicyServiceImpl implements MultiplierPolicyService {
         return 1.0;
     }
 
+    @Override
+    public String resolveRuleName(PolicyTargetTypeEnum target,
+                                  PolicyActivityTypeEnum activity,
+                                  int value) {
+
+        List<MultiplierPolicy> policies =
+                repo.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(target, activity);
+
+        for (MultiplierPolicy p : policies) {
+            boolean minOK = value >= p.getMinThreshold();
+            boolean maxOK = (p.getMaxThreshold() == null) || value <= p.getMaxThreshold();
+
+            if (minOK && maxOK) {
+                return p.getRuleName(); // return GOLD / SILVER / BRONZE
+            }
+        }
+        return "UNDEFINED";
+    }
 
     private MultiplierPolicyResponse toResponse(MultiplierPolicy e) {
         return MultiplierPolicyResponse.builder()
