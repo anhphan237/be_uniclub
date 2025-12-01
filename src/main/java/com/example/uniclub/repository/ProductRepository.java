@@ -33,5 +33,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findByIdForUpdate(@Param("id") Long id);
     List<Product> findByClub_ClubIdAndType(Long clubId, ProductTypeEnum type);
     List<Product> findByClubClubIdAndType(Long clubId, ProductTypeEnum type);
+    long countByStatus(ProductStatusEnum status);
 
 }

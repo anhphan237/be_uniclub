@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.AdminProductResponse;
+import com.example.uniclub.dto.response.AdminProductStatsResponse;
 import com.example.uniclub.dto.response.AdminRedeemOrderResponse;
 import com.example.uniclub.entity.Product;
 import com.example.uniclub.entity.ProductOrder;
@@ -71,11 +72,68 @@ public class AdminProductServiceImpl implements AdminProductService {
         Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
-        product.setIsActive(!product.getIsActive());
-        product.setStatus(product.getIsActive()
-                ? ProductStatusEnum.ACTIVE
-                : ProductStatusEnum.INACTIVE);
+        // Không cho toggle ARCHIVED
+        if (product.getStatus() == ProductStatusEnum.ARCHIVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Archived products cannot be toggled");
+        }
+
+        if (product.getStatus() == ProductStatusEnum.ACTIVE) {
+            product.setStatus(ProductStatusEnum.INACTIVE);
+            product.setIsActive(false);
+        } else {
+            product.setStatus(ProductStatusEnum.ACTIVE);
+            product.setIsActive(true);
+        }
+
         productRepo.save(product);
+    }
+
+    @Override
+    public void archiveProduct(Long id) {
+        Product product = productRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        product.setStatus(ProductStatusEnum.ARCHIVED);
+        product.setIsActive(false);
+        productRepo.save(product);
+    }
+
+    @Override
+    public void activateProduct(Long id) {
+        Product product = productRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        if (product.getStatus() == ProductStatusEnum.ARCHIVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Archived products cannot be activated");
+        }
+
+        product.setStatus(ProductStatusEnum.ACTIVE);
+        product.setIsActive(true);
+        productRepo.save(product);
+    }
+
+    @Override
+    public void deactivateProduct(Long id) {
+        Product product = productRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+
+        if (product.getStatus() == ProductStatusEnum.ARCHIVED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Archived products cannot be deactivated");
+        }
+
+        product.setStatus(ProductStatusEnum.INACTIVE);
+        product.setIsActive(false);
+        productRepo.save(product);
+    }
+
+    @Override
+    public AdminProductStatsResponse getStats() {
+        long total = productRepo.count();
+        long active = productRepo.countByStatus(ProductStatusEnum.ACTIVE);
+        long inactive = productRepo.countByStatus(ProductStatusEnum.INACTIVE);
+        long archived = productRepo.countByStatus(ProductStatusEnum.ARCHIVED);
+
+        return new AdminProductStatsResponse(total, active, inactive, archived);
     }
 
     // ============================================================
