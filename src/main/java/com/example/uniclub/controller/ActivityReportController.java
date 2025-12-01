@@ -389,8 +389,11 @@ public class ActivityReportController {
         e.setTotalClubSessions(req.getTotalClubSessions());
         e.setTotalClubPresent(req.getTotalClubPresent());
         e.setSessionAttendanceRate(req.getSessionAttendanceRate());
+        e.setFinalScore(
+                e.getAttendanceTotalScore()
+                        + e.getStaffTotalScore()
+        );
 
-        e.setFinalScore(req.getFinalScore());
     }
     @PostMapping("/clubs/{clubId}/activity/monthly/auto-generate")
     @Operation(summary = "Leader tự động tạo & tính điểm hoạt động tháng cho toàn CLB ")
