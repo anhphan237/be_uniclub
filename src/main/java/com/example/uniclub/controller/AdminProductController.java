@@ -16,18 +16,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Controller quản lý Sản phẩm và Đơn đổi quà (chỉ dành cho ADMIN).
- * Cung cấp các chức năng:
- * - Quản lý trạng thái sản phẩm (kích hoạt / vô hiệu hóa)
- * - Xem danh sách sản phẩm
- * - Xem và tra cứu đơn đổi quà (redeem orders)
- * - Xem lịch sử đổi quà của từng người dùng
- */
 @RestController
 @RequestMapping("/api/admin/products")
 @RequiredArgsConstructor
-@Tag(name = "Quản lý Sản phẩm & Đổi quà (ADMIN)", description = "Các API cho phép ADMIN quản lý sản phẩm và đơn đổi quà trong hệ thống")
+@Tag(name = "Quản lý Sản phẩm & Đổi quà", description = "ADMIN và UNI_STAFF có thể xem dữ liệu, chỉ ADMIN được chỉnh sửa.")
 public class AdminProductController {
 
     private final AdminProductService adminProductService;
@@ -37,22 +29,20 @@ public class AdminProductController {
     // 1. Lấy danh sách tất cả sản phẩm (phân trang)
     // ====================================================
     @Operation(
-            summary = "Lấy danh sách tất cả sản phẩm (phân trang)",
+            summary = "Xem danh sách tất cả sản phẩm (ADMIN + UNI_STAFF)",
             description = """
-                    API này cho phép ADMIN xem toàn bộ danh sách sản phẩm trong hệ thống.
+                    API cho phép ADMIN và UNI_STAFF xem tất cả sản phẩm trong hệ thống.
 
-                    Tham số truy vấn:
-                    - page (mặc định = 0): số trang bắt đầu từ 0.
-                    - size (mặc định = 10): số lượng phần tử mỗi trang.
+                    - Hỗ trợ phân trang: page (mặc định = 0), size (mặc định = 10)
+                    - Trả về thông tin sản phẩm: ID, tên, CLB sở hữu, trạng thái, loại, tồn kho, điểm đổi, lượt đổi.
 
-                    Kết quả trả về gồm các thông tin:
-                    - Mã sản phẩm, tên sản phẩm, CLB sở hữu, trạng thái, loại, số lượng tồn kho, điểm đổi, lượt đổi quà.
-
-                    Quyền hạn: chỉ ADMIN được phép truy cập.
+                    Quyền truy cập:
+                    - ADMIN
+                    - UNI_STAFF
                     """
     )
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     public ResponseEntity<Page<AdminProductResponse>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -64,17 +54,15 @@ public class AdminProductController {
     // 2. Bật / Tắt trạng thái hoạt động của sản phẩm
     // ====================================================
     @Operation(
-            summary = "Bật hoặc tắt hoạt động của sản phẩm",
+            summary = "Bật / Tắt trạng thái hoạt động của sản phẩm (CHỈ ADMIN)",
             description = """
-                    API cho phép ADMIN kích hoạt hoặc vô hiệu hóa một sản phẩm.
+                    ADMIN có thể kích hoạt hoặc vô hiệu hóa một sản phẩm.
 
-                    Tham số đường dẫn:
-                    - id: ID của sản phẩm cần thay đổi trạng thái.
+                    - Trạng thái sẽ chuyển giữa ACTIVE ↔ INACTIVE.
+                    - UNI_STAFF KHÔNG được phép thao tác.
 
-                    Khi bật/tắt, hệ thống sẽ thay đổi giữa hai trạng thái:
-                    - ACTIVE ↔ INACTIVE
-
-                    Quyền hạn: chỉ ADMIN được phép thực hiện.
+                    Quyền truy cập:
+                    - Chỉ ADMIN
                     """
     )
     @PutMapping("/{id}/toggle")
@@ -88,22 +76,20 @@ public class AdminProductController {
     // 3. Lấy danh sách toàn bộ đơn đổi quà (phân trang)
     // ====================================================
     @Operation(
-            summary = "Lấy danh sách toàn bộ đơn đổi quà (phân trang)",
+            summary = "Xem danh sách tất cả đơn đổi quà (ADMIN + UNI_STAFF)",
             description = """
-                    API cho phép ADMIN xem toàn bộ lịch sử các đơn đổi quà (redeem orders) trong hệ thống.
+                    API cho phép ADMIN và UNI_STAFF xem toàn bộ đơn đổi quà.
 
-                    Tham số truy vấn:
-                    - page: số trang (bắt đầu từ 0)
-                    - size: số lượng đơn mỗi trang
+                    - Hỗ trợ phân trang
+                    - Trả về: mã đơn, sản phẩm, người đổi, CLB, điểm, trạng thái, thời gian.
 
-                    Kết quả trả về:
-                    - Mã đơn hàng, tên sản phẩm, người đổi quà, CLB, số lượng, tổng điểm, trạng thái, thời gian tạo và hoàn thành.
-
-                    Quyền hạn: chỉ ADMIN được phép sử dụng API này.
+                    Quyền truy cập:
+                    - ADMIN
+                    - UNI_STAFF
                     """
     )
     @GetMapping("/orders")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     public ResponseEntity<Page<AdminRedeemOrderResponse>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
@@ -115,21 +101,21 @@ public class AdminProductController {
     // 4. Xem chi tiết một đơn đổi quà cụ thể
     // ====================================================
     @Operation(
-            summary = "Xem chi tiết một đơn đổi quà",
+            summary = "Xem chi tiết đơn đổi quà (ADMIN + UNI_STAFF)",
             description = """
-                    API cho phép ADMIN xem thông tin chi tiết của một đơn đổi quà cụ thể.
+                    API cho phép ADMIN và UNI_STAFF xem đầy đủ thông tin của một đơn đổi quà.
 
-                    Tham số đường dẫn:
-                    - id: ID của đơn hàng cần xem.
+                    Trả về:
+                    - Mã đơn, sản phẩm, người đổi, CLB, số lượng, tổng điểm
+                    - QR code, thời gian tạo, thời gian hoàn thành
 
-                    Kết quả trả về gồm:
-                    - Mã đơn hàng, tên sản phẩm, người đổi, CLB, số lượng, tổng điểm, trạng thái, ảnh QR, thời gian tạo và hoàn thành.
-
-                    Quyền hạn: chỉ ADMIN được phép truy cập.
+                    Quyền truy cập:
+                    - ADMIN
+                    - UNI_STAFF
                     """
     )
     @GetMapping("/orders/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     public ResponseEntity<AdminRedeemOrderResponse> getOrderDetail(@PathVariable Long id) {
         return ResponseEntity.ok(adminProductService.getOrderDetail(id));
     }
@@ -138,21 +124,20 @@ public class AdminProductController {
     // 5. Xem lịch sử đổi quà của một người dùng cụ thể
     // ====================================================
     @Operation(
-            summary = "Xem lịch sử đổi quà của người dùng",
+            summary = "Xem lịch sử đổi quà của một người dùng (ADMIN + UNI_STAFF)",
             description = """
-                    API cho phép ADMIN tra cứu toàn bộ lịch sử đổi quà của một người dùng cụ thể.
+                    API cho phép ADMIN và UNI_STAFF xem toàn bộ lịch sử đổi quà của một người dùng.
 
-                    Tham số đường dẫn:
-                    - userId: ID của người dùng cần xem lịch sử.
+                    Trả về danh sách:
+                    - mã đơn, sản phẩm, điểm, CLB, trạng thái, thời gian
 
-                    Kết quả trả về là danh sách các đơn hàng đã đổi:
-                    - Mã đơn hàng, sản phẩm, số lượng, tổng điểm, trạng thái, thời gian tạo, CLB sở hữu sản phẩm.
-
-                    Quyền hạn: chỉ ADMIN được phép truy cập API này.
+                    Quyền truy cập:
+                    - ADMIN
+                    - UNI_STAFF
                     """
     )
     @GetMapping("/users/{userId}/redeem-history")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'UNIVERSITY_STAFF')")
     public ResponseEntity<List<OrderResponse>> getUserRedeemHistory(@PathVariable Long userId) {
         return ResponseEntity.ok(redeemService.getOrdersByMember(userId));
     }

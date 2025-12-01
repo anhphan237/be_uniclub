@@ -100,6 +100,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/me/clubs").authenticated()
                         .requestMatchers("/api/users/**").hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
 
+                                .requestMatchers(HttpMethod.GET,
+                                        "/api/admin/products",
+                                        "/api/admin/products/**",
+                                        "/api/admin/products/orders/**"
+                                ).hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
+
                         // 🧩 Specialized API access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
