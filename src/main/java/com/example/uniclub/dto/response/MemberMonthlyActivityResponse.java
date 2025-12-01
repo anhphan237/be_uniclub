@@ -99,6 +99,7 @@ public class MemberMonthlyActivityResponse {
 
                 .totalClubSessions(m.getTotalClubSessions())
                 .totalClubPresent(m.getTotalClubPresent())
+                .finalScore(m.getFinalScore())
                 .build();
     }
 
