@@ -987,53 +987,77 @@ public class EmailServiceImpl implements EmailService {
             int finalScore,
             int attendanceScore,
             int staffScore,
-            int totalSessions,
-            int presentSessions,
+            int totalClubSessions,
+            int totalClubPresent,
             String staffEvaluation,
+
+            int totalClubScore,
+            int clubRewardPool,
 
             int rewardPoints,
             int oldBalance,
             int newBalance
     ) {
 
+        double attendanceRate = totalClubSessions == 0 ? 0
+                : (totalClubPresent * 100.0 / totalClubSessions);
+
         String content = """
         <h2 style="color:#1E88E5;">Monthly Reward Received 🎉</h2>
 
         <p>Hello,</p>
 
-        <p>You received <b>%d reward points</b> from the club <b>%s</b> for your activity performance in <b>%d/%d</b>.</p>
+        <p>You received <b>%d reward points</b> from <b>%s</b> 
+        for your activity performance in <b>%d/%d</b>.</p>
 
-        <h3>Your Activity Summary</h3>
+        <h3>Your Activity Breakdown</h3>
 
         <ul>
-            <li><b>Final Score:</b> %d</li>
-            <li><b>Attendance Score:</b> %d (Sessions: %d/%d)</li>
-            <li><b>Staff Performance:</b> %s (%d points)</li>
+            <li><b>Attendance Score:</b> %d 
+                <span style="color:gray;">(%d/%d sessions, %.1f%%)</span>
+            </li>
+            <li><b>Staff Score:</b> %d 
+                <span style="color:gray;">(%s)</span>
+            </li>
+            <li><b>Final Score:</b> %d 
+                <br/><span style="color:gray;">
+                    = Attendance (%d) + Staff (%d)
+                </span>
+            </li>
         </ul>
 
-        <div style="
-            margin: 20px 0;
-            padding: 16px;
-            background:#F5F9FF;
-            border-left: 4px solid #1E88E5;
-            border-radius: 10px;
-        ">
+        <h3>How Your Reward Was Calculated</h3>
+
+        <pre style="background:#F5F9FF; padding:12px; border-radius:8px;">
+Your Final Score = %d (attendance) + %d (staff) = %d
+
+Your Reward = (FinalScore / TotalClubScore) × ClubRewardPool
+             = (%d / %d) × %d
+             = %d points
+        </pre>
+
+        <div style="background:#F5F9FF; padding:16px; border-radius:10px;
+                    border-left:4px solid #1E88E5; margin-top:16px;">
             <p><b>💰 Previous Balance:</b> %d</p>
-            <p><b>💵 Reward Points:</b> +%d</p>
+            <p><b>💵 Reward Points Added:</b> +%d</p>
             <p><b>🏦 New Balance:</b> %d</p>
         </div>
 
-        <p>
-           Thank you for your contributions this month 🎉<br/>
-           Keep up the excellent work and continue participating actively!
-        </p>
-    """.formatted(
+        <p>Thank you for your contributions this month 🎉</p>
+        """.formatted(
+                // greeting
                 rewardPoints, clubName, month, year,
 
-                finalScore,
-                attendanceScore, presentSessions, totalSessions,
-                staffEvaluation, staffScore,
+                // breakdown
+                attendanceScore, totalClubPresent, totalClubSessions, attendanceRate,
+                staffScore, staffEvaluation,
+                finalScore, attendanceScore, staffScore,
 
+                // formula line
+                attendanceScore, staffScore, finalScore,
+                finalScore, totalClubScore, clubRewardPool, rewardPoints,
+
+                // balance
                 oldBalance, rewardPoints, newBalance
         );
 

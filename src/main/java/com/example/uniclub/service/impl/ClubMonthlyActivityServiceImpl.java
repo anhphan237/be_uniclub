@@ -583,7 +583,6 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .build();
     }
 
-
     @Override
     @Transactional
     public void distributeRewardToMembers(Long clubId, int year, int month) {
@@ -600,7 +599,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
             throw new ApiException(HttpStatus.BAD_REQUEST, "Month must be locked before distributing.");
         }
 
-        long clubRewards = record.getRewardPoints();
+        long clubRewards = record.getRewardPoints(); // Long
         if (clubRewards <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Club has no reward points.");
 
@@ -615,7 +614,9 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         if (activities.isEmpty())
             throw new ApiException(HttpStatus.BAD_REQUEST, "No members to reward.");
 
-        int totalScore = activities.stream().mapToInt(MemberMonthlyActivity::getFinalScore).sum();
+        int totalScore = activities.stream()
+                .mapToInt(MemberMonthlyActivity::getFinalScore)
+                .sum();
         if (totalScore <= 0) totalScore = 1;
 
         long totalDistributed = 0;
@@ -626,9 +627,10 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
             Membership membership = m.getMembership();
             User member = membership.getUser();
 
-            int memberScore = m.getFinalScore();
-            long reward = (memberScore * clubRewards) / totalScore;
+            int memberScore = m.getFinalScore(); // final score
 
+            // reward = (score / totalScore) * rewardPool
+            long reward = (memberScore * clubRewards) / totalScore;
             totalDistributed += reward;
 
             Wallet memberWallet = walletRepo.findByUser_UserId(member.getUserId())
@@ -662,8 +664,8 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
             walletTransactionRepo.save(bonusTx);
 
             // 3.3 Gửi email
-            long newBalance = memberWallet.getBalancePoints();
-            long oldBalance = newBalance - reward;
+            long newBalanceLong = memberWallet.getBalancePoints();
+            long oldBalanceLong = newBalanceLong - reward;
 
             emailService.sendMemberRewardEmail(
                     member.getEmail(),
@@ -671,27 +673,23 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                     month,
                     year,
 
-                    m.getFinalScore(),
+                    memberScore,
                     m.getAttendanceTotalScore(),
                     m.getStaffTotalScore(),
                     m.getTotalClubSessions(),
                     m.getTotalClubPresent(),
                     m.getStaffEvaluation(),
 
-                    (int) reward,
-                    (int) oldBalance,
-                    (int) newBalance
+                    totalScore,                   // int
+                    (int) clubRewards,            // Long -> int
+                    (int) reward,                 // Long -> int
+                    (int) oldBalanceLong,         // Long -> int
+                    (int) newBalanceLong          // Long -> int
             );
         }
 
-            log.info("Distributed {} reward points for club {} in {}/{}",
+        log.info("Distributed {} reward points for club {} in {}/{}",
                 totalDistributed, club.getName(), month, year);
     }
-
-
-
-
-
-
 
 }

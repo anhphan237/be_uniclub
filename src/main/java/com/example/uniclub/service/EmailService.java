@@ -202,17 +202,21 @@ public interface EmailService {
             int month,
             int year,
 
-            int finalScore,               // điểm cuối
-            int attendanceScore,          // attendanceTotalScore
-            int staffScore,               // staffTotalScore
-            int totalClubSessions,        // tổng buổi
-            int totalClubPresent,         // có mặt
-            String staffEvaluation,       // GOOD / EXCELLENT
+            int finalScore,
+            int attendanceScore,
+            int staffScore,
+            int totalClubSessions,
+            int totalClubPresent,
+            String staffEvaluation,
 
-            int rewardPoints,             // điểm thưởng
+            int totalClubScore,
+            int clubRewardPool,
+
+            int rewardPoints,
             int oldBalance,
             int newBalance
     );
+
 
 
 
