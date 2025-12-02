@@ -130,6 +130,23 @@ public class EventServiceImpl implements EventService {
                         "Start time for today must be in the future.");
             }
         }
+// 🔥 CHECK LOCATION–TIME CONFLICT
+        for (EventDayRequest d : req.days()) {
+            List<Event> conflicts = eventRepo.findConflictedEvents(
+                    req.locationId(),
+                    d.getDate(),
+                    d.getStartTime(),
+                    d.getEndTime()
+            );
+
+            if (!conflicts.isEmpty()) {
+                Event c = conflicts.get(0);
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "Location '" + c.getLocation().getName() + "' is already booked by event '"
+                                + c.getName() + "' on " + d.getDate() + " from "
+                                + d.getStartTime() + " to " + d.getEndTime());
+            }
+        }
 
         // -------------------------------------------------------------
         // 📅 Tính ngày bắt đầu / kết thúc
@@ -746,6 +763,21 @@ public class EventServiceImpl implements EventService {
 
         if (newEnd.isBefore(newStart)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "End time must be after start time");
+        }
+// 🔥 CHECK LOCATION–TIME CONFLICT
+        List<Event> conflicts = eventRepo.findConflictedEvents(
+                        event.getLocation().getLocationId(),
+                        day.getDate(),
+                        newStart,
+                        newEnd
+                ).stream()
+                .filter(e -> !e.getEventId().equals(eventId)) // ignore current event
+                .toList();
+
+        if (!conflicts.isEmpty()) {
+            Event c = conflicts.get(0);
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Cannot update schedule. Location is already booked by event: " + c.getName());
         }
 
         // ===================== 3️⃣ Apply update ======================
