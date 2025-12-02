@@ -25,9 +25,9 @@ public class StudentRegistryService {
     private static final String STUDENT_CODE_REGEX =
             "^[A-Z]{2}(1[5-9]|2[0-9])[0-9]{4}$";
 
-    // ====================================================================
-    // VALIDATE MSSV
-    // ====================================================================
+    // ============================================================
+    // VALIDATE SINGLE STUDENT CODE
+    // ============================================================
     public StudentRegistry validate(String rawCode) {
         if (rawCode == null || rawCode.isBlank())
             throw new ApiException(HttpStatus.BAD_REQUEST, "Student code is required");
@@ -36,21 +36,21 @@ public class StudentRegistryService {
 
         if (!code.matches(STUDENT_CODE_REGEX))
             throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Invalid student code format. Expected: XXYYZZZZ");
+                    "Invalid format. Expected: XXYYZZZZ");
 
         String majorCode = code.substring(0, 2);
 
         if (!majorRepo.existsByMajorCode(majorCode))
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Major code does not exist: " + majorCode);
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Major code not found: " + majorCode);
 
         return registryRepo.findByStudentCode(code)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "Student code not found in registry: " + code));
+                        "Student not found: " + code));
     }
 
-    // ====================================================================
-    // IMPORT (CSV + EXCEL SUPPORT)
-    // ====================================================================
+    // ============================================================
+    // ROUTER FOR IMPORT (CSV OR EXCEL)
+    // ============================================================
     public Map<String, Object> importCsv(MultipartFile file) {
 
         if (file.isEmpty())
@@ -58,19 +58,19 @@ public class StudentRegistryService {
 
         String filename = file.getOriginalFilename();
         if (filename == null)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid file name");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid filename");
 
         boolean isExcel = filename.endsWith(".xlsx") || filename.endsWith(".xls");
 
         return isExcel ? importExcel(file) : importCsvInternal(file);
     }
 
-    // ====================================================================
-    // 1) IMPORT CSV
-    // ====================================================================
+    // ============================================================
+    // IMPORT CSV — SAVE TỪNG DÒNG, KHÔNG SAVE-ALL
+    // ============================================================
     private Map<String, Object> importCsvInternal(MultipartFile file) {
+
         int imported = 0, skipped = 0;
-        List<StudentRegistry> batch = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -88,7 +88,6 @@ public class StudentRegistryService {
                     continue;
 
                 String[] parts = line.split(",");
-
                 if (parts.length < 2) {
                     skipped++;
                     continue;
@@ -102,38 +101,45 @@ public class StudentRegistryService {
                     continue;
                 }
 
-                batch.add(buildRegistry(code, fullName));
-                imported++;
+                StudentRegistry registry = buildRegistry(code, fullName);
+
+                try {
+                    registryRepo.save(registry);
+                    imported++;
+                } catch (Exception ex) {
+                    skipped++;
+                }
             }
 
-            registryRepo.saveAll(batch);
-
         } catch (Exception e) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Error reading CSV: " + e.getMessage());
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Error reading CSV: " + e.getMessage()
+            );
         }
 
         return Map.of("imported", imported, "skipped", skipped, "total", imported + skipped);
     }
 
-    // ====================================================================
-    // 2) IMPORT EXCEL (.xlsx) — CHỈ CẦN 2 CỘT: student_code, full_name
-    // ====================================================================
+    // ============================================================
+    // IMPORT EXCEL — FIXED WITH DataFormatter
+    // ============================================================
     private Map<String, Object> importExcel(MultipartFile file) {
 
         int imported = 0, skipped = 0;
-        List<StudentRegistry> batch = new ArrayList<>();
 
         try (InputStream is = file.getInputStream()) {
 
             Workbook workbook = WorkbookFactory.create(is);
             Sheet sheet = workbook.getSheetAt(0);
 
+            DataFormatter formatter = new DataFormatter();
             int rowNum = 0;
 
             for (Row row : sheet) {
                 rowNum++;
 
-                if (rowNum == 1) continue; // Skip header
+                if (rowNum == 1) continue; // header
 
                 Cell codeCell = row.getCell(0);
                 Cell fullNameCell = row.getCell(1);
@@ -143,19 +149,23 @@ public class StudentRegistryService {
                     continue;
                 }
 
-                String code = codeCell.getStringCellValue().trim().toUpperCase();
-                String fullName = fullNameCell.getStringCellValue().trim();
+                String code = formatter.formatCellValue(codeCell).trim().toUpperCase();
+                String fullName = formatter.formatCellValue(fullNameCell).trim();
 
                 if (!validateRow(code, fullName)) {
                     skipped++;
                     continue;
                 }
 
-                batch.add(buildRegistry(code, fullName));
-                imported++;
-            }
+                StudentRegistry registry = buildRegistry(code, fullName);
 
-            registryRepo.saveAll(batch);
+                try {
+                    registryRepo.save(registry); // save từng dòng → không rollback batch
+                    imported++;
+                } catch (Exception ex) {
+                    skipped++;
+                }
+            }
 
         } catch (Exception e) {
             throw new ApiException(
@@ -167,10 +177,13 @@ public class StudentRegistryService {
         return Map.of("imported", imported, "skipped", skipped, "total", imported + skipped);
     }
 
-    // ====================================================================
-    // VALIDATE 1 ROW (dùng chung CSV + Excel)
-    // ====================================================================
+    // ============================================================
+    // VALIDATE 1 ROW
+    // ============================================================
     private boolean validateRow(String code, String fullName) {
+
+        if (code == null || code.isBlank())
+            return false;
 
         if (!code.matches(STUDENT_CODE_REGEX))
             return false;
@@ -183,9 +196,9 @@ public class StudentRegistryService {
         return majorRepo.existsByMajorCode(majorCode);
     }
 
-    // ====================================================================
+    // ============================================================
     // BUILD ENTITY
-    // ====================================================================
+    // ============================================================
     private StudentRegistry buildRegistry(String code, String fullName) {
 
         String majorCode = code.substring(0, 2);
@@ -201,21 +214,25 @@ public class StudentRegistryService {
                 .build();
     }
 
-    // ====================================================================
-    // GET ALL
-    // ====================================================================
+    // ============================================================
+    // CRUD + STATS
+    // ============================================================
     public List<StudentRegistry> getAll() {
         return registryRepo.findAll();
     }
+
     public List<StudentRegistry> search(String keyword) {
         return registryRepo.searchByCodeOrName(keyword.toUpperCase(), "%" + keyword + "%");
     }
+
     public void delete(String code) {
         registryRepo.deleteByStudentCode(code);
     }
+
     public void clearAll() {
         registryRepo.deleteAll();
     }
+
     public Map<String, Object> stats() {
         List<StudentRegistry> all = registryRepo.findAll();
 
@@ -231,5 +248,4 @@ public class StudentRegistryService {
                 "byIntake", intakeCount
         );
     }
-
 }
