@@ -33,4 +33,7 @@ public interface ClubMonthlyActivityService {
 
     ClubRewardApprovalResponse approveRewardPoints(Long clubId, int year, int month);
 
+    void distributeRewardToMembers(Long clubId, int year, int month);
+
+
 }

@@ -1,6 +1,7 @@
 package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.WalletTransaction;
+import com.example.uniclub.enums.WalletTransactionTypeEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -63,5 +64,61 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
       AND (e.hostClub.clubId = :clubId OR r.club.clubId = :clubId)
 """)
     Long sumEventBudgetByClub(@Param("clubId") Long clubId);
+    List<WalletTransaction> findByWallet_WalletIdAndType(
+            Long walletId,
+            WalletTransactionTypeEnum type
+    );
+
+    @Query("""
+    SELECT t FROM WalletTransaction t
+    WHERE t.wallet.walletId = :walletId
+      AND t.type = com.example.uniclub.enums.WalletTransactionTypeEnum.BONUS_REWARD
+      AND YEAR(t.createdAt) = :year
+      AND MONTH(t.createdAt) = :month
+    ORDER BY t.createdAt DESC
+""")
+    List<WalletTransaction> findMonthlyReward(
+            @Param("walletId") Long walletId,
+            @Param("year") int year,
+            @Param("month") int month
+    );
+    @Query("""
+    SELECT t FROM WalletTransaction t
+    WHERE t.wallet.club.clubId = :clubId
+      AND t.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
+      AND YEAR(t.createdAt) = :year
+      AND MONTH(t.createdAt) = :month
+    ORDER BY t.createdAt DESC
+""")
+    List<WalletTransaction> findClubSpentForRewards(
+            @Param("clubId") Long clubId,
+            @Param("year") int year,
+            @Param("month") int month
+    );
+    @Query("""
+    SELECT t FROM WalletTransaction t
+    WHERE t.receiverMembership.membershipId = :membershipId
+      AND t.type = com.example.uniclub.enums.WalletTransactionTypeEnum.BONUS_REWARD
+      AND YEAR(t.createdAt) = :year
+      AND MONTH(t.createdAt) = :month
+    ORDER BY t.createdAt DESC
+""")
+    List<WalletTransaction> findMemberRewardDetail(
+            @Param("membershipId") Long membershipId,
+            @Param("year") int year,
+            @Param("month") int month
+    );
+    @Query("""
+    SELECT COUNT(t) FROM WalletTransaction t
+    WHERE t.wallet.club.clubId = :clubId
+      AND t.type = com.example.uniclub.enums.WalletTransactionTypeEnum.CLUB_TO_MEMBER
+      AND YEAR(t.createdAt) = :year
+      AND MONTH(t.createdAt) = :month
+""")
+    long countClubRewardTransactions(
+            @Param("clubId") Long clubId,
+            @Param("year") int year,
+            @Param("month") int month
+    );
 
 }

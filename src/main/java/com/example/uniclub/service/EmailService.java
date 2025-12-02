@@ -196,6 +196,24 @@ public interface EmailService {
             int year,
             String approvedBy
     );
+    void sendMemberRewardEmail(
+            String to,
+            String clubName,
+            int month,
+            int year,
+
+            int finalScore,               // điểm cuối
+            int attendanceScore,          // attendanceTotalScore
+            int staffScore,               // staffTotalScore
+            int totalClubSessions,        // tổng buổi
+            int totalClubPresent,         // có mặt
+            String staffEvaluation,       // GOOD / EXCELLENT
+
+            int rewardPoints,             // điểm thưởng
+            int oldBalance,
+            int newBalance
+    );
+
 
 
 }

@@ -22,5 +22,8 @@ public enum WalletTransactionTypeEnum {
     ADMIN_ADJUST,
     MEMBER_PENALTY,
     CLUB_FROM_PENALTY,
-    EVENT_BUDGET_FORFEIT
+    EVENT_BUDGET_FORFEIT,
+    MEMBER_REWARD,          // Member nhận điểm thưởng từ CLB
+    CLUB_REWARD_DISTRIBUTE  // CLB bị trừ điểm để phát thưởng cho member
+
 }

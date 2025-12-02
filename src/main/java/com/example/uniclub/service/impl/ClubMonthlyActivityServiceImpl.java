@@ -9,6 +9,7 @@ import com.example.uniclub.service.ClubMonthlyActivityService;
 import com.example.uniclub.service.EmailService;
 import com.example.uniclub.service.MultiplierPolicyService;
 
+import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +38,8 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
     private final MembershipRepository membershipRepo;
     private final WalletRepository walletRepo;
     private final EmailService emailService;
-
+    private final WalletTransactionRepository walletTransactionRepo;
+    private final WalletService walletService;
     // =========================================================================
     // 0. VALIDATE & HELPERS
     // =========================================================================
@@ -580,6 +582,114 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .walletBalance(newBalance)
                 .build();
     }
+
+
+    @Override
+    @Transactional
+    public void distributeRewardToMembers(Long clubId, int year, int month) {
+
+        // 1. Lấy dữ liệu đầu vào
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        ClubMonthlyActivity record = clubMonthlyRepo
+                .findByClubAndYearAndMonth(club, year, month)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Monthly record not found"));
+
+        if (!record.isLocked()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Month must be locked before distributing.");
+        }
+
+        long clubRewards = record.getRewardPoints();
+        if (clubRewards <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club has no reward points.");
+
+        Wallet clubWallet = club.getWallet();
+        if (clubWallet.getBalancePoints() < clubRewards)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet does not have enough points.");
+
+        // 2. Lấy danh sách activity member
+        List<MemberMonthlyActivity> activities =
+                memberMonthlyRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+
+        if (activities.isEmpty())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "No members to reward.");
+
+        int totalScore = activities.stream().mapToInt(MemberMonthlyActivity::getFinalScore).sum();
+        if (totalScore <= 0) totalScore = 1;
+
+        long totalDistributed = 0;
+
+        // 3. Loop qua từng member
+        for (MemberMonthlyActivity m : activities) {
+
+            Membership membership = m.getMembership();
+            User member = membership.getUser();
+
+            int memberScore = m.getFinalScore();
+            long reward = (memberScore * clubRewards) / totalScore;
+
+            totalDistributed += reward;
+
+            Wallet memberWallet = walletRepo.findByUser_UserId(member.getUserId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Member wallet missing: " + member.getUserId()));
+
+            String reason = "Monthly reward " + month + "/" + year + " from " + club.getName();
+
+            // 3.1 Chuyển điểm CLB -> Member
+            walletService.transferPointsWithType(
+                    clubWallet,
+                    memberWallet,
+                    reward,
+                    reason,
+                    WalletTransactionTypeEnum.CLUB_TO_MEMBER
+            );
+
+            // 3.2 Log thưởng riêng
+            WalletTransaction bonusTx = WalletTransaction.builder()
+                    .wallet(memberWallet)
+                    .amount(reward)
+                    .type(WalletTransactionTypeEnum.BONUS_REWARD)
+                    .receiverUser(member)
+                    .receiverMembership(membership)
+                    .senderName(club.getName())
+                    .receiverName(member.getFullName())
+                    .description("BONUS_REWARD for " + month + "/" + year)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            walletTransactionRepo.save(bonusTx);
+
+            // 3.3 Gửi email
+            long newBalance = memberWallet.getBalancePoints();
+            long oldBalance = newBalance - reward;
+
+            emailService.sendMemberRewardEmail(
+                    member.getEmail(),
+                    club.getName(),
+                    month,
+                    year,
+
+                    m.getFinalScore(),
+                    m.getAttendanceTotalScore(),
+                    m.getStaffTotalScore(),
+                    m.getTotalClubSessions(),
+                    m.getTotalClubPresent(),
+                    m.getStaffEvaluation(),
+
+                    (int) reward,
+                    (int) oldBalance,
+                    (int) newBalance
+            );
+        }
+
+            log.info("Distributed {} reward points for club {} in {}/{}",
+                totalDistributed, club.getName(), month, year);
+    }
+
+
+
 
 
 

@@ -977,6 +977,69 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "[UniClub] Monthly Reward Approved", content);
     }
+    @Override
+    public void sendMemberRewardEmail(
+            String to,
+            String clubName,
+            int month,
+            int year,
+
+            int finalScore,
+            int attendanceScore,
+            int staffScore,
+            int totalSessions,
+            int presentSessions,
+            String staffEvaluation,
+
+            int rewardPoints,
+            int oldBalance,
+            int newBalance
+    ) {
+
+        String content = """
+        <h2 style="color:#1E88E5;">Monthly Reward Received 🎉</h2>
+
+        <p>Hello,</p>
+
+        <p>You received <b>%d reward points</b> from the club <b>%s</b> for your activity performance in <b>%d/%d</b>.</p>
+
+        <h3>Your Activity Summary</h3>
+
+        <ul>
+            <li><b>Final Score:</b> %d</li>
+            <li><b>Attendance Score:</b> %d (Sessions: %d/%d)</li>
+            <li><b>Staff Performance:</b> %s (%d points)</li>
+        </ul>
+
+        <div style="
+            margin: 20px 0;
+            padding: 16px;
+            background:#F5F9FF;
+            border-left: 4px solid #1E88E5;
+            border-radius: 10px;
+        ">
+            <p><b>💰 Previous Balance:</b> %d</p>
+            <p><b>💵 Reward Points:</b> +%d</p>
+            <p><b>🏦 New Balance:</b> %d</p>
+        </div>
+
+        <p>
+           Thank you for your contributions this month 🎉<br/>
+           Keep up the excellent work and continue participating actively!
+        </p>
+    """.formatted(
+                rewardPoints, clubName, month, year,
+
+                finalScore,
+                attendanceScore, presentSessions, totalSessions,
+                staffEvaluation, staffScore,
+
+                oldBalance, rewardPoints, newBalance
+        );
+
+        sendEmail(to, "[UniClub] Monthly Reward Received", content);
+    }
+
 
 
 }
