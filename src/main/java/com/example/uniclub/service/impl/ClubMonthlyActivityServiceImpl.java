@@ -525,32 +525,35 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         long rewardPoints = record.getRewardPoints();
 
-        // ==============================
-        // 1. Wallet
-        // ==============================
-        Wallet wallet = club.getWallet();
-        if (wallet == null) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Club has no wallet assigned");
-        }
+        Wallet clubWallet = club.getWallet();
+        if (clubWallet == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Club has no wallet");
 
-        long newBalance = wallet.getBalancePoints() + rewardPoints;
-        wallet.setBalancePoints(newBalance);
-        walletRepo.save(wallet);
+        String operator = getCurrentUser();
 
-        // ==============================
-        // 2. Lock month
-        // ==============================
-        String staffName = getCurrentUser(); // String (email hoặc username)
+        // =====================================================
+        // ⭐ 1) UNI → CLUB TOPUP + transaction log (ĐÚNG CHUẨN)
+        // =====================================================
+        walletService.topupPointsFromUniversityWithOperator(
+                clubWallet.getWalletId(),
+                rewardPoints,
+                "Monthly club reward " + month + "/" + year,
+                operator
+        );
 
+        // =====================================================
+        // 2) LOCK RECORD
+        // =====================================================
         record.setLocked(true);
-        record.setLockedBy(staffName);
+        record.setLockedBy(operator);
         record.setLockedAt(LocalDateTime.now());
         clubMonthlyRepo.save(record);
 
-        // ==============================
-        // 3. Email notify leaders
-        // ==============================
+        long newBalance = clubWallet.getBalancePoints();
+
+        // =====================================================
+        // 3) EMAIL
+        // =====================================================
         if (club.getMemberships() != null) {
             for (Membership m : club.getMemberships()) {
                 if (m.isLeaderRole()) {
@@ -561,15 +564,15 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                             newBalance,
                             month,
                             year,
-                            staffName
+                            operator
                     );
                 }
             }
         }
 
-        // ==============================
-        // 4. Return
-        // ==============================
+        // =====================================================
+        // 4) RETURN
+        // =====================================================
         return ClubRewardApprovalResponse.builder()
                 .clubId(clubId)
                 .clubName(club.getName())
@@ -577,11 +580,12 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .month(month)
                 .rewardPoints(rewardPoints)
                 .locked(true)
+                .lockedBy(operator)
                 .lockedAt(record.getLockedAt())
-                .lockedBy(record.getLockedBy())
                 .walletBalance(newBalance)
                 .build();
     }
+
 
     @Override
     @Transactional
