@@ -400,17 +400,30 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void sendMemberKickedEmail(
-            String to, String memberName, String clubName, String kickerName
-    ) {
-        String content = """
-            <h2 style="color:#D32F2F;">You Have Been Removed</h2>
-            <p>Dear %s,</p>
-            <p>You were removed from <b>%s</b> by <b>%s</b>.</p>
-        """.formatted(memberName, clubName, kickerName);
+    public void sendMemberKickedEmail(String to, String fullName, String clubName,
+                                      String approverName, String reason) {
 
-        sendEmail(to, "You have been removed from " + clubName, content);
+        String content = """
+    <h2 style="color:#d9534f;">Club Membership Update</h2>
+
+    <p>Dear <b>%s</b>,</p>
+
+    <p>This is to inform you that you have been removed from the club <b>%s</b>.</p>
+
+    <p><b>Reason:</b> %s</p>
+
+    <p><b>Action taken by:</b> %s</p>
+
+    <p>
+        If you have any questions or believe this is a misunderstanding,
+        please feel free to contact your club leadership team for further clarification.
+    </p>
+
+    <p>Best regards,<br>UniClub System</p>
+    """.formatted(fullName, clubName, reason, approverName);
+
     }
+
 
     @Override
     public void sendLeaveRequestSubmittedToLeader(

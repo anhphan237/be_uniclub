@@ -2,10 +2,13 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ClubLeaveRequest;
+import com.example.uniclub.dto.request.KickMemberRequest;
+import com.example.uniclub.dto.request.KickOrRemoveMemberRequest;
 import com.example.uniclub.dto.response.ClubLeaveRequestResponse;
 import com.example.uniclub.dto.response.MembershipResponse;
 import com.example.uniclub.entity.ClubLeaveRequestEntity;
 import com.example.uniclub.enums.LeaveRequestStatusEnum;
+import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.security.CustomUserDetails;
 import com.example.uniclub.service.MembershipService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -171,14 +175,23 @@ public class MembershipController {
                 Xoá thành viên ra khỏi CLB (ví dụ: vi phạm quy định hoặc nghỉ hoạt động).
                 """
     )
-    @DeleteMapping("/memberships/{membershipId}")
-    @PreAuthorize("hasRole('CLUB_LEADER')")
+    @PatchMapping("/memberships/{membershipId}/remove")
     public ResponseEntity<ApiResponse<Map<String, String>>> removeMember(
             @PathVariable Long membershipId,
-            @AuthenticationPrincipal CustomUserDetails user) {
-        membershipService.removeMember(membershipId, user.getId());
-        return ResponseEntity.ok(ApiResponse.ok(Map.of("message", "Member removed successfully")));
+            @RequestBody KickOrRemoveMemberRequest req,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        String reason = req.getReason();
+
+        membershipService.removeMember(membershipId, user.getId(), reason);
+
+        return ResponseEntity.ok(ApiResponse.ok(
+                Map.of("message", "Member removed successfully")
+        ));
     }
+
+
+
 
     @Operation(
             summary = "Leader/Vice Leader kick thành viên khỏi CLB",
@@ -191,9 +204,20 @@ public class MembershipController {
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<String>> kickMember(
             @PathVariable Long membershipId,
-            @AuthenticationPrincipal CustomUserDetails user) {
-        return ResponseEntity.ok(ApiResponse.ok(membershipService.kickMember(user, membershipId)));
+            @RequestBody KickMemberRequest req,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        if (req.getReason() == null || req.getReason().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Reason is required.");
+        }
+
+        return ResponseEntity.ok(ApiResponse.ok(
+                membershipService.kickMember(user, membershipId, req.getReason())
+        ));
     }
+
+
+
 
     // ============================================================
     // 🔵 3️⃣ USER → PERSONAL MEMBERSHIPS

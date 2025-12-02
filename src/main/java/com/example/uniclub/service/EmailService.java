@@ -57,7 +57,8 @@ public interface EmailService {
 
     void sendClubNewMembershipRequestEmail(String to, String leaderName, String clubName, String applicantName);
 
-    void sendMemberKickedEmail(String to, String memberName, String clubName, String kickerName);
+    void sendMemberKickedEmail(String to, String fullName, String clubName, String approverName, String reason);
+
 
     void sendLeaveRequestSubmittedToLeader(String to, String leaderName, String memberName, String clubName, String reason);
 

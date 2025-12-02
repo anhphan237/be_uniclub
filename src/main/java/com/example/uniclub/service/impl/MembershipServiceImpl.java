@@ -356,48 +356,60 @@ public class MembershipServiceImpl implements MembershipService {
 
     @Override
     @Transactional
-    public void removeMember(Long membershipId, Long approverId) {
+    public void removeMember(Long membershipId, Long approverId, String reason) {
+
+        // ====== 0. Validate Reason ======
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "A reason is required when removing a member from the club.");
+        }
 
         Membership m = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
 
         Club club = m.getClub();
 
-
-        //  1. Check approver belongs to the same club
+        // ====== 1. Check approver belongs to same club ======
         Membership approver = membershipRepo
                 .findByUser_UserIdAndClub_ClubId(approverId, club.getClubId())
-                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
+                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN,
+                        "You are not a member of this club"));
 
-        //  2. Only Leader or Vice Leader can remove
+        // ====== 2. Only Leader or Vice Leader can remove ======
         if (!(approver.getClubRole() == ClubRoleEnum.LEADER
                 || approver.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only Leader or Vice Leader can remove members");
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only Leader or Vice Leader can remove members");
         }
 
-        //  3. Cannot remove Leader or Vice Leader
-        if (m.getClubRole() == ClubRoleEnum.LEADER || m.getClubRole() == ClubRoleEnum.VICE_LEADER) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot remove a Leader or Vice Leader");
+        // ====== 3. Cannot remove Leader or Vice Leader ======
+        if (m.getClubRole() == ClubRoleEnum.LEADER ||
+                m.getClubRole() == ClubRoleEnum.VICE_LEADER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Cannot remove a Leader or Vice Leader");
         }
 
-        //  4. Cannot remove yourself
+        // ====== 4. Cannot remove yourself ======
         if (Objects.equals(m.getUser().getUserId(), approverId)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove yourself");
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "You cannot remove yourself");
         }
 
-        //  5. Remove member
+        // ====== 5. Mark membership as inactive ======
         m.setState(MembershipStateEnum.INACTIVE);
         m.setEndDate(LocalDate.now());
         membershipRepo.save(m);
 
+        // ====== 6. Update member count ======
         clubService.updateMemberCount(club.getClubId());
 
-        // ✉ 6. Send email using unified EmailService
+        // ====== 7. Send Email with Reason ======
         emailService.sendMemberKickedEmail(
                 m.getUser().getEmail(),
                 m.getUser().getFullName(),
                 club.getName(),
-                approver.getUser().getFullName()
+                approver.getUser().getFullName(),
+                reason  // <--- THÊM LÝ DO TẠI ĐÂY
         );
     }
 
@@ -489,7 +501,13 @@ public class MembershipServiceImpl implements MembershipService {
 
     @Override
     @Transactional
-    public String kickMember(CustomUserDetails principal, Long membershipId) {
+    public String kickMember(CustomUserDetails principal, Long membershipId, String reason) {
+
+        // ====== 0. Validate Reason ======
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Reason is required when removing a member.");
+        }
 
         Membership membership = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Membership not found"));
@@ -499,43 +517,45 @@ public class MembershipServiceImpl implements MembershipService {
                 .findByUser_UserIdAndClub_ClubId(principal.getUser().getUserId(), club.getClubId())
                 .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You are not a member of this club"));
 
-        // ✔ Only Leader or Vice Leader can remove
+        // ====== 1. Only Leader/Vice ======
         if (!(actor.getClubRole() == ClubRoleEnum.LEADER ||
                 actor.getClubRole() == ClubRoleEnum.VICE_LEADER)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the Leader or Vice Leader can remove members");
         }
 
-        // ✔ Cannot remove yourself
+        // ====== 2. Cannot remove yourself ======
         if (Objects.equals(membership.getUser().getUserId(), principal.getUser().getUserId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove yourself");
         }
 
-        // ✔ Cannot remove Leader/Vice Leader
+        // ====== 3. Cannot remove leaders/Vice ======
         if (membership.getClubRole() == ClubRoleEnum.LEADER ||
                 membership.getClubRole() == ClubRoleEnum.VICE_LEADER) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot remove the Club Leader or Vice Leader");
         }
 
-        // ✔ Perform removal
+        // ====== 4. Perform removal ======
         membership.setState(MembershipStateEnum.KICKED);
         membership.setEndDate(LocalDate.now());
         membershipRepo.save(membership);
 
-        // ✔ Update club member count
+        // ====== 5. Update club count ======
         clubService.updateMemberCount(club.getClubId());
 
-        // ✔ Unified EmailService
+        // ====== 6. Send email with reason ======
         emailService.sendMemberKickedEmail(
                 membership.getUser().getEmail(),
                 membership.getUser().getFullName(),
                 club.getName(),
-                actor.getUser().getFullName()
+                actor.getUser().getFullName(),
+                reason
         );
 
         return "Member " + membership.getUser().getFullName() +
                 " has been removed from " + club.getName() +
                 " by " + actor.getUser().getFullName();
     }
+
 
 
     @Override

@@ -25,7 +25,8 @@ public interface MembershipService {
 
     MembershipResponse rejectMember(Long membershipId, Long approverId, String reason);
 
-    void removeMember(Long membershipId, Long approverId);
+    public void removeMember(Long membershipId, Long approverId, String reason);
+
 
 
     MembershipResponse updateClubRole(Long membershipId, ClubRoleEnum newRole, Long approverId);
@@ -37,7 +38,8 @@ public interface MembershipService {
     List<MembershipResponse> getMembersByLeaderName(String leaderName);
 
     MembershipResponse updateRole(Long membershipId, Long approverId, String newRole);
-    String kickMember(CustomUserDetails principal, Long membershipId);
+    String kickMember(CustomUserDetails principal, Long membershipId, String reason);
+
 
     String requestLeave(Long userId, Long clubId, String reason);
 
