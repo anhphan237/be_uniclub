@@ -1,17 +1,26 @@
 package com.example.uniclub.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ClubRankingResponse {
-    private int rank;
-    private long clubId;
+
+    private Integer rank;          // <-- ADD THIS
+    private Long clubId;
     private String clubName;
-    private long totalPoints;
+
+    private Integer memberCount;
+
+    private Double avgFinalScore;
+    private Integer completedEvents;
+    private Integer totalSessions;
+    private Double avgCheckInRate;
+
+    private Double heatScore;
+
+    private Long totalPoints;      // <-- ADD THIS (used for University Points Ranking)
 }
