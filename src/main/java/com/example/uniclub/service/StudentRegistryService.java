@@ -66,14 +66,12 @@ public class StudentRegistryService {
     }
 
     // ============================================================
-    // IMPORT CSV — WITH DUPLICATES INFO
+    // IMPORT CSV — RETURN ONLY newRecords
     // ============================================================
     private Map<String, Object> importCsvInternal(MultipartFile file) {
 
-        int imported = 0, skipped = 0;
-
+        int imported = 0;
         Set<String> seenCodesInFile = new HashSet<>();
-        List<Map<String, Object>> duplicates = new ArrayList<>();
         List<StudentRegistry> newRecords = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
@@ -92,49 +90,34 @@ public class StudentRegistryService {
                     continue;
 
                 String[] parts = line.split(",");
-                if (parts.length < 2) {
-                    skipped++;
+                if (parts.length < 2)
                     continue;
-                }
 
                 String code = parts[0].trim().toUpperCase();
                 String fullName = parts[1].trim();
 
-                // EMPTY CHECK
-                if (code.isBlank() || fullName.isBlank()) {
-                    skipped++;
+                // Skip empty
+                if (code.isBlank() || fullName.isBlank())
                     continue;
-                }
 
-                // FORMAT CHECK
-                if (!code.matches(STUDENT_CODE_REGEX)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Invalid format"));
-                    skipped++;
+                // Validate
+                if (!code.matches(STUDENT_CODE_REGEX))
                     continue;
-                }
 
-                // DUPLICATE IN FILE
-                if (seenCodesInFile.contains(code)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Duplicated inside file"));
-                    skipped++;
+                // Duplicate inside file
+                if (seenCodesInFile.contains(code))
                     continue;
-                }
+
                 seenCodesInFile.add(code);
 
-                // DUPLICATE IN DB
-                if (registryRepo.existsByStudentCode(code)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Already exists in database"));
-                    skipped++;
+                // Duplicate in DB
+                if (registryRepo.existsByStudentCode(code))
                     continue;
-                }
 
-                // MAJOR CHECK
+                // Major check
                 String majorCode = code.substring(0, 2);
-                if (!majorRepo.existsByMajorCode(majorCode)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Major not found"));
-                    skipped++;
+                if (!majorRepo.existsByMajorCode(majorCode))
                     continue;
-                }
 
                 StudentRegistry registry = buildRegistry(code, fullName);
                 registryRepo.save(registry);
@@ -152,21 +135,17 @@ public class StudentRegistryService {
 
         return Map.of(
                 "imported", imported,
-                "skipped", skipped,
-                "duplicates", duplicates,
                 "newRecords", newRecords
         );
     }
 
     // ============================================================
-    // IMPORT EXCEL — UNIFIED LOGIC
+    // IMPORT EXCEL — RETURN ONLY newRecords
     // ============================================================
     private Map<String, Object> importExcel(MultipartFile file) {
 
-        int imported = 0, skipped = 0;
+        int imported = 0;
         Set<String> seenCodesInFile = new HashSet<>();
-
-        List<Map<String, Object>> duplicates = new ArrayList<>();
         List<StudentRegistry> newRecords = new ArrayList<>();
 
         try (InputStream is = file.getInputStream()) {
@@ -184,36 +163,23 @@ public class StudentRegistryService {
                 String code = f.formatCellValue(row.getCell(0)).trim().toUpperCase();
                 String fullName = f.formatCellValue(row.getCell(1)).trim();
 
-                if (code.isBlank() || fullName.isBlank()) {
-                    skipped++;
+                if (code.isBlank() || fullName.isBlank())
                     continue;
-                }
 
-                if (!code.matches(STUDENT_CODE_REGEX)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Invalid format"));
-                    skipped++;
+                if (!code.matches(STUDENT_CODE_REGEX))
                     continue;
-                }
 
-                if (seenCodesInFile.contains(code)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Duplicated inside file"));
-                    skipped++;
+                if (seenCodesInFile.contains(code))
                     continue;
-                }
+
                 seenCodesInFile.add(code);
 
-                if (registryRepo.existsByStudentCode(code)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Already exists in database"));
-                    skipped++;
+                if (registryRepo.existsByStudentCode(code))
                     continue;
-                }
 
                 String majorCode = code.substring(0, 2);
-                if (!majorRepo.existsByMajorCode(majorCode)) {
-                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Major not found"));
-                    skipped++;
+                if (!majorRepo.existsByMajorCode(majorCode))
                     continue;
-                }
 
                 StudentRegistry s = buildRegistry(code, fullName);
                 registryRepo.save(s);
@@ -231,12 +197,9 @@ public class StudentRegistryService {
 
         return Map.of(
                 "imported", imported,
-                "skipped", skipped,
-                "duplicates", duplicates,
                 "newRecords", newRecords
         );
     }
-
 
     // ============================================================
     // BUILD ENTITY
@@ -325,43 +288,32 @@ public class StudentRegistryService {
         StudentRegistry s = registryRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found"));
 
-        // ========================
-        // UPDATE STUDENT CODE
-        // ========================
         if (newCode != null && !newCode.isBlank() && !newCode.equalsIgnoreCase(s.getStudentCode())) {
 
             newCode = newCode.trim().toUpperCase();
 
-            // format check
             if (!newCode.matches(STUDENT_CODE_REGEX)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid student code format");
             }
 
-            // duplicate check
             if (registryRepo.existsByStudentCode(newCode)) {
                 throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
             }
 
-            // major code check
             String majorCode = newCode.substring(0, 2);
             if (!majorRepo.existsByMajorCode(majorCode)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Major code not found: " + majorCode);
             }
 
-            // parse intake & order
             Integer intake = Integer.parseInt(newCode.substring(2, 4));
             String orderNum = newCode.substring(4);
 
-            // assign new values
             s.setStudentCode(newCode);
             s.setMajorCode(majorCode);
             s.setIntake(intake);
             s.setOrderNumber(orderNum);
         }
 
-        // ========================
-        // UPDATE FULL NAME
-        // ========================
         if (newName != null && !newName.isBlank()) {
             s.setFullName(newName.replaceAll("\\s+", " ").trim());
         }
