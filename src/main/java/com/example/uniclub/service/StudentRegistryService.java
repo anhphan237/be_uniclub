@@ -66,11 +66,15 @@ public class StudentRegistryService {
     }
 
     // ============================================================
-    // IMPORT CSV — SAVE TỪNG DÒNG, KHÔNG SAVE-ALL
+    // IMPORT CSV — WITH DUPLICATES INFO
     // ============================================================
     private Map<String, Object> importCsvInternal(MultipartFile file) {
 
         int imported = 0, skipped = 0;
+
+        Set<String> seenCodesInFile = new HashSet<>();
+        List<Map<String, Object>> duplicates = new ArrayList<>();
+        List<StudentRegistry> newRecords = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -96,19 +100,47 @@ public class StudentRegistryService {
                 String code = parts[0].trim().toUpperCase();
                 String fullName = parts[1].trim();
 
-                if (!validateRow(code, fullName)) {
+                // EMPTY CHECK
+                if (code.isBlank() || fullName.isBlank()) {
+                    skipped++;
+                    continue;
+                }
+
+                // FORMAT CHECK
+                if (!code.matches(STUDENT_CODE_REGEX)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Invalid format"));
+                    skipped++;
+                    continue;
+                }
+
+                // DUPLICATE IN FILE
+                if (seenCodesInFile.contains(code)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Duplicated inside file"));
+                    skipped++;
+                    continue;
+                }
+                seenCodesInFile.add(code);
+
+                // DUPLICATE IN DB
+                if (registryRepo.existsByStudentCode(code)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Already exists in database"));
+                    skipped++;
+                    continue;
+                }
+
+                // MAJOR CHECK
+                String majorCode = code.substring(0, 2);
+                if (!majorRepo.existsByMajorCode(majorCode)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Major not found"));
                     skipped++;
                     continue;
                 }
 
                 StudentRegistry registry = buildRegistry(code, fullName);
+                registryRepo.save(registry);
 
-                try {
-                    registryRepo.save(registry);
-                    imported++;
-                } catch (Exception ex) {
-                    skipped++;
-                }
+                newRecords.add(registry);
+                imported++;
             }
 
         } catch (Exception e) {
@@ -118,53 +150,76 @@ public class StudentRegistryService {
             );
         }
 
-        return Map.of("imported", imported, "skipped", skipped, "total", imported + skipped);
+        return Map.of(
+                "imported", imported,
+                "skipped", skipped,
+                "duplicates", duplicates,
+                "newRecords", newRecords
+        );
     }
 
     // ============================================================
-    // IMPORT EXCEL — FIXED WITH DataFormatter
+    // IMPORT EXCEL — UNIFIED LOGIC
     // ============================================================
     private Map<String, Object> importExcel(MultipartFile file) {
 
         int imported = 0, skipped = 0;
+        Set<String> seenCodesInFile = new HashSet<>();
+
+        List<Map<String, Object>> duplicates = new ArrayList<>();
+        List<StudentRegistry> newRecords = new ArrayList<>();
 
         try (InputStream is = file.getInputStream()) {
 
             Workbook workbook = WorkbookFactory.create(is);
             Sheet sheet = workbook.getSheetAt(0);
 
-            DataFormatter formatter = new DataFormatter();
+            DataFormatter f = new DataFormatter();
             int rowNum = 0;
 
             for (Row row : sheet) {
                 rowNum++;
+                if (rowNum == 1) continue; // skip header
 
-                if (rowNum == 1) continue; // header
+                String code = f.formatCellValue(row.getCell(0)).trim().toUpperCase();
+                String fullName = f.formatCellValue(row.getCell(1)).trim();
 
-                Cell codeCell = row.getCell(0);
-                Cell fullNameCell = row.getCell(1);
-
-                if (codeCell == null || fullNameCell == null) {
+                if (code.isBlank() || fullName.isBlank()) {
                     skipped++;
                     continue;
                 }
 
-                String code = formatter.formatCellValue(codeCell).trim().toUpperCase();
-                String fullName = formatter.formatCellValue(fullNameCell).trim();
-
-                if (!validateRow(code, fullName)) {
+                if (!code.matches(STUDENT_CODE_REGEX)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Invalid format"));
                     skipped++;
                     continue;
                 }
 
-                StudentRegistry registry = buildRegistry(code, fullName);
-
-                try {
-                    registryRepo.save(registry); // save từng dòng → không rollback batch
-                    imported++;
-                } catch (Exception ex) {
+                if (seenCodesInFile.contains(code)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Duplicated inside file"));
                     skipped++;
+                    continue;
                 }
+                seenCodesInFile.add(code);
+
+                if (registryRepo.existsByStudentCode(code)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Already exists in database"));
+                    skipped++;
+                    continue;
+                }
+
+                String majorCode = code.substring(0, 2);
+                if (!majorRepo.existsByMajorCode(majorCode)) {
+                    duplicates.add(Map.of("code", code, "fullName", fullName, "reason", "Major not found"));
+                    skipped++;
+                    continue;
+                }
+
+                StudentRegistry s = buildRegistry(code, fullName);
+                registryRepo.save(s);
+
+                newRecords.add(s);
+                imported++;
             }
 
         } catch (Exception e) {
@@ -174,27 +229,14 @@ public class StudentRegistryService {
             );
         }
 
-        return Map.of("imported", imported, "skipped", skipped, "total", imported + skipped);
+        return Map.of(
+                "imported", imported,
+                "skipped", skipped,
+                "duplicates", duplicates,
+                "newRecords", newRecords
+        );
     }
 
-    // ============================================================
-    // VALIDATE 1 ROW
-    // ============================================================
-    private boolean validateRow(String code, String fullName) {
-
-        if (code == null || code.isBlank())
-            return false;
-
-        if (!code.matches(STUDENT_CODE_REGEX))
-            return false;
-
-        if (registryRepo.existsByStudentCode(code))
-            return false;
-
-        String majorCode = code.substring(0, 2);
-
-        return majorRepo.existsByMajorCode(majorCode);
-    }
 
     // ============================================================
     // BUILD ENTITY
@@ -207,7 +249,7 @@ public class StudentRegistryService {
 
         return StudentRegistry.builder()
                 .studentCode(code)
-                .fullName(fullName)
+                .fullName(fullName.replaceAll("\\s+", " ").trim())
                 .majorCode(majorCode)
                 .intake(intake)
                 .orderNumber(order)
@@ -247,5 +289,48 @@ public class StudentRegistryService {
                 "byMajor", majorCount,
                 "byIntake", intakeCount
         );
+    }
+
+    // ============================================================
+    // CREATE MANUAL
+    // ============================================================
+    public StudentRegistry createManual(String code, String fullName) {
+
+        if (!code.matches(STUDENT_CODE_REGEX)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid student code format");
+        }
+
+        if (fullName == null || fullName.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Full name is required");
+        }
+
+        if (registryRepo.existsByStudentCode(code)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Student code already exists");
+        }
+
+        String majorCode = code.substring(0, 2);
+        if (!majorRepo.existsByMajorCode(majorCode)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Major code not found: " + majorCode);
+        }
+
+        StudentRegistry student = buildRegistry(code, fullName);
+        return registryRepo.save(student);
+    }
+
+    // ============================================================
+    // UPDATE MANUAL
+    // ============================================================
+    public StudentRegistry update(Long id, String newName) {
+
+        if (newName == null || newName.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Full name cannot be empty");
+        }
+
+        StudentRegistry s = registryRepo.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found"));
+
+        s.setFullName(newName.replaceAll("\\s+", " ").trim());
+
+        return registryRepo.save(s);
     }
 }

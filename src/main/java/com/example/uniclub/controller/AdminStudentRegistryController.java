@@ -1,6 +1,8 @@
 package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
+import com.example.uniclub.dto.request.StudentRegistryCreateRequest;
+import com.example.uniclub.dto.request.StudentRegistryUpdateRequest;
 import com.example.uniclub.service.StudentRegistryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -188,4 +190,29 @@ public class AdminStudentRegistryController {
         studentRegistryService.clearAll();
         return ResponseEntity.ok(ApiResponse.msg("All registry entries removed"));
     }
+    @PostMapping("/manual")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @Operation(summary = "Thêm 1 MSSV thủ công")
+    public ResponseEntity<ApiResponse<Object>> createManual(
+            @RequestBody StudentRegistryCreateRequest req
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(studentRegistryService.createManual(
+                        req.getStudentCode().trim().toUpperCase(),
+                        req.getFullName().trim()
+                ))
+        );
+    }
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @Operation(summary = "Chỉnh sửa tên sinh viên")
+    public ResponseEntity<ApiResponse<Object>> update(
+            @PathVariable Long id,
+            @RequestBody StudentRegistryUpdateRequest req
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(studentRegistryService.update(id, req.getFullName()))
+        );
+    }
+
 }
