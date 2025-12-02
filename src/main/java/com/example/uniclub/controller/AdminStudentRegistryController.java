@@ -205,14 +205,21 @@ public class AdminStudentRegistryController {
     }
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
-    @Operation(summary = "Chỉnh sửa tên sinh viên")
+    @Operation(summary = "Chỉnh sửa thông tin sinh viên (tên và mã)")
     public ResponseEntity<ApiResponse<Object>> update(
             @PathVariable Long id,
             @RequestBody StudentRegistryUpdateRequest req
     ) {
         return ResponseEntity.ok(
-                ApiResponse.ok(studentRegistryService.update(id, req.getFullName()))
+                ApiResponse.ok(
+                        studentRegistryService.update(
+                                id,
+                                req.getStudentCode() == null ? null : req.getStudentCode().trim().toUpperCase(),
+                                req.getFullName() == null ? null : req.getFullName().trim()
+                        )
+                )
         );
     }
+
 
 }

@@ -320,17 +320,53 @@ public class StudentRegistryService {
     // ============================================================
     // UPDATE MANUAL
     // ============================================================
-    public StudentRegistry update(Long id, String newName) {
-
-        if (newName == null || newName.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Full name cannot be empty");
-        }
+    public StudentRegistry update(Long id, String newCode, String newName) {
 
         StudentRegistry s = registryRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Student not found"));
 
-        s.setFullName(newName.replaceAll("\\s+", " ").trim());
+        // ========================
+        // UPDATE STUDENT CODE
+        // ========================
+        if (newCode != null && !newCode.isBlank() && !newCode.equalsIgnoreCase(s.getStudentCode())) {
+
+            newCode = newCode.trim().toUpperCase();
+
+            // format check
+            if (!newCode.matches(STUDENT_CODE_REGEX)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid student code format");
+            }
+
+            // duplicate check
+            if (registryRepo.existsByStudentCode(newCode)) {
+                throw new ApiException(HttpStatus.CONFLICT, "Student code already exists");
+            }
+
+            // major code check
+            String majorCode = newCode.substring(0, 2);
+            if (!majorRepo.existsByMajorCode(majorCode)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Major code not found: " + majorCode);
+            }
+
+            // parse intake & order
+            Integer intake = Integer.parseInt(newCode.substring(2, 4));
+            String orderNum = newCode.substring(4);
+
+            // assign new values
+            s.setStudentCode(newCode);
+            s.setMajorCode(majorCode);
+            s.setIntake(intake);
+            s.setOrderNumber(orderNum);
+        }
+
+        // ========================
+        // UPDATE FULL NAME
+        // ========================
+        if (newName != null && !newName.isBlank()) {
+            s.setFullName(newName.replaceAll("\\s+", " ").trim());
+        }
 
         return registryRepo.save(s);
     }
+
 }

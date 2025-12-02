@@ -4,5 +4,6 @@ import lombok.Data;
 
 @Data
 public class StudentRegistryUpdateRequest {
+    private String studentCode;
     private String fullName;
 }
