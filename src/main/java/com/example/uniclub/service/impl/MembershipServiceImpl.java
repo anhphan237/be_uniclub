@@ -162,7 +162,7 @@ public class MembershipServiceImpl implements MembershipService {
 
                 case KICKED, INACTIVE, REJECTED -> {
 
-                    // ❗ FIX: validate major policy when re-joining
+                    // Validate major policy
                     validateMajorPolicy(user);
 
                     existing.setState(MembershipStateEnum.PENDING);
@@ -170,23 +170,23 @@ public class MembershipServiceImpl implements MembershipService {
                     existing.setEndDate(null);
                     existing.setClubRole(ClubRoleEnum.MEMBER);
 
-                    // Reset fields
                     existing.setMemberMultiplier(1.0);
                     existing.setStaff(false);
 
                     membershipRepo.save(existing);
 
-                    // 🔥 Notify leader
-                    membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
-                            emailService.sendNewMembershipRequestToLeader(
-                                    leader.getEmail(),
-                                    leader.getFullName(),
-                                    club.getName(),
-                                    user.getFullName()
-                            )
-                    );
+                    // 🔥 FIX: Notify leader correctly
+                    User leader = club.getLeader();
+                    if (leader != null) {
+                        emailService.sendNewMembershipRequestToLeader(
+                                leader.getEmail(),
+                                leader.getFullName(),
+                                club.getName(),
+                                user.getFullName()
+                        );
+                    }
 
-                    // 🔔 Notify applicant
+                    // Notify applicant
                     emailService.sendMemberApplicationSubmitted(
                             user.getEmail(),
                             user.getFullName(),
@@ -201,10 +201,9 @@ public class MembershipServiceImpl implements MembershipService {
             }
         }
 
-        // 🔍 First-time join → validate normally
+        // First-time join → normal validation
         validateMajorPolicy(user);
 
-        // Create new membership
         Membership newMembership = new Membership();
         newMembership.setUser(user);
         newMembership.setClub(club);
@@ -226,17 +225,18 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        // 🔥 Notify Leader
-        membershipRepo.findActiveLeaderByClubId(clubId).ifPresent(leader ->
-                emailService.sendNewMembershipRequestToLeader(
-                        leader.getEmail(),
-                        leader.getFullName(),
-                        club.getName(),
-                        user.getFullName()
-                )
-        );
+        // 🔥 FIX: Notify leader correctly
+        User leader = club.getLeader();
+        if (leader != null) {
+            emailService.sendNewMembershipRequestToLeader(
+                    leader.getEmail(),
+                    leader.getFullName(),
+                    club.getName(),
+                    user.getFullName()
+            );
+        }
 
-        // 🔔 Notify applicant
+        // Notify applicant
         emailService.sendMemberApplicationSubmitted(
                 user.getEmail(),
                 user.getFullName(),
@@ -245,6 +245,7 @@ public class MembershipServiceImpl implements MembershipService {
 
         return toResp(newMembership);
     }
+
 
 
     // ========================== 🔹 2. Membership Approval Management ==========================
