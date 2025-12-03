@@ -973,23 +973,28 @@ public class RedeemServiceImpl implements RedeemService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<OrderResponse> getStaffApprovedOrders(Long staffUserId, Long eventId, Pageable pageable) {
+
         Page<ProductOrder> orders = orderRepo
-                .findByHandledBy_UserIdAndProduct_Event_EventIdOrderByCompletedAtDesc(
-                        staffUserId, eventId, pageable
-                );
+                .findEventOrdersHandledByStaff(staffUserId, eventId, pageable);
 
         return orders.map(this::toResponse);
     }
 
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<OrderResponse> getStaffAllApprovedOrders(Long staffId) {
 
         Pageable pageable = PageRequest.of(0, 20, Sort.by("completedAt").descending());
 
-        Page<ProductOrder> orders = orderRepo
-                .findByHandledBy_UserIdOrderByCompletedAtDesc(staffId, pageable);
+        Page<ProductOrder> orders =
+                orderRepo.findOrdersHandledByStaff(staffId, pageable);
 
         return orders.map(this::toResponse);
     }
+
+
 
 }

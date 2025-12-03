@@ -64,5 +64,25 @@ public interface ProductOrderRepository extends JpaRepository<ProductOrder, Long
            OR r.club.clubId = :clubId)
 """)
     Long sumEventProductsByClub(@Param("clubId") Long clubId);
+    @Query("""
+    SELECT DISTINCT o FROM ProductOrder o
+    JOIN OrderActionLog l ON l.order = o
+    WHERE l.actor.userId = :staffId
+    ORDER BY o.completedAt DESC
+""")
+    Page<ProductOrder> findOrdersHandledByStaff(@Param("staffId") Long staffId, Pageable pageable);
+    @Query("""
+    SELECT DISTINCT o
+    FROM ProductOrder o
+    JOIN OrderActionLog l ON l.order = o
+    WHERE l.actor.userId = :staffId
+      AND o.product.event.eventId = :eventId
+    ORDER BY o.completedAt DESC
+""")
+    Page<ProductOrder> findEventOrdersHandledByStaff(
+            @Param("staffId") Long staffId,
+            @Param("eventId") Long eventId,
+            Pageable pageable
+    );
 
 }
