@@ -162,14 +162,21 @@ AND m.state = 'ACTIVE'
 AND (m.clubRole = 'LEADER' OR m.clubRole = 'VICE_LEADER')
 """)
     Long findAnyLeaderOrViceClubId(Long userId);
+
+
     @Query("""
-    SELECT m.user 
-    FROM Membership m
+    SELECT m.user FROM Membership m
     WHERE m.club.clubId = :clubId
       AND m.clubRole = com.example.uniclub.enums.ClubRoleEnum.LEADER
-      AND m.state = com.example.uniclub.enums.MembershipStateEnum.ACTIVE
+      AND m.state IN (
+          com.example.uniclub.enums.MembershipStateEnum.ACTIVE,
+          com.example.uniclub.enums.MembershipStateEnum.APPROVED
+      )
 """)
     Optional<User> findActiveLeaderByClubId(@Param("clubId") Long clubId);
+
+
+
     List<Membership> findByClub_ClubIdAndClubRoleInAndState(
             Long clubId,
             List<ClubRoleEnum> roles,

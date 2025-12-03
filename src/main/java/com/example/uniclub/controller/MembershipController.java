@@ -190,9 +190,6 @@ public class MembershipController {
         ));
     }
 
-
-
-
     @Operation(
             summary = "Leader/Vice Leader kick thành viên khỏi CLB",
             description = """

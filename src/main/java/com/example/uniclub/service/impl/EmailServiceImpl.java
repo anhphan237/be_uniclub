@@ -404,25 +404,16 @@ public class EmailServiceImpl implements EmailService {
                                       String approverName, String reason) {
 
         String content = """
-    <h2 style="color:#d9534f;">Club Membership Update</h2>
-
-    <p>Dear <b>%s</b>,</p>
-
-    <p>This is to inform you that you have been removed from the club <b>%s</b>.</p>
-
-    <p><b>Reason:</b> %s</p>
-
-    <p><b>Action taken by:</b> %s</p>
-
-    <p>
-        If you have any questions or believe this is a misunderstanding,
-        please feel free to contact your club leadership team for further clarification.
-    </p>
-
-    <p>Best regards,<br>UniClub System</p>
+        <h2 style="color:#d9534f;">Club Membership Update</h2>
+        <p>Dear <b>%s</b>,</p>
+        <p>You have been removed from the club <b>%s</b>.</p>
+        <p><b>Reason:</b> %s</p>
+        <p><b>Action taken by:</b> %s</p>
     """.formatted(fullName, clubName, reason, approverName);
 
+        sendEmail(to, "[UniClub] You have been removed from " + clubName, content);
     }
+
 
 
     @Override
