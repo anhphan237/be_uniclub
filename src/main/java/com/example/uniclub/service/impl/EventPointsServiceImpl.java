@@ -85,9 +85,15 @@ public class EventPointsServiceImpl implements EventPointsService {
         }
 
         // ❌ Không được đăng ký khi event đã bắt đầu
-        if (!earliestDay.getDate().isAfter(today)) {
+        LocalDateTime eventStart = LocalDateTime.of(
+                earliestDay.getDate(),
+                earliestDay.getStartTime()
+        );
+
+        if (LocalDateTime.now().isAfter(eventStart)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already started.");
         }
+
 
         // ❌ Deadline quá hạn
         if (event.getRegistrationDeadline() != null
