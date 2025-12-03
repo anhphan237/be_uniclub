@@ -146,15 +146,16 @@ public class MembershipServiceImpl implements MembershipService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        // Check if membership exists
         Optional<Membership> existingOpt = membershipRepo.findByUser_UserIdAndClub_ClubId(userId, clubId);
 
+        // ===============================
+        // 🔥 CASE: Rejoin after KICKED / INACTIVE / REJECTED
+        // ===============================
         if (existingOpt.isPresent()) {
             Membership existing = existingOpt.get();
             MembershipStateEnum state = existing.getState();
 
             switch (state) {
-
                 case ACTIVE, APPROVED, PENDING -> {
                     throw new ApiException(HttpStatus.CONFLICT,
                             "You are already a member or have a pending request.");
@@ -162,7 +163,6 @@ public class MembershipServiceImpl implements MembershipService {
 
                 case KICKED, INACTIVE, REJECTED -> {
 
-                    // Validate major policy
                     validateMajorPolicy(user);
 
                     existing.setState(MembershipStateEnum.PENDING);
@@ -175,10 +175,12 @@ public class MembershipServiceImpl implements MembershipService {
 
                     membershipRepo.save(existing);
 
-                    // 🔥 FIX: Notify leader correctly
+                    // 🔥 SEND EMAIL TO LEADER (FIXED)
                     User leader = club.getLeader();
-                    if (leader != null) {
-                        emailService.sendNewMembershipRequestToLeader(
+                    if (leader != null && leader.getEmail() != null) {
+                        log.info("📧 Sending JOIN request email to Leader: {}", leader.getEmail());
+
+                        emailService.sendClubNewMembershipRequestEmail(
                                 leader.getEmail(),
                                 leader.getFullName(),
                                 club.getName(),
@@ -186,7 +188,7 @@ public class MembershipServiceImpl implements MembershipService {
                         );
                     }
 
-                    // Notify applicant
+                    // Email to applicant
                     emailService.sendMemberApplicationSubmitted(
                             user.getEmail(),
                             user.getFullName(),
@@ -201,7 +203,9 @@ public class MembershipServiceImpl implements MembershipService {
             }
         }
 
-        // First-time join → normal validation
+        // ===============================
+        // 🔥 FIRST-TIME JOIN
+        // ===============================
         validateMajorPolicy(user);
 
         Membership newMembership = new Membership();
@@ -215,7 +219,6 @@ public class MembershipServiceImpl implements MembershipService {
 
         membershipRepo.save(newMembership);
 
-        // Log action
         eventLogService.logAction(
                 userId,
                 user.getFullName(),
@@ -225,10 +228,12 @@ public class MembershipServiceImpl implements MembershipService {
                 "User joined club " + club.getName()
         );
 
-        // 🔥 FIX: Notify leader correctly
+        // 🔥 SEND EMAIL TO LEADER (FIXED)
         User leader = club.getLeader();
-        if (leader != null) {
-            emailService.sendNewMembershipRequestToLeader(
+        if (leader != null && leader.getEmail() != null) {
+            log.info("📧 Sending JOIN request email to Leader: {}", leader.getEmail());
+
+            emailService.sendClubNewMembershipRequestEmail(
                     leader.getEmail(),
                     leader.getFullName(),
                     club.getName(),
@@ -236,7 +241,7 @@ public class MembershipServiceImpl implements MembershipService {
             );
         }
 
-        // Notify applicant
+        // Email to applicant
         emailService.sendMemberApplicationSubmitted(
                 user.getEmail(),
                 user.getFullName(),
@@ -245,6 +250,7 @@ public class MembershipServiceImpl implements MembershipService {
 
         return toResp(newMembership);
     }
+
 
 
 
