@@ -889,6 +889,24 @@ public class EventController {
         return attendanceService.getEventAttendees(eventId);
     }
 
+    @Operation(
+            summary = "Get all users registered for the event",
+            description = """
+            Trả về danh sách tất cả người đã đăng ký event, gồm:
+            - CONFIRMED
+            - CHECKED_IN
+            - CANCELED
+            - NO_SHOW
+
+            Áp dụng cho PRIVATE và SPECIAL (vì PUBLIC không yêu cầu đăng ký).
+            """,
+            tags = {"Event Registration"}
+    )
+    @GetMapping("/{eventId}/registrations")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER','UNIVERSITY_STAFF','ADMIN')")
+    public List<EventRegisteredUserResponse> getEventRegistrations(@PathVariable Long eventId) {
+        return attendanceService.getRegisteredUsers(eventId);
+    }
 
 
 

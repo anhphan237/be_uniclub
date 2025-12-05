@@ -1,6 +1,7 @@
 package com.example.uniclub.service.impl;
 
 import com.example.uniclub.dto.response.EventAttendeeResponse;
+import com.example.uniclub.dto.response.EventRegisteredUserResponse;
 import com.example.uniclub.dto.response.FraudCaseResponse;
 import com.example.uniclub.dto.response.EventStatsResponse;
 import com.example.uniclub.entity.*;
@@ -436,6 +437,25 @@ public class AttendanceServiceImpl implements AttendanceService {
                         r.getCheckinAt(),
                         r.getCheckMidAt(),
                         r.getCheckoutAt()
+                ))
+                .toList();
+    }
+    @Override
+    public List<EventRegisteredUserResponse> getRegisteredUsers(Long eventId) {
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
+
+        return regs.stream()
+                .map(r -> new EventRegisteredUserResponse(
+                        r.getUser().getUserId(),
+                        r.getUser().getFullName(),
+                        r.getUser().getEmail(),
+                        r.getStatus(),
+                        r.getRegisteredAt(),
+                        r.getCommittedPoints()
                 ))
                 .toList();
     }

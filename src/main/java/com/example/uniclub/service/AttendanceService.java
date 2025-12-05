@@ -1,6 +1,7 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.EventAttendeeResponse;
+import com.example.uniclub.dto.response.EventRegisteredUserResponse;
 import com.example.uniclub.dto.response.EventStatsResponse;
 import com.example.uniclub.dto.response.FraudCaseResponse;
 import com.example.uniclub.entity.Event;
@@ -23,5 +24,5 @@ public interface AttendanceService {
     void handleEndCheckout(User user, Event event);
     void handlePublicCheckin(User user, Event event);
     List<EventAttendeeResponse> getEventAttendees(Long eventId);
-
+    public List<EventRegisteredUserResponse> getRegisteredUsers(Long eventId);
 }
