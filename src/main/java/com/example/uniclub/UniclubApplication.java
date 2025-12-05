@@ -9,9 +9,13 @@ import java.util.TimeZone;
 @SpringBootApplication(scanBasePackages = "com.example.uniclub")
 @EnableScheduling
 public class UniclubApplication {
+
     public static void main(String[] args) {
-        SpringApplication.run(UniclubApplication.class, args);
+        // Đặt timezone TRƯỚC khi Spring Boot chạy
         TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-        System.out.println("UniClub Backend is running with Scheduler enabled!");
+
+        SpringApplication.run(UniclubApplication.class, args);
+        System.out.println("UniClub Backend is running with VN timezone!");
     }
 }
+

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -260,7 +261,8 @@ public class EventPointsServiceImpl implements EventPointsService {
         LocalDate eventStartDate = earliestDay.getDate();
         LocalTime eventStartTime = earliestDay.getStartTime();
         LocalDateTime eventStartDateTime = LocalDateTime.of(eventStartDate, eventStartTime);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+
 
         // ❌ Không được hủy nếu event đã bắt đầu
         if (now.isAfter(eventStartDateTime)) {

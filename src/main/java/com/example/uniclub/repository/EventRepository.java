@@ -227,4 +227,20 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 """)
     List<Event> findCompletedEventsForClub(Long clubId, LocalDate start, LocalDate end);
 
+
+
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    JOIN e.days d
+    WHERE 
+        d.date = :date
+        AND d.startTime BETWEEN :startTime AND :endTime
+        AND e.status = com.example.uniclub.enums.EventStatusEnum.APPROVED
+""")
+    List<Event> findEventsStartingSoon(
+            @Param("date") LocalDate date,
+            @Param("startTime") LocalTime startTime,
+            @Param("endTime") LocalTime endTime
+    );
+
 }

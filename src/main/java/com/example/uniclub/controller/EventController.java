@@ -867,4 +867,29 @@ public class EventController {
     }
 
 
+
+    @Operation(
+            summary = "Get all attendees who checked in to the event",
+            description = """
+                Trả về danh sách tất cả người đã check-in event, áp dụng cho cả 3 loại event:
+                
+                - PUBLIC: không cần đăng ký, check-in là hợp lệ
+                - PRIVATE: chỉ thành viên CLB host mới được tham gia
+                - SPECIAL: chỉ những user được hệ thống cho phép đăng ký (host hoặc co-host CLB theo config của event)
+                
+                API chỉ trả về những người có checkinAt != null.
+                Bao gồm cả attendanceLevel, thời điểm check-in, mid-check và checkout.
+                """,
+            tags = {"Event Attendance"}
+    )
+
+    @GetMapping("/{eventId}/attendees")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','STAFF','ADMIN','UNIVERSITY_STAFF')")
+    public List<EventAttendeeResponse> getEventAttendees(@PathVariable Long eventId) {
+        return attendanceService.getEventAttendees(eventId);
+    }
+
+
+
+
 }

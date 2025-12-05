@@ -1,5 +1,6 @@
 package com.example.uniclub.service.impl;
 
+import com.example.uniclub.dto.response.EventAttendeeResponse;
 import com.example.uniclub.dto.response.FraudCaseResponse;
 import com.example.uniclub.dto.response.EventStatsResponse;
 import com.example.uniclub.entity.*;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 @Slf4j
@@ -104,7 +106,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         AttendanceRecord record = attendanceRepo.findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
                 .orElseGet(() -> AttendanceRecord.builder().user(user).event(event).build());
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+
 
         switch (phase) {
             case START -> {
@@ -295,7 +298,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     // ⚙️ Helpers
     // =========================================================
     private void validateTokenWindow(QRToken token) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+
         if (token.getValidFrom() != null && now.isBefore(token.getValidFrom()))
             throw new ApiException(HttpStatus.BAD_REQUEST, "QR token not yet active");
         if (token.getValidTo() != null && now.isAfter(token.getValidTo()))
@@ -353,9 +357,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                     "Public check-in only for PUBLIC events.");
         }
 
-        // 🔍 Xác định ngày hôm nay có nằm trong bất kỳ EventDay nào không
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
+        // 🔍 Kiểm tra event đang active trong bất kỳ EventDay nào
         boolean insideAnyDay = event.getDays().stream().anyMatch(day -> {
             LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
             LocalDateTime end   = LocalDateTime.of(day.getDate(), day.getEndTime());
@@ -367,9 +371,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     "Event is not active at this time.");
         }
 
-        // 🔹 Check-in count
         int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
-        int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(Integer.MAX_VALUE);
 
         // 🔹 Kiểm tra đã check-in chưa
         Optional<EventRegistration> opt =
@@ -377,21 +379,22 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         if (opt.isPresent()) {
             EventRegistration reg = opt.get();
+
             if (reg.getCheckinAt() != null) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
             }
 
             reg.setCheckinAt(now);
-            reg.setAttendanceLevel(AttendanceLevelEnum.FULL);
+            reg.setAttendanceLevel(AttendanceLevelEnum.NONE);  // PUBLIC không áp dụng FULL/HALF
             reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
             regRepo.save(reg);
 
         } else {
-            // tạo registration mới
+            // 🔹 Tạo registration mới
             regRepo.save(EventRegistration.builder()
                     .event(event)
                     .user(user)
-                    .attendanceLevel(AttendanceLevelEnum.FULL)
+                    .attendanceLevel(AttendanceLevelEnum.NONE)  // hoặc tạo enum PUBLIC nếu muốn
                     .status(RegistrationStatusEnum.CHECKED_IN)
                     .checkinAt(now)
                     .committedPoints(0)
@@ -399,39 +402,42 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
 
         // 🔢 Cập nhật tổng lượt check-in
-        int newCount = current + 1;
-        event.setCurrentCheckInCount(newCount);
+        event.setCurrentCheckInCount(current + 1);
         eventRepo.save(event);
 
-        // ===========================================
-        // 🏆 THƯỞNG DỰA THEO maxCheckInCount
-        // ===========================================
-        boolean eligibleForReward = (current < max);
-
-        if (eligibleForReward) {
-            long rewardPoints = 10;
-
-            Wallet userWallet = walletService.getOrCreateUserWallet(user);
-            walletService.increase(userWallet, rewardPoints);
-
-            walletService.logClubToMemberReward(
-                    userWallet,
-                    rewardPoints,
-                    "Reward for PUBLIC event: " + event.getName()
-            );
-        }
-
-        // 📩 Email check-in thành công
+        // 📩 Gửi email
         emailService.sendPublicEventCheckinEmail(
                 user.getEmail(),
                 user.getFullName(),
                 event.getName(),
-                now.toLocalTime(), // gửi giờ thực tế check-in
+                now.toLocalTime(),
                 event.getLocation() != null ? event.getLocation().getName() : "Unknown"
         );
 
-        log.info("User {} checked in for PUBLIC event {} (rewarded: {})",
-                user.getEmail(), event.getName(), eligibleForReward);
+        log.info("User {} checked in for PUBLIC event {}",
+                user.getEmail(), event.getName());
+    }
+
+    @Override
+    public List<EventAttendeeResponse> getEventAttendees(Long eventId) {
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
+
+        List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
+
+        return regs.stream()
+                .filter(r -> r.getCheckinAt() != null) // chỉ lấy người đã check-in
+                .map(r -> new EventAttendeeResponse(
+                        r.getUser().getUserId(),
+                        r.getUser().getFullName(),
+                        r.getUser().getEmail(),
+                        r.getAttendanceLevel(),
+                        r.getCheckinAt(),
+                        r.getCheckMidAt(),
+                        r.getCheckoutAt()
+                ))
+                .toList();
     }
 
 }
