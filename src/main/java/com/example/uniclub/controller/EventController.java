@@ -889,7 +889,7 @@ public class EventController {
         return attendanceService.getEventAttendees(eventId);
     }
 
-    @Operation(
+     @Operation(
             summary = "Get all users registered for the event",
             description = """
             Trả về danh sách tất cả người đã đăng ký event, gồm:

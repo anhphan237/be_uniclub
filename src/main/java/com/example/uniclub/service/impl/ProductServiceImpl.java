@@ -10,9 +10,11 @@ import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.EventStatusEnum;
 import com.example.uniclub.enums.ProductStatusEnum;
 import com.example.uniclub.enums.ProductTypeEnum;
+import com.example.uniclub.enums.WalletTransactionTypeEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ProductService;
+import com.example.uniclub.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -41,10 +43,8 @@ public class ProductServiceImpl implements ProductService {
 
     private final TagRepository tagRepository;
     private final ProductTagRepository productTagRepository;
-    private final ProductMediaRepository mediaRepo;
     private final ProductStockHistoryRepository stockHistoryRepo;
-    private List<ProductMedia> mediaList;
-    private List<ProductTag> productTags;
+    private final WalletService walletService;
 
     // =========================
     // Mapper
@@ -171,6 +171,31 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         p = productRepo.save(p);
+// =============================================================
+// 💰 TRỪ ĐIỂM VÍ CLB KHI TẠO SẢN PHẨM
+// =============================================================
+        long totalCost = req.pointCost() * req.stockQuantity();
+
+// Lấy ví CLB
+        Wallet clubWallet = walletService.getWalletByClubId(clubId);
+
+// Kiểm tra đủ tiền
+        if (clubWallet.getBalancePoints() < totalCost) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Club does not have enough points to create this product. Required: "
+                            + totalCost + ", available: " + clubWallet.getBalancePoints());
+        }
+
+// Trừ điểm + ghi transaction chuẩn UniClub
+        walletService.logTransactionFromSystem(
+                clubWallet,
+                -totalCost,
+                WalletTransactionTypeEnum.PRODUCT_CREATION_COST,   // Bạn cần thêm ENUM nếu chưa có
+                "Create product: " + req.name()
+        );
+
+// Update số dư ví
+        clubWallet.setBalancePoints(clubWallet.getBalancePoints() - totalCost);
 
         // ✅ Gắn tag "new" và "limited" ngay khi tạo
         try {
