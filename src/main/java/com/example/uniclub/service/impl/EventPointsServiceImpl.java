@@ -65,11 +65,9 @@ public class EventPointsServiceImpl implements EventPointsService {
         }
 
         // ⭐ Lấy earliestDay và latestDay (multi-day logic)
-        EventDay earliestDay = event.getDays().stream()
-                .sorted(Comparator
+        EventDay earliestDay = event.getDays().stream().min(Comparator
                         .comparing(EventDay::getDate)
                         .thenComparing(EventDay::getStartTime))
-                .findFirst()
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Event days missing"));
 
         EventDay latestDay = event.getDays().stream()
@@ -98,7 +96,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         // ❌ Deadline quá hạn
         if (event.getRegistrationDeadline() != null
-                && today.isAfter(event.getRegistrationDeadline())) {
+                && LocalDateTime.now().isAfter(eventStart)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline has passed.");
         }
 
