@@ -442,22 +442,66 @@ public class ProductServiceImpl implements ProductService {
         Product p = productRepo.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
 
-        int old = p.getStockQuantity();
-        int newStock = old + delta;
-        if (newStock < 0) throw new ApiException(HttpStatus.BAD_REQUEST, "Stock cannot be negative");
+        int oldStock = p.getStockQuantity();
+        int newStock = oldStock + delta;
 
+        if (newStock < 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Stock cannot be negative");
+
+        // =====================================================
+        // 💰 TRỪ ĐIỂM KHI NHẬP THÊM HÀNG (delta > 0)
+        // =====================================================
+        if (delta > 0) {
+            long totalCost = (long) delta * p.getPointCost();
+
+            Wallet clubWallet = walletService.getWalletByClubId(
+                    p.getClub().getClubId()
+            );
+
+            if (clubWallet.getBalancePoints() < totalCost) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Insufficient club points. Required: " + totalCost
+                                + ", available: " + clubWallet.getBalancePoints()
+                );
+            }
+
+            // 🔥 Trừ điểm + log transaction
+            walletService.logTransactionFromSystem(
+                    clubWallet,
+                    -totalCost,
+                    WalletTransactionTypeEnum.PRODUCT_IMPORT_COST, // ⬅ nên tạo enum này
+                    "Import stock +" + delta + " for product: " + p.getName()
+            );
+
+            clubWallet.setBalancePoints(
+                    clubWallet.getBalancePoints() - totalCost
+            );
+        }
+
+        // =====================================================
+        // 📦 Update stock
+        // =====================================================
         p.setStockQuantity(newStock);
         productRepo.save(p);
 
+        // =====================================================
+        // 🧾 Stock history
+        // =====================================================
         ProductStockHistory log = ProductStockHistory.builder()
                 .product(p)
-                .oldStock(old)
+                .oldStock(oldStock)
                 .newStock(newStock)
-                .note(note == null ? (delta > 0 ? "Import" : "Adjust") : note)
+                .note(note != null
+                        ? note
+                        : (delta > 0 ? "Import stock" : "Adjust stock"))
                 .build();
+
         stockHistoryRepo.save(log);
+
         return toResp(p);
     }
+
 
     @Override
     @Transactional(readOnly = true)
