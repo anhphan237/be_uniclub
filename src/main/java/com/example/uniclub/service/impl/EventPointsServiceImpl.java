@@ -195,18 +195,42 @@ public class EventPointsServiceImpl implements EventPointsService {
     @Override
     @Transactional
     public String checkin(CustomUserDetails principal, EventCheckinRequest req) {
-        String token = req.getEventJwtToken();
-        if (token == null || token.isBlank())
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Missing eventJwtToken.");
 
-        Long eventId = jwtEventTokenService.parseEventId(token);
+        // ===================== 1️⃣ Validate token =====================
+        String token = req.getEventJwtToken();
+        if (token == null || token.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Missing check-in QR token.");
+        }
+
+        Long eventId;
+        try {
+            eventId = jwtEventTokenService.parseEventId(token);
+        } catch (Exception e) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "Invalid or expired check-in QR code."
+            );
+        }
+
+        // ===================== 2️⃣ Load event =====================
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
         User user = principal.getUser();
 
+        // ===================== 3️⃣ PUBLIC event =====================
         if (event.getType() == EventTypeEnum.PUBLIC) {
+
+            if (!(event.getStatus() == EventStatusEnum.APPROVED
+                    || event.getStatus() == EventStatusEnum.ONGOING)) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Event is not open for check-in."
+                );
+            }
+
             attendanceService.handlePublicCheckin(user, event);
+
             eventLogService.logAction(
                     user.getUserId(),
                     user.getFullName(),
@@ -215,25 +239,62 @@ public class EventPointsServiceImpl implements EventPointsService {
                     UserActionEnum.CHECKIN_EVENT,
                     "User performed PUBLIC check-in"
             );
-            return "✅ Checked in successfully for PUBLIC event: " + event.getName();
+
+            return "Checked in successfully for PUBLIC event.";
         }
 
+        // ===================== 4️⃣ NON-PUBLIC: must be registered =====================
+        EventRegistration reg = regRepo
+                .findByEvent_EventIdAndUser_UserId(eventId, user.getUserId())
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "You must register for this event before check-in."
+                ));
+
+        // ===================== 5️⃣ Event status =====================
+        if (!(event.getStatus() == EventStatusEnum.APPROVED
+                || event.getStatus() == EventStatusEnum.ONGOING)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Event is not open for check-in."
+            );
+        }
+
+        // ===================== 6️⃣ Already checked in =====================
+        if (reg.getAttendanceLevel() != null
+                && reg.getAttendanceLevel() != AttendanceLevelEnum.NONE) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "You have already checked in."
+            );
+        }
+
+        // ===================== 7️⃣ Handle check-in phase =====================
         switch (req.getLevel().toUpperCase()) {
             case "START" -> attendanceService.handleStartCheckin(user, event);
             case "MID" -> attendanceService.handleMidCheckin(user, event);
             case "END" -> attendanceService.handleEndCheckout(user, event);
-            default -> throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid check-in phase: " + req.getLevel());
+            default -> throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid check-in phase: " + req.getLevel()
+            );
         }
 
+        // ===================== 8️⃣ Log =====================
         eventLogService.logAction(
-                user.getUserId(), user.getFullName(),
-                event.getEventId(), event.getName(),
-                req.getLevel().equalsIgnoreCase("END") ? UserActionEnum.CHECKOUT_EVENT : UserActionEnum.CHECKIN_EVENT,
+                user.getUserId(),
+                user.getFullName(),
+                event.getEventId(),
+                event.getName(),
+                req.getLevel().equalsIgnoreCase("END")
+                        ? UserActionEnum.CHECKOUT_EVENT
+                        : UserActionEnum.CHECKIN_EVENT,
                 "User performed " + req.getLevel().toUpperCase() + " check-in"
         );
 
-        return "✅ " + req.getLevel() + " check-in successful for event: " + event.getName();
+        return "Check-in " + req.getLevel().toUpperCase() + " successful.";
     }
+
 
     // =========================================================
     // 🔹 CANCEL REGISTRATION
