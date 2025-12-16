@@ -78,7 +78,14 @@ public class EventServiceImpl implements EventService {
                 .budgetPoints(event.getBudgetPoints())
                 .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
                 .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(event.getCurrentCheckInCount())
+                .currentCheckInCount(
+                        (int) eventRegistrationRepo.countByEvent_EventIdAndStatus(
+                                event.getEventId(),
+                                RegistrationStatusEnum.REWARDED
+                        )
+                )
+
+
 
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
