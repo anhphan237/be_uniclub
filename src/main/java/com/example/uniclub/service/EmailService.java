@@ -178,7 +178,12 @@ public interface EmailService {
             String orderCode
     );
 
-    void sendClubCreationOtpEmail(String to, String fullName, String otpCode);
+    void sendClubCreationOtpEmail(
+            String to,
+            String fullName,
+            String otpCode,
+            String createClubLink
+    );
     void sendClubMonthlyLockedEmail(
             String to,
             String clubName,

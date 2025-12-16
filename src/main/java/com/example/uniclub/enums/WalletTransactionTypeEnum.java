@@ -26,5 +26,6 @@ public enum WalletTransactionTypeEnum {
     MEMBER_REWARD,
     CLUB_REWARD_DISTRIBUTE,
     PRODUCT_CREATION_COST,
+    PRODUCT_IMPORT_COST
 
 }

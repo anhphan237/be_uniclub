@@ -73,24 +73,33 @@ public class ClubApplicationController {
             Mã OTP có hiệu lực trong 48 giờ.
             """
     )
-    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
     @PostMapping("/send-otp")
-    public ResponseEntity<ApiResponse<String>> sendOtpToStudent(@RequestParam String studentEmail) {
-
+    @PreAuthorize("hasRole('UNIVERSITY_STAFF')")
+    public ResponseEntity<ApiResponse<String>> sendOtpToStudent(
+            @RequestParam String studentEmail
+    ) {
         var student = clubApplicationService.findStudentByEmail(studentEmail);
 
+        // Generate 6-digit OTP
         String otp = String.format("%06d", (int) (Math.random() * 1000000));
 
+        // Save OTP to database
         clubApplicationService.saveOtp(studentEmail, otp);
 
+        // Build correct frontend link with otp
+        String link = "https://uniclub.id.vn/student/clubs?otp=" + otp;
+
+        // Send email
         emailService.sendClubCreationOtpEmail(
                 studentEmail,
                 student.getFullName(),
-                otp
+                otp,
+                link
         );
 
-        return ResponseEntity.ok(ApiResponse.msg("OTP has been sent to " + studentEmail));
+        return ResponseEntity.ok(ApiResponse.msg("OTP link has been sent to " + studentEmail));
     }
+
 
 
     // ==========================================================

@@ -7,10 +7,7 @@ import com.example.uniclub.dto.response.EventValidityResponse;
 import com.example.uniclub.dto.response.ProductMediaResponse;
 import com.example.uniclub.dto.response.ProductResponse;
 import com.example.uniclub.entity.*;
-import com.example.uniclub.enums.EventStatusEnum;
-import com.example.uniclub.enums.ProductStatusEnum;
-import com.example.uniclub.enums.ProductTypeEnum;
-import com.example.uniclub.enums.WalletTransactionTypeEnum;
+import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.ProductService;
@@ -435,29 +432,138 @@ public class ProductServiceImpl implements ProductService {
     // =========================
     @Override
     @Transactional
-    public ProductResponse updateStock(Long id, Integer delta, String note) {
-        if (delta == null || delta == 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid stock adjustment amount");
+    public ProductResponse updateStock(
+            Long id,
+            Integer delta,
+            StockAdjustmentReason reason,
+            String note
+    ) {
+        if (delta == null || delta == 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid stock adjustment amount"
+            );
+        }
 
         Product p = productRepo.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Product not found"));
+                .orElseThrow(() ->
+                        new ApiException(HttpStatus.NOT_FOUND, "Product not found")
+                );
 
-        int old = p.getStockQuantity();
-        int newStock = old + delta;
-        if (newStock < 0) throw new ApiException(HttpStatus.BAD_REQUEST, "Stock cannot be negative");
+        int oldStock = p.getStockQuantity();
+        int newStock = oldStock + delta;
 
+        if (newStock < 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Stock cannot be negative"
+            );
+        }
+
+        Wallet clubWallet = walletService.getWalletByClubId(
+                p.getClub().getClubId()
+        );
+
+        // =====================================================
+        // ➕ CASE 1: NHẬP THÊM HÀNG (delta > 0)
+        // =====================================================
+        if (delta > 0) {
+
+            if (p.getPointCost() == null || p.getPointCost() <= 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Cannot import stock for product with pointCost = 0"
+                );
+            }
+
+            long totalCost = (long) delta * p.getPointCost();
+
+            if (clubWallet.getBalancePoints() < totalCost) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Insufficient club points. Required: " + totalCost
+                                + ", available: " + clubWallet.getBalancePoints()
+                );
+            }
+
+            walletService.logTransactionFromSystem(
+                    clubWallet,
+                    -totalCost,
+                    WalletTransactionTypeEnum.PRODUCT_IMPORT_COST,
+                    "Import stock +" + delta + " for product: " + p.getName()
+            );
+
+            clubWallet.setBalancePoints(
+                    clubWallet.getBalancePoints() - totalCost
+            );
+        }
+
+        // =====================================================
+        // ➖ CASE 2: GIẢM HÀNG (delta < 0)
+        // =====================================================
+        if (delta < 0) {
+
+            if (reason == null) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Reason is required when removing stock"
+                );
+            }
+
+            boolean shouldRefund =
+                    reason == StockAdjustmentReason.CORRECTION ||
+                            reason == StockAdjustmentReason.RETURN_SUPPLIER;
+
+            if (shouldRefund) {
+
+                if (p.getPointCost() == null || p.getPointCost() <= 0) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "Cannot refund points for product with pointCost = 0"
+                    );
+                }
+
+                long refund = Math.abs((long) delta) * p.getPointCost();
+
+                walletService.logTransactionFromSystem(
+                        clubWallet,
+                        refund,
+                        WalletTransactionTypeEnum.REFUND_PRODUCT,
+                        "Stock refund (" + reason + "): " + note
+                );
+
+                clubWallet.setBalancePoints(
+                        clubWallet.getBalancePoints() + refund
+                );
+            }
+            // LOSS_DAMAGE, INTERNAL_USE → không hoàn điểm
+        }
+
+        // =====================================================
+        // 📦 UPDATE STOCK
+        // =====================================================
         p.setStockQuantity(newStock);
         productRepo.save(p);
 
-        ProductStockHistory log = ProductStockHistory.builder()
+        // =====================================================
+        // 🧾 STOCK HISTORY
+        // =====================================================
+        ProductStockHistory history = ProductStockHistory.builder()
                 .product(p)
-                .oldStock(old)
+                .oldStock(oldStock)
                 .newStock(newStock)
-                .note(note == null ? (delta > 0 ? "Import" : "Adjust") : note)
+                .note(note != null
+                        ? note
+                        : (delta > 0 ? "Import stock" : "Adjust stock"))
+                .reason(reason)
                 .build();
-        stockHistoryRepo.save(log);
+
+        stockHistoryRepo.save(history);
+
         return toResp(p);
     }
+
+
 
     @Override
     @Transactional(readOnly = true)

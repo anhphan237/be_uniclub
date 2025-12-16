@@ -213,11 +213,26 @@ public class WalletServiceImpl implements WalletService {
     @Transactional
     public void saveTransaction(WalletTransaction tx) {
         Wallet w = walletRepo.findById(tx.getWallet().getWalletId())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Wallet not found when saving transaction"));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "Wallet not found when saving transaction"
+                ));
         tx.setWallet(w);
 
-        // --- Receiver name ---
-        if (tx.getReceiverName() == null) {
+        // ✅ Sender name: chỉ fill nếu NULL hoặc BLANK
+        if (tx.getSenderName() == null || tx.getSenderName().isBlank()) {
+            if (w.getUser() != null)
+                tx.setSenderName(w.getUser().getFullName());
+            else if (w.getClub() != null)
+                tx.setSenderName(w.getClub().getName());
+            else if (w.getEvent() != null)
+                tx.setSenderName(w.getEvent().getName());
+            else
+                tx.setSenderName("System");
+        }
+
+        // ✅ Receiver name: chỉ fill nếu NULL hoặc BLANK
+        if (tx.getReceiverName() == null || tx.getReceiverName().isBlank()) {
             if (w.getUser() != null)
                 tx.setReceiverName(w.getUser().getFullName());
             else if (w.getClub() != null)
@@ -228,22 +243,12 @@ public class WalletServiceImpl implements WalletService {
                 tx.setReceiverName("System");
         }
 
-        // --- Sender name (Auto-fill nếu chưa có) ---
-        if (tx.getSenderName() == null) {
-            if (w.getUser() != null)
-                tx.setSenderName(w.getUser().getFullName());
-            else if (w.getClub() != null)
-                tx.setSenderName(w.getClub().getName());
-            else
-                tx.setSenderName("System");
-        }
-
-        // --- Created time ---
         if (tx.getCreatedAt() == null)
             tx.setCreatedAt(LocalDateTime.now());
 
         txRepo.save(tx);
     }
+
 
 
     // ================================================================
@@ -319,6 +324,7 @@ public class WalletServiceImpl implements WalletService {
     // 💸 CHUYỂN ĐIỂM VỚI TYPE TUỲ CHỈNH
     // ================================================================
     @Transactional
+    @Override
     public void transferPointsWithType(
             Wallet sender,
             Wallet receiver,
@@ -331,22 +337,36 @@ public class WalletServiceImpl implements WalletService {
         if (sender.getBalancePoints() < amount)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient balance");
 
-        // ✅ Cập nhật số dư thực tế
+        // ===============================
+        // 1️⃣ Update balances
+        // ===============================
         sender.setBalancePoints(sender.getBalancePoints() - amount);
         receiver.setBalancePoints(receiver.getBalancePoints() + amount);
         walletRepo.save(sender);
         walletRepo.save(receiver);
 
-        String senderDisplay = sender.getUser() != null ? sender.getUser().getFullName()
-                : sender.getClub() != null ? sender.getClub().getName() : "System";
-        String receiverDisplay = receiver.getUser() != null ? receiver.getUser().getFullName()
-                : receiver.getClub() != null ? receiver.getClub().getName() : "System";
+        // ===============================
+        // 2️⃣ Resolve display names (FIX EVENT)
+        // ===============================
+        String senderDisplay =
+                sender.getUser() != null ? sender.getUser().getFullName()
+                        : sender.getClub() != null ? sender.getClub().getName()
+                        : sender.getEvent() != null ? sender.getEvent().getName()
+                        : "System";
 
-        // 🔻 Transaction cho bên gửi (OUT)
+        String receiverDisplay =
+                receiver.getUser() != null ? receiver.getUser().getFullName()
+                        : receiver.getClub() != null ? receiver.getClub().getName()
+                        : receiver.getEvent() != null ? receiver.getEvent().getName()
+                        : "System";
+
+        // ===============================
+        // 3️⃣ OUT transaction
+        // ===============================
         WalletTransaction outTx = WalletTransaction.builder()
                 .wallet(sender)
                 .type(type)
-                .amount(-amount) // ❗ Trừ điểm thực tế
+                .amount(-amount)
                 .description("[OUT] " + reason)
                 .senderName(senderDisplay)
                 .receiverName(receiverDisplay)
@@ -354,11 +374,13 @@ public class WalletServiceImpl implements WalletService {
                 .build();
         saveTransaction(outTx);
 
-        // 🔺 Transaction cho bên nhận (IN)
+        // ===============================
+        // 4️⃣ IN transaction
+        // ===============================
         WalletTransaction inTx = WalletTransaction.builder()
                 .wallet(receiver)
                 .type(type)
-                .amount(amount) // ❗ Cộng điểm thực tế
+                .amount(amount)
                 .description("[IN] " + reason)
                 .senderName(senderDisplay)
                 .receiverName(receiverDisplay)
@@ -366,6 +388,7 @@ public class WalletServiceImpl implements WalletService {
                 .build();
         saveTransaction(inTx);
     }
+
 
 
     // ================================================================

@@ -823,37 +823,58 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public void sendClubCreationOtpEmail(String to, String fullName, String otpCode) {
+    public void sendClubCreationOtpEmail(
+            String to,
+            String fullName,
+            String otpCode,
+            String createClubLink
+    ) {
 
         String content = """
-        <h2 style="color:#1E88E5;">Club Creation OTP Verification</h2>
+    <h2 style="color:#1E88E5;">Club Creation Authorization</h2>
 
-        <p>Hello <b>%s</b>,</p>
+    <p>Hello <b>%s</b>,</p>
 
-        <p>You have been granted permission to submit a request to establish a new club on the <b>UniClub</b> system.</p>
+    <p>You are permitted to submit a club creation request on UniClub.</p>
 
-        <p>Your OTP code is:</p>
+    <p><b>👉 Click the button below to start:</b></p>
 
-        <div class="otp-box" style="
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 6px;
-            text-align: center;
-            margin: 24px 0;
-            padding: 16px 0;
-            background:#E8F1FF;
-            color:#1E88E5;
-            border-radius: 10px;
-            border: 1px solid #C8DAFF;
-        ">
-            %s
-        </div>
+    <a href="%s" style="
+        display:inline-block;
+        padding:14px 28px;
+        background:#1E88E5;
+        color:white;
+        border-radius:8px;
+        text-decoration:none;
+        font-weight:600;
+        margin:16px 0;
+    ">
+        Create Club Application
+    </a>
 
-        <p>This code is valid for <b>48 hours</b>. Please do not share it with anyone.</p>
-    """.formatted(fullName, otpCode);
+    <p style="margin-top:20px;"><b>Or use this OTP manually:</b></p>
 
-        sendEmail(to, "[UniClub] OTP Code for Club Creation Request", content);
+    <div class="otp-box" style="
+        font-size: 32px;
+        font-weight: bold;
+        letter-spacing: 6px;
+        text-align: center;
+        margin: 16px 0;
+        padding: 16px;
+        background:#E8F1FF;
+        color:#1E88E5;
+        border-radius: 10px;
+        border: 1px solid #C8DAFF;
+    ">
+        %s
+    </div>
+
+    <p>This authorization is valid for <b>48 hours</b>.</p>
+    """.formatted(fullName, createClubLink, otpCode);
+
+        sendEmail(to, "[UniClub] Club Creation Authorization", content);
     }
+
     @Override
     public void sendEventCancelledEmail(String to, String eventName, String eventDate, String reason) {
 

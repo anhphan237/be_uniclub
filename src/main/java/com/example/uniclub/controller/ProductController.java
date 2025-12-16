@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.request.ProductCreateRequest;
+import com.example.uniclub.dto.request.ProductStockUpdateRequest;
 import com.example.uniclub.dto.request.ProductUpdateRequest;
 import com.example.uniclub.dto.response.ProductMediaResponse;
 import com.example.uniclub.dto.response.ProductResponse;
@@ -174,11 +175,18 @@ public class ProductController {
     @PreAuthorize("hasAnyRole('CLUB_LEADER','VICE_LEADER')")
     public ResponseEntity<ApiResponse<ProductResponse>> updateStock(
             @PathVariable Long id,
-            @RequestParam Integer delta,
-            @RequestParam(required = false) String note
+            @RequestBody ProductStockUpdateRequest req
     ) {
-        return ResponseEntity.ok(ApiResponse.ok(productService.updateStock(id, delta, note)));
+        return ResponseEntity.ok(ApiResponse.ok(
+                productService.updateStock(
+                        id,
+                        req.delta(),
+                        req.reason(),
+                        req.note()
+                )
+        ));
     }
+
 
     // ==========================================================
     // 📜 7. LỊCH SỬ TỒN KHO

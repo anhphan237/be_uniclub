@@ -179,18 +179,17 @@ public class EventController {
 
         ⚠️ Cần cung cấp lý do hủy.
         """)
-    @PutMapping("/{eventId}/cancel-event")
+    @PutMapping("/{eventId}/cancel")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
-    public ResponseEntity<ApiResponse<String>> cancelEvent(
+    public ResponseEntity<ApiResponse<String>> cancelEventPut(
             @PathVariable Long eventId,
             @RequestBody EventCancelRequest req,
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
-
         String result = eventService.cancelEvent(eventId, req, principal);
-
         return ResponseEntity.ok(ApiResponse.msg(result));
     }
+
 
 
 

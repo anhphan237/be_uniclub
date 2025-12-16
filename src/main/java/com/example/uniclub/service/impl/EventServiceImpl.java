@@ -78,7 +78,14 @@ public class EventServiceImpl implements EventService {
                 .budgetPoints(event.getBudgetPoints())
                 .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
                 .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(event.getCurrentCheckInCount())
+                .currentCheckInCount(
+                        (int) eventRegistrationRepo.countByEvent_EventIdAndStatus(
+                                event.getEventId(),
+                                RegistrationStatusEnum.REWARDED
+                        )
+                )
+
+
 
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
@@ -823,12 +830,14 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Event wallet already closed.");
 
-        // ============================================================
-        // 1) UPDATE EVENT WALLET BALANCE
-        // ============================================================
+
+        // 1) UPDATE EVENT WALLET (FIX)
+
+
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
+
 
         // ============================================================
         // 2) GET UNIVERSITY WALLET – ví nguồn cho giao dịch

@@ -58,5 +58,9 @@ public interface EventRegistrationRepository extends JpaRepository<EventRegistra
     boolean existsByEvent_EventId(Long eventId);
 
     boolean existsByEvent_EventIdAndAttendanceLevelNot(Long eventId, AttendanceLevelEnum level);
+    long countByEvent_EventIdAndStatus(
+            Long eventId,
+            RegistrationStatusEnum status
+    );
 
 }
