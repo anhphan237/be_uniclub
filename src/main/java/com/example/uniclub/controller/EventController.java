@@ -179,7 +179,7 @@ public class EventController {
 
         ⚠️ Cần cung cấp lý do hủy.
         """)
-    @PutMapping("/{eventId}/cancel-event")
+    @PostMapping("/{eventId}/cancel")
     @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF')")
     public ResponseEntity<ApiResponse<String>> cancelEvent(
             @PathVariable Long eventId,

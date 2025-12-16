@@ -823,12 +823,14 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Event wallet already closed.");
 
-        // ============================================================
-        // 1) UPDATE EVENT WALLET BALANCE
-        // ============================================================
+
+        // 1) UPDATE EVENT WALLET (FIX)
+
+
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
+
 
         // ============================================================
         // 2) GET UNIVERSITY WALLET – ví nguồn cho giao dịch

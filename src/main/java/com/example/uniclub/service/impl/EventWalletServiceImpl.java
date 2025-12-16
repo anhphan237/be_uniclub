@@ -54,6 +54,7 @@ public class EventWalletServiceImpl implements EventWalletService {
                 .eventId(event.getEventId())
                 .eventName(event.getName())
                 .hostClubName(event.getHostClub() != null ? event.getHostClub().getName() : null)
+                .budgetPoints(event.getBudgetPoints() != null ? event.getBudgetPoints() : 0L)
                 .balancePoints(wallet.getBalancePoints() != null ? wallet.getBalancePoints() : 0L)
                 .ownerType(wallet.getOwnerType() != null ? wallet.getOwnerType().name() : "UNKNOWN")
                 .createdAt(wallet.getCreatedAt())
