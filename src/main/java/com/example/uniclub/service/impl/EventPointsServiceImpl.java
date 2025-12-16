@@ -104,6 +104,20 @@ public class EventPointsServiceImpl implements EventPointsService {
         if (regRepo.existsByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())) {
             throw new ApiException(HttpStatus.CONFLICT, "You have already registered for this event.");
         }
+// ❌ Event đã đủ số lượng đăng ký
+        long confirmedCount = regRepo.countByEvent_EventIdAndStatus(
+                event.getEventId(),
+                RegistrationStatusEnum.CONFIRMED
+        );
+
+        if (event.getMaxCheckInCount() != null
+                && event.getMaxCheckInCount() > 0
+                && confirmedCount >= event.getMaxCheckInCount()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "This event has reached the maximum number of participants."
+            );
+        }
 
         // 🔐 PRIVATE = chỉ member CLB chủ trì mới được đăng ký
         if (event.getType() == EventTypeEnum.PRIVATE) {
