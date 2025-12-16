@@ -37,8 +37,12 @@ public class EventWalletServiceImpl implements EventWalletService {
         if (wallet == null)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event does not have a wallet");
 
-        List<WalletTransaction> transactions = transactionRepo
-                .findByWallet_WalletIdOrderByCreatedAtDesc(wallet.getWalletId());
+        List<WalletTransaction> transactions =
+                transactionRepo.findEventWalletFullHistory(
+                        wallet.getWalletId(),
+                        event.getHostClub().getClubId()
+                );
+
 
         List<EventWalletResponse.Transaction> transactionList = transactions.stream()
                 .map(tx -> EventWalletResponse.Transaction.builder()
@@ -47,8 +51,12 @@ public class EventWalletServiceImpl implements EventWalletService {
                         .amount(tx.getAmount() != null ? tx.getAmount() : 0L)
                         .description(tx.getDescription())
                         .createdAt(tx.getCreatedAt())
+                        .senderName(tx.getSenderName())
+                        .receiverName(tx.getReceiverName())
+
                         .build())
                 .toList();
+
 
         return EventWalletResponse.builder()
                 .eventId(event.getEventId())

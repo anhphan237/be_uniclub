@@ -23,5 +23,7 @@ public class EventWalletResponse {
         private Long amount;
         private String description;
         private LocalDateTime createdAt;
+        private String senderName;
+        private String receiverName;
     }
 }

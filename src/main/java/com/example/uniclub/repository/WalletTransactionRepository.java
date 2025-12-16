@@ -120,5 +120,22 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
             @Param("year") int year,
             @Param("month") int month
     );
+    @Query("""
+   SELECT t FROM WalletTransaction t
+   WHERE 
+     t.wallet.walletId = :eventWalletId
+     OR (
+        t.type IN (
+            com.example.uniclub.enums.WalletTransactionTypeEnum.EVENT_REFUND_REMAINING,
+            com.example.uniclub.enums.WalletTransactionTypeEnum.RETURN_SURPLUS
+        )
+        AND t.receiverClub.clubId = :clubId
+     )
+   ORDER BY t.createdAt DESC
+""")
+    List<WalletTransaction> findEventWalletFullHistory(
+            @Param("eventWalletId") Long eventWalletId,
+            @Param("clubId") Long clubId
+    );
 
 }
