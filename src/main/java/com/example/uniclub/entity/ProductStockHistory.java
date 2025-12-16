@@ -1,5 +1,6 @@
 package com.example.uniclub.entity;
 
+import com.example.uniclub.enums.StockAdjustmentReason;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
@@ -32,7 +33,9 @@ public class ProductStockHistory {
 
     @Column(nullable = false)
     private Integer newStock;
-
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private StockAdjustmentReason reason;
     @Column(length = 255)
     private String note;
 

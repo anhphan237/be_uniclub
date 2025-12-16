@@ -7,6 +7,7 @@ import com.example.uniclub.dto.response.EventValidityResponse;
 import com.example.uniclub.dto.response.ProductResponse;
 import com.example.uniclub.entity.ProductStockHistory;
 import com.example.uniclub.enums.EventStatusEnum;
+import com.example.uniclub.enums.StockAdjustmentReason;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -27,7 +28,12 @@ public interface ProductService {
     List<ProductResponse> listByClub(Long clubId, boolean includeInactive, boolean includeArchived);
 
     ProductResponse update(Long id, ProductUpdateRequest req);
-    ProductResponse updateStock(Long id, Integer delta, String note); // delta: + nhập / - trừ
+    ProductResponse updateStock(
+            Long id,
+            Integer delta,
+            StockAdjustmentReason reason,
+            String note
+    ); // delta: + nhập / - trừ
     void delete(Long id); // soft-delete => INACTIVE
     ProductResponse updateProduct(Long clubId, Long productId, ProductUpdateRequest req);
 
