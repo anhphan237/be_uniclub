@@ -155,13 +155,15 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         act.setAttendanceTotalScore(attendanceTotal);
 
         act.setStaffBaseScore(staffBase);
-        act.setStaffMultiplier(staffMultiplier);
+        act.setStaffMultiplier(1.0);
+
         act.setStaffScore(staffTotal);
         act.setTotalStaffCount(staffList.size());
         act.setStaffEvaluation(bestEvaluation.name());
         act.setStaffTotalScore(staffTotal);
 
-        act.setActivityLevel(classifyActivityLevel(attendanceRate));
+        act.setActivityLevel(classifyLevelByFinalScore(finalScore));
+
 
         act.setTotalEventRegistered(0);
         act.setTotalEventAttended(0);
@@ -183,6 +185,13 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
             if (lvl.ordinal() > best.ordinal()) best = lvl;
         }
         return best;
+    }
+
+    private String classifyLevelByFinalScore(int finalScore) {
+        if (finalScore >= 180) return "LEVEL_EXCELLENT";
+        if (finalScore >= 120) return "LEVEL_GOOD";
+        if (finalScore >= 80)  return "LEVEL_AVERAGE";
+        return "LEVEL_LOW";
     }
 
     // =========================================================================
@@ -217,27 +226,41 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         return 1.0;
     }
 
-    // =========================================================================
-    // CLASSIFY LEVEL (LEVEL_FULL / NORMAL / LOW...)
-    // =========================================================================
-    private String classifyActivityLevel(double rate) {
-        int percent = (int) (rate * 100);
-
-        List<MultiplierPolicy> list =
-                policyRepo.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
-                        PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.SESSION_ATTENDANCE);
-
-        for (MultiplierPolicy p : list) {
-            if (!p.getRuleName().startsWith("LEVEL_")) continue;
-
-            boolean okMin = percent >= p.getMinThreshold();
-            boolean okMax = p.getMaxThreshold() == null || percent <= p.getMaxThreshold();
-
-            if (okMin && okMax) return p.getRuleName();
-        }
-        return "LEVEL_LOW";
-    }
+//    // =========================================================================
+//    // CLASSIFY LEVEL (LEVEL_FULL / NORMAL / LOW...)
+//    // =========================================================================
+//    private String classifyActivityLevel(double rate) {
+//        int percent = (int) (rate * 100);
+//
+//        List<MultiplierPolicy> list =
+//                policyRepo.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
+//                        PolicyTargetTypeEnum.MEMBER,
+//                        PolicyActivityTypeEnum.SESSION_ATTENDANCE);
+//
+//        for (MultiplierPolicy p : list) {
+//            if (!p.getRuleName().startsWith("LEVEL_")) continue;
+//
+//            boolean okMin = percent >= p.getMinThreshold();
+//            boolean okMax = p.getMaxThreshold() == null || percent <= p.getMaxThreshold();
+//
+//            if (okMin && okMax) return p.getRuleName();
+//        }
+//        return "LEVEL_LOW";
+//    }
+private int resolveBaseScore(
+        PolicyTargetTypeEnum target,
+        PolicyActivityTypeEnum activity
+) {
+    return policyRepo
+            .findByTargetTypeAndActivityTypeAndActiveTrue(target, activity)
+            .stream()
+            .findFirst()
+            .map(MultiplierPolicy::getMinThreshold)
+            .orElseThrow(() -> new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Missing base score policy for " + activity
+            ));
+}
 
     // =========================================================================
     // RECALCULATE CLUB
@@ -381,9 +404,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     // PREVIEW SCORE
     // =========================================================================
     @Override
-    public CalculateScoreResponse calculatePreviewScore(Long membershipId,
-                                                        int attendanceBase,
-                                                        int staffBase) {
+    public CalculateScoreResponse calculatePreviewScore(Long membershipId) {
 
         Membership membership = membershipRepo.findById(membershipId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
@@ -396,6 +417,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end   = start.plusMonths(1).minusDays(1);
 
+        // ================= ATTENDANCE =================
         int totalSessions =
                 attendanceRepo.countByMembership_MembershipIdAndSession_DateBetween(
                         membershipId, start, end);
@@ -408,43 +430,65 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         double rate = totalSessions == 0 ? 0 : (double) presentSessions / totalSessions;
 
+        // 🔑 attendance base từ POLICY
+        int attendanceBase = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.ATTENDANCE_BASE
+        );
+
         double attMul = resolveMultiplier(
                 PolicyTargetTypeEnum.MEMBER,
                 PolicyActivityTypeEnum.SESSION_ATTENDANCE,
                 (int) (rate * 100)
         );
+
         int attTotal = (int) Math.round(attendanceBase * attMul);
 
+        // ================= STAFF =================
         List<StaffPerformance> staffList =
                 staffPerformanceRepo.findPerformanceInRange(membershipId, start, end);
-        PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
 
-        double staffMul = resolveStaffMultiplier(bestEval.name());
-        int staffTotal  = (int) Math.round(staffBase * staffMul);
+        int staffPointPerTask = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.STAFF_POINT
+        );
 
+        int staffTotal = staffList.size() * staffPointPerTask;
+
+        // ================= RESPONSE =================
         return CalculateScoreResponse.builder()
                 .attendanceBaseScore(attendanceBase)
                 .attendanceMultiplier(attMul)
                 .attendanceTotalScore(attTotal)
-                .staffBaseScore(staffBase)
-                .staffMultiplier(staffMul)
+
+                // staffBaseScore = điểm / 1 lần
+                .staffBaseScore(staffPointPerTask)
                 .staffTotalScore(staffTotal)
+
                 .finalScore(attTotal + staffTotal)
                 .build();
     }
+
     // =========================================================================
 // 11) LIVE ACTIVITY LIST (Không ghi DB – chỉ preview cho FE)
 // =========================================================================
     @Override
-    public List<MemberMonthlyActivityResponse> calculateLiveActivities(
-            Long clubId,
-            int attendanceBase,
-            int staffBase
-    ) {
+    public List<MemberMonthlyActivityResponse> calculateLiveActivities(Long clubId) {
 
         LocalDate now = LocalDate.now();
         int year = now.getYear();
         int month = now.getMonthValue();
+
+        // 🔑 Base scores từ POLICY (1 lần cho cả list)
+        int attendanceBase = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.ATTENDANCE_BASE
+        );
+
+        int staffPointPerTask = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.STAFF_POINT
+        );
 
         List<Membership> members = membershipRepo.findByClub_ClubIdAndStateIn(
                 clubId,
@@ -458,11 +502,10 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                     LocalDate start = LocalDate.of(year, month, 1);
                     LocalDate end   = start.plusMonths(1).minusDays(1);
 
-                    // ===============================
-                    // CLUB ATTENDANCE
-                    // ===============================
+                    // ================= ATTENDANCE =================
                     int totalSessions = attendanceRepo
-                            .countByMembership_MembershipIdAndSession_DateBetween(membershipId, start, end);
+                            .countByMembership_MembershipIdAndSession_DateBetween(
+                                    membershipId, start, end);
 
                     int presentSessions = attendanceRepo
                             .countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
@@ -480,23 +523,16 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                             (int) (attendanceRate * 100)
                     );
 
-                    int attTotal = (int) Math.round(attendanceBase * attMul);
+                    int attendanceTotal = (int) Math.round(attendanceBase * attMul);
 
-                    // ===============================
-                    // STAFF PERFORMANCE
-                    // ===============================
+                    // ================= STAFF =================
                     List<StaffPerformance> staffList =
                             staffPerformanceRepo.findPerformanceInRange(membershipId, start, end);
 
-                    PerformanceLevelEnum bestEval = resolveBestStaffEvaluation(staffList);
+                    int staffTotal = staffList.size() * staffPointPerTask;
 
-                    double staffMul = resolveStaffMultiplier(bestEval.name());
-                    int staffTotal = (int) Math.round(staffBase * staffMul);
-
-                    // ===============================
-                    // FINAL SCORE
-                    // ===============================
-                    int finalScore = attTotal + staffTotal;
+                    // ================= FINAL =================
+                    int finalScore = attendanceTotal + staffTotal;
 
                     return MemberMonthlyActivityResponse.builder()
                             .membershipId(m.getMembershipId())
@@ -513,19 +549,17 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                             .totalEventRegistered(0)
                             .totalEventAttended(0)
                             .eventAttendanceRate(0)
-
                             .totalPenaltyPoints(0)
 
-                            .activityLevel(classifyActivityLevel(attendanceRate))
+                            .activityLevel(classifyLevelByFinalScore(finalScore))
 
                             .attendanceBaseScore(attendanceBase)
                             .attendanceMultiplier(attMul)
-                            .attendanceTotalScore(attTotal)
+                            .attendanceTotalScore(attendanceTotal)
 
-                            .staffBaseScore(staffBase)
-                            .staffMultiplier(staffMul)
+                            .staffBaseScore(staffPointPerTask)   // 50 điểm / lần
+                            .staffMultiplier(1.0)                // không dùng nữa
                             .staffTotalScore(staffTotal)
-                            .staffEvaluation(bestEval.name())
                             .totalStaffCount(staffList.size())
 
                             .totalClubSessions(totalSessions)
@@ -538,5 +572,6 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                 }).sorted((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()))
                 .toList();
     }
+
 
 }

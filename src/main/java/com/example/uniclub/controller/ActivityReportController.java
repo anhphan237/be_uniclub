@@ -211,7 +211,6 @@ public class ActivityReportController {
     public ResponseEntity<ApiResponse<CalculateScoreResponse>> previewScore(
             @PathVariable Long clubId,
             @PathVariable Long membershipId,
-            @RequestBody CalculateScoreRequest req,
             HttpServletRequest http
     ) {
         User user = jwtUtil.getUserFromRequest(http);
@@ -225,14 +224,12 @@ public class ActivityReportController {
                     "Membership does not belong to this club.");
         }
 
-        CalculateScoreResponse resp = activityService.calculatePreviewScore(
-                membershipId,
-                req.getAttendanceBaseScore(),
-                req.getStaffBaseScore()
-        );
+        CalculateScoreResponse resp =
+                activityService.calculatePreviewScore(membershipId);
 
         return ResponseEntity.ok(ApiResponse.ok(resp));
     }
+
 
     // ==========================================================
     // LIVE SCORE LIST
@@ -241,19 +238,17 @@ public class ActivityReportController {
     @Operation(summary = "Leader xem điểm LIVE real-time của CLB")
     public ResponseEntity<ApiResponse<List<MemberMonthlyActivityResponse>>> getLiveActivity(
             @PathVariable Long clubId,
-            @RequestParam(defaultValue = "100") int attendanceBase,
-            @RequestParam(defaultValue = "100") int staffBase,
             HttpServletRequest request
     ) {
         User user = jwtUtil.getUserFromRequest(request);
         ensureLeaderRights(user, clubId);
 
         List<MemberMonthlyActivityResponse> result =
-                activityService.calculateLiveActivities(clubId, attendanceBase, staffBase);
+                activityService.calculateLiveActivities(clubId);
 
         return ResponseEntity.ok(ApiResponse.ok(result));
-
     }
+
 
     // ==========================================================
     // PERMISSION CHECK

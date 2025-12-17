@@ -13,9 +13,9 @@ public interface ActivityEngineService {
 
     MemberMonthlyActivity recalculateForMembership(Long membershipId, int year, int month);
 
-    List<MemberMonthlyActivityResponse> calculateLiveActivities(Long clubId, int attendanceBase, int staffBase);
+    List<MemberMonthlyActivityResponse> calculateLiveActivities(Long clubId);
 
-    CalculateScoreResponse calculatePreviewScore(Long membershipId, int attendanceBase, int staffBase);
+    CalculateScoreResponse calculatePreviewScore(Long membershipId);
 
     void recalculateForClub(Long clubId, int year, int month);
 
