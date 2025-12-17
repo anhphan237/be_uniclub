@@ -34,8 +34,13 @@ public record EventCreateRequest(
         Integer maxCheckInCount,
 
         // ✅ SPECIAL / PRIVATE: điểm cam kết (PUBLIC = 0)
+        @Schema(
+                description = "Commit points required for PRIVATE/SPECIAL events. "
+                        + "This field is ignored and automatically set to 0 for PUBLIC events."
+        )
         @PositiveOrZero(message = "commitPointCost must be >= 0")
         Integer commitPointCost,
+
 
         // 🔥 Thêm field deadline cho SPECIAL/PRIVATE
         @Schema(description = "Registration deadline (only for SPECIAL/PRIVATE events)")

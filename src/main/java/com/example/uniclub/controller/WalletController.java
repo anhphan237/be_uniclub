@@ -7,6 +7,7 @@ import com.example.uniclub.dto.request.WalletTransferRequest;
 import com.example.uniclub.dto.response.WalletResponse;
 import com.example.uniclub.dto.response.WalletTransactionResponse;
 import com.example.uniclub.entity.*;
+import com.example.uniclub.enums.ClubRoleEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.security.JwtUtil;
@@ -21,7 +22,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import com.example.uniclub.repository.MembershipRepository;
 
 import java.util.List;
 
@@ -49,6 +52,7 @@ public class WalletController {
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final JwtUtil jwtUtil;
+    private final MembershipRepository membershipRepo;
 
     // ================================================================
     // 🟢 1️⃣ LẤY VÍ CỦA USER HIỆN TẠI
@@ -137,33 +141,64 @@ public class WalletController {
     // ================================================================
     // 💰 4️⃣ XEM VÍ CLB
     // ================================================================
-    @Operation(summary = "Xem ví của CLB", description = "Trả về thông tin ví của CLB (số dư, loại ví, tên CLB).")
+    @Operation(
+            summary = "Xem ví của CLB",
+            description = "LEADER / VICE_LEADER / STAFF của CLB hoặc ADMIN / UNIVERSITY_STAFF được phép xem ví CLB."
+    )
     @GetMapping("/club/{clubId}")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF','CLUB_LEADER')")
     public ResponseEntity<ApiResponse<WalletResponse>> getClubWallet(
             @PathVariable Long clubId,
-            HttpServletRequest request) {
+            HttpServletRequest request
+    ) {
 
-        String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer "))
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing or invalid token.");
+        User user = jwtUtil.getUserFromRequest(request);
 
-        String email = jwtUtil.extractEmail(token.replace("Bearer ", ""));// check token hợp lệ
+        // 1️⃣ Check role hệ thống
+        boolean isAdminOrUniStaff = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(a ->
+                        a.getAuthority().equals("ROLE_ADMIN") ||
+                                a.getAuthority().equals("ROLE_UNIVERSITY_STAFF")
+                );
 
-        Wallet wallet = walletService.getOrCreateClubWallet(
-                clubRepo.findById(clubId)
-                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"))
-        );
+        // 2️⃣ Nếu KHÔNG phải admin / uni staff → check role trong CLB
+        if (!isAdminOrUniStaff) {
+
+            Membership membership = membershipRepo
+                    .findByUser_UserIdAndClub_ClubId(user.getUserId(), clubId)
+                    .orElseThrow(() -> new ApiException(
+                            HttpStatus.FORBIDDEN,
+                            "You are not a member of this club"
+                    ));
+
+            if (membership.getClubRole() == ClubRoleEnum.MEMBER) {
+                throw new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "Only LEADER, VICE_LEADER or STAFF can view club wallet"
+                );
+            }
+        }
+
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
+
+        Wallet wallet = walletService.getOrCreateClubWallet(club);
 
         WalletResponse response = WalletResponse.builder()
                 .walletId(wallet.getWalletId())
                 .balancePoints(wallet.getBalancePoints())
                 .ownerType(wallet.getOwnerType())
                 .clubId(clubId)
-                .clubName(wallet.getClub().getName())
+                .clubName(club.getName())
                 .build();
 
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+
 
     // ================================================================
     // ⚙️ 5️⃣ CỘNG / TRỪ / CHUYỂN ĐIỂM THỦ CÔNG
