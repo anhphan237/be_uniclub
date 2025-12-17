@@ -918,6 +918,79 @@ public class EventController {
                 ApiResponse.ok(eventService.getEventsByLocation(locationId))
         );
     }
+    @Operation(
+            summary = "Check-in sự kiện PUBLIC bằng QR code",
+            description = """
+        Dành cho **STUDENT**.<br><br>
+
+        📌 Luồng hoạt động:
+        <ol>
+            <li>Leader / UniStaff tạo QR bằng API <code>/api/events/{eventId}/attendance/qr</code></li>
+            <li>Sinh viên quét QR → gửi <b>checkInCode</b> kèm JWT</li>
+            <li>Hệ thống xác thực QR token (hết hạn / hợp lệ)</li>
+            <li>Nếu hợp lệ → ghi nhận check-in cho sự kiện PUBLIC</li>
+        </ol>
+
+        ✅ Đặc điểm:
+        <ul>
+            <li>Chỉ áp dụng cho <b>PUBLIC event</b></li>
+            <li>Không yêu cầu đăng ký trước</li>
+            <li>Mỗi sinh viên chỉ check-in <b>1 lần</b></li>
+            <li>QR token có thời hạn (120 giây)</li>
+        </ul>
+
+        🔐 Yêu cầu xác thực: <b>JWT (STUDENT)</b>
+        """
+    )
+    @PostMapping("/public/attendance/qr-checkin")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<?>> publicQrCheckIn(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String checkInCode
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        attendanceService.publicQrCheckIn(
+                                principal.getUser(),
+                                checkInCode
+                        )
+                )
+        );
+    }
+    @Operation(
+            summary = "Kiểm tra tôi đã check-in sự kiện PUBLIC hay chưa",
+            description = """
+        Dành cho **STUDENT**.
+
+        📌 API này **KHÔNG thực hiện check-in**.<br>
+        Chỉ dùng để:
+        <ul>
+            <li>Kiểm tra user hiện tại đã check-in sự kiện PUBLIC hay chưa</li>
+            <li>Phục vụ UI (ẩn/hiện nút check-in)</li>
+        </ul>
+
+        🔐 Xác thực bằng JWT của user<br>
+        🔑 Dùng <b>checkInCode</b> của sự kiện
+        """
+    )
+    @PostMapping("/public/attendance/check")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<?>> checkPublicEventCheckedIn(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String checkInCode
+    ) {
+        boolean checkedIn = attendanceService.checkPublicEventCheckedIn(
+                principal.getUser(),
+                checkInCode
+        );
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        Map.of("checkedIn", checkedIn)
+                )
+        );
+    }
+
 
     @Operation(
             summary = "Kiểm tra trạng thái check-in của tôi theo từng sự kiện",

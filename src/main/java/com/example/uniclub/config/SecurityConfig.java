@@ -74,7 +74,8 @@ public class SecurityConfig {
 
                                 .requestMatchers(HttpMethod.GET, "/api/university/majors/**").permitAll()
                                 .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/clubs/**").permitAll()
-
+                                .requestMatchers(HttpMethod.POST, "/api/events/public/attendance/check")
+                                .hasRole("STUDENT")
                                 .requestMatchers(HttpMethod.POST, "/api/events/checkin")
                                 .hasRole("STUDENT")
 

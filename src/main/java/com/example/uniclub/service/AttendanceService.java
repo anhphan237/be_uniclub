@@ -23,5 +23,7 @@ public interface AttendanceService {
     List<EventAttendeeResponse> getEventAttendees(Long eventId);
     public List<EventRegisteredUserResponse> getRegisteredUsers(Long eventId);
     List<MyCheckedInEventResponse> getMyCheckedInEvents(Long userId);
+    Map<String, Object> publicQrCheckIn(User user, String qrToken);
+    boolean checkPublicEventCheckedIn(User user, String checkInCode);
 
 }

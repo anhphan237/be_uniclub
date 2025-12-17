@@ -534,5 +534,100 @@ public class AttendanceServiceImpl implements AttendanceService {
                 ))
                 .toList();
     }
+    @Override
+    @Transactional
+    public Map<String, Object> publicQrCheckIn(User user, String tokenValue) {
+
+        // 1️⃣ Verify QR token
+        QRToken token = qrTokenRepo.findByTokenValue(tokenValue)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Invalid QR token"));
+
+        validateTokenWindow(token);
+
+        Event event = token.getEvent();
+
+        // 2️⃣ Chỉ cho PUBLIC event
+        if (event.getType() != EventTypeEnum.PUBLIC) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Not a PUBLIC event");
+        }
+
+        // 3️⃣ Kiểm tra event đang diễn ra
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+
+        boolean active = event.getDays().stream().anyMatch(day -> {
+            LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
+            LocalDateTime end   = LocalDateTime.of(day.getDate(), day.getEndTime());
+            return !now.isBefore(start) && !now.isAfter(end);
+        });
+
+        if (!active) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not active now");
+        }
+
+        // 4️⃣ AttendanceRecord (PUBLIC chỉ cần START)
+        AttendanceRecord record = attendanceRepo
+                .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
+                .orElseGet(() -> AttendanceRecord.builder()
+                        .user(user)
+                        .event(event)
+                        .attendanceLevel(AttendanceLevelEnum.NONE)
+                        .build()
+                );
+
+        if (record.getStartCheckInTime() != null) {
+            return Map.of(
+                    "eventId", event.getEventId(),
+                    "checkedIn", false,
+                    "message", "Already checked in"
+            );
+        }
+
+        record.setStartCheckInTime(now);
+        record.setAttendanceLevel(AttendanceLevelEnum.NONE);
+        attendanceRepo.save(record);
+
+        // 5️⃣ Update event counter
+        int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+        event.setCurrentCheckInCount(current + 1);
+        eventRepo.save(event);
+
+        // 6️⃣ Email
+        emailService.sendPublicEventCheckinEmail(
+                user.getEmail(),
+                user.getFullName(),
+                event.getName(),
+                now.toLocalTime(),
+                event.getLocation() != null ? event.getLocation().getName() : "Unknown"
+        );
+
+        return Map.of(
+                "eventId", event.getEventId(),
+                "checkedIn", true
+        );
+    }
+    @Override
+    public boolean checkPublicEventCheckedIn(User user, String checkInCode) {
+
+        // 1️⃣ Xác định event từ checkInCode
+        Event event = eventRepo.findByCheckInCode(checkInCode)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND,
+                        "Invalid check-in code"
+                ));
+
+        // 2️⃣ Chỉ cho PUBLIC event
+        if (event.getType() != EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "This API is only for PUBLIC events"
+            );
+        }
+
+        // 3️⃣ Kiểm tra user đã check-in chưa
+        return attendanceRepo.existsByUser_UserIdAndEvent_EventId(
+                user.getUserId(),
+                event.getEventId()
+        );
+    }
 
 }

@@ -500,6 +500,7 @@ public class ProductServiceImpl implements ProductService {
 
         // =====================================================
         // ➖ CASE 2: GIẢM HÀNG (delta < 0)
+        // 👉 CHỈ CHO PHÉP: CORRECTION, RETURN_SUPPLIER
         // =====================================================
         if (delta < 0) {
 
@@ -510,33 +511,34 @@ public class ProductServiceImpl implements ProductService {
                 );
             }
 
-            boolean shouldRefund =
-                    reason == StockAdjustmentReason.CORRECTION ||
-                            reason == StockAdjustmentReason.RETURN_SUPPLIER;
-
-            if (shouldRefund) {
-
-                if (p.getPointCost() == null || p.getPointCost() <= 0) {
-                    throw new ApiException(
-                            HttpStatus.BAD_REQUEST,
-                            "Cannot refund points for product with pointCost = 0"
-                    );
-                }
-
-                long refund = Math.abs((long) delta) * p.getPointCost();
-
-                walletService.logTransactionFromSystem(
-                        clubWallet,
-                        refund,
-                        WalletTransactionTypeEnum.REFUND_PRODUCT,
-                        "Stock refund (" + reason + "): " + note
-                );
-
-                clubWallet.setBalancePoints(
-                        clubWallet.getBalancePoints() + refund
+            // 🚫 CHẶN ENUM KHÔNG ĐƯỢC PHÉP
+            if (reason != StockAdjustmentReason.CORRECTION
+                    && reason != StockAdjustmentReason.RETURN_SUPPLIER) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Only CORRECTION or RETURN_SUPPLIER are allowed"
                 );
             }
-            // LOSS_DAMAGE, INTERNAL_USE → không hoàn điểm
+
+            if (p.getPointCost() == null || p.getPointCost() <= 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Cannot refund points for product with pointCost = 0"
+                );
+            }
+
+            long refund = Math.abs((long) delta) * p.getPointCost();
+
+            walletService.logTransactionFromSystem(
+                    clubWallet,
+                    refund,
+                    WalletTransactionTypeEnum.REFUND_PRODUCT,
+                    "Stock refund (" + reason + "): " + note
+            );
+
+            clubWallet.setBalancePoints(
+                    clubWallet.getBalancePoints() + refund
+            );
         }
 
         // =====================================================
@@ -562,6 +564,7 @@ public class ProductServiceImpl implements ProductService {
 
         return toResp(p);
     }
+
 
 
 
