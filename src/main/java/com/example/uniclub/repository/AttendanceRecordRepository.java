@@ -129,4 +129,23 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             @Param("end") java.time.LocalDateTime end
     );
 
+    @Query("""
+        SELECT ar
+        FROM AttendanceRecord ar
+        JOIN FETCH ar.event e
+        WHERE ar.user.userId = :userId
+          AND (
+               ar.startCheckInTime IS NOT NULL
+            OR ar.midCheckTime IS NOT NULL
+            OR ar.endCheckOutTime IS NOT NULL
+          )
+          AND e.status IN (
+               com.example.uniclub.enums.EventStatusEnum.ONGOING,
+               com.example.uniclub.enums.EventStatusEnum.COMPLETED
+          )
+    """)
+    List<AttendanceRecord> findMyCheckedInEvents(
+            @Param("userId") Long userId
+    );
+
 }

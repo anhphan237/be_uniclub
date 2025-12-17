@@ -907,6 +907,24 @@ public class EventController {
         return attendanceService.getRegisteredUsers(eventId);
     }
 
+    @Operation(
+            summary = "Kiểm tra trạng thái check-in của tôi theo từng sự kiện",
+            description = """
+        Dành cho **STUDENT**.
+        Dùng để xác định sinh viên đã check-in START / MID / END hay chưa,
+        nhằm tránh check-in trùng lặp.
+        """
+    )
+    @GetMapping("/my/checked-in")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<List<MyCheckedInEventResponse>>> getMyCheckedInEvents(
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        Long userId = principal.getUser().getUserId();
+        return ResponseEntity.ok(
+                ApiResponse.ok(attendanceService.getMyCheckedInEvents(userId))
+        );
+    }
 
 
 }

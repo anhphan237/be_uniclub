@@ -1,9 +1,6 @@
 package com.example.uniclub.service.impl;
 
-import com.example.uniclub.dto.response.EventAttendeeResponse;
-import com.example.uniclub.dto.response.EventRegisteredUserResponse;
-import com.example.uniclub.dto.response.FraudCaseResponse;
-import com.example.uniclub.dto.response.EventStatsResponse;
+import com.example.uniclub.dto.response.*;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.*;
 import com.example.uniclub.exception.ApiException;
@@ -360,6 +357,26 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
+        // =====================================================
+        // ✅ NEW: AttendanceRecord cho PUBLIC event
+        // =====================================================
+        AttendanceRecord record = attendanceRepo
+                .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
+                .orElseGet(() -> AttendanceRecord.builder()
+                        .user(user)
+                        .event(event)
+                        .build()
+                );
+
+        if (record.getStartCheckInTime() != null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
+        }
+
+        record.setStartCheckInTime(now);
+        record.setAttendanceLevel(AttendanceLevelEnum.NONE); // PUBLIC chỉ dùng START
+        attendanceRepo.save(record);
+        // =====================================================
+
         // 🔍 Kiểm tra event đang active trong bất kỳ EventDay nào
         boolean insideAnyDay = event.getDays().stream().anyMatch(day -> {
             LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
@@ -374,7 +391,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
 
-        // 🔹 Kiểm tra đã check-in chưa
+        // 🔹 Kiểm tra đã check-in chưa (EventRegistration)
         Optional<EventRegistration> opt =
                 regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId());
 
@@ -386,16 +403,15 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
 
             reg.setCheckinAt(now);
-            reg.setAttendanceLevel(AttendanceLevelEnum.NONE);  // PUBLIC không áp dụng FULL/HALF
+            reg.setAttendanceLevel(AttendanceLevelEnum.NONE);
             reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
             regRepo.save(reg);
 
         } else {
-            // 🔹 Tạo registration mới
             regRepo.save(EventRegistration.builder()
                     .event(event)
                     .user(user)
-                    .attendanceLevel(AttendanceLevelEnum.NONE)  // hoặc tạo enum PUBLIC nếu muốn
+                    .attendanceLevel(AttendanceLevelEnum.NONE)
                     .status(RegistrationStatusEnum.CHECKED_IN)
                     .checkinAt(now)
                     .committedPoints(0)
@@ -419,6 +435,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 user.getEmail(), event.getName());
     }
 
+
     @Override
     public List<EventAttendeeResponse> getEventAttendees(Long eventId) {
 
@@ -440,6 +457,28 @@ public class AttendanceServiceImpl implements AttendanceService {
                 ))
                 .toList();
     }
+
+    @Override
+    @Transactional
+    public List<MyCheckedInEventResponse> getMyCheckedInEvents(Long userId) {
+
+        List<AttendanceRecord> records =
+                attendanceRepo.findMyCheckedInEvents(userId);
+
+        return records.stream()
+                .map(ar -> MyCheckedInEventResponse.builder()
+                        .eventId(ar.getEvent().getEventId())
+                        .eventName(ar.getEvent().getName())
+                        .startChecked(ar.getStartCheckInTime() != null)
+                        .midChecked(ar.getMidCheckTime() != null)
+                        .endChecked(ar.getEndCheckOutTime() != null)
+                        .attendanceLevel(ar.getAttendanceLevel())
+                        .build()
+                )
+                .toList();
+    }
+
+
     @Override
     public List<EventRegisteredUserResponse> getRegisteredUsers(Long eventId) {
 
