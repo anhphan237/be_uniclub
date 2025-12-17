@@ -1,6 +1,5 @@
 package com.example.uniclub.controller;
 
-import com.example.uniclub.dto.response.LocationLogResponse;
 import com.example.uniclub.service.LocationLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,7 +29,7 @@ public class LocationLogController {
             description = "Returns logs for a location. Filters: eventId (optional), startDate/endDate (dd-MM-yyyy), startTime/endTime (HH:mm)."
     )
     public ResponseEntity<?> getLocationLogs(
-            @PathVariable Long id,
+            @PathVariable("id") Long locationId,
 
             @RequestParam(required = false)
             @Parameter(description = "Filter by event id")
@@ -59,7 +58,38 @@ public class LocationLogController {
             @ParameterObject Pageable pageable
     ) {
         return ResponseEntity.ok(
-                locationLogService.getLogs(id, eventId, startDate, endDate, startTime, endTime, pageable)
+                locationLogService.getLogs(locationId, eventId, startDate, endDate, startTime, endTime, pageable)
         );
     }
+
+    @GetMapping("/{id}/logs/daily")
+    @Operation(summary = "Get location history grouped by date")
+    public ResponseEntity<?> getLocationDailyLogs(
+            @PathVariable("id") Long locationId,
+
+            @RequestParam(required = false) Long eventId,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "dd-MM-yyyy")
+            LocalDate startDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "dd-MM-yyyy")
+            LocalDate endDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "HH:mm")
+            LocalTime startTime,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "HH:mm")
+            LocalTime endTime
+    ) {
+        return ResponseEntity.ok(
+                locationLogService.getLocationDailyHistory(
+                        locationId, eventId, startDate, endDate, startTime, endTime
+                )
+        );
+    }
+
 }
