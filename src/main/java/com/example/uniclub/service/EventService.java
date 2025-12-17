@@ -56,7 +56,7 @@ public interface EventService {
     // 🔹 CO-HOST HANDLING
     // =========================================================
     String respondCoHost(Long eventId, CustomUserDetails principal, boolean accepted);
-
+    List<EventResponse> getEventsByLocation(Long locationId);
 
     // =========================================================
     // 🔹 EVENT LIFECYCLE

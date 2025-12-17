@@ -41,6 +41,32 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findByNameContainingIgnoreCaseAndStatus(
             String name, EventStatusEnum status, Pageable pageable
     );
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    LEFT JOIN FETCH e.days d
+    LEFT JOIN FETCH e.coHostRelations rel
+    LEFT JOIN FETCH rel.club
+    LEFT JOIN FETCH e.hostClub hc
+    LEFT JOIN FETCH e.location l
+    WHERE l.locationId = :locationId
+    ORDER BY e.startDate ASC
+""")
+    List<Event> findFullEventsByLocationId(@Param("locationId") Long locationId);
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    LEFT JOIN FETCH e.days d
+    LEFT JOIN FETCH e.hostClub hc
+    LEFT JOIN FETCH e.location l
+    WHERE l.locationId = :locationId
+      AND e.status IN (
+        com.example.uniclub.enums.EventStatusEnum.APPROVED,
+        com.example.uniclub.enums.EventStatusEnum.ONGOING,
+        com.example.uniclub.enums.EventStatusEnum.COMPLETED
+      )
+    ORDER BY e.startDate ASC
+""")
+    List<Event> findEventsByLocationWithDays(@Param("locationId") Long locationId);
+
 
     // ============================================================
     // 🔥 FILTER MULTI-DAY (NAME + DATE + STATUS)

@@ -22,12 +22,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Collections;
+import java.util.stream.Collectors;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -52,55 +56,68 @@ public class EventServiceImpl implements EventService {
     // 🔹 MAPPER
     // =================================================================
     private EventResponse mapToResponse(Event event) {
+
+        // ===== MAP EVENT DAYS (AN TOÀN GENERICS) =====
+        List<EventDayResponse> dayResponses = Collections.emptyList();
+        if (event.getDays() != null) {
+            dayResponses = event.getDays().stream()
+                    .map(d -> new EventDayResponse(
+                            d.getId(),
+                            d.getDate(),
+                            d.getStartTime().toString(),
+                            d.getEndTime().toString()
+                    ))
+                    .collect(Collectors.toList());
+        }
+
+
+        // ===== MAP CO-HOST CLUBS (AN TOÀN GENERICS) =====
+        List<EventResponse.SimpleClub> coHostedClubs = Collections.emptyList();
+        if (event.getCoHostRelations() != null) {
+            coHostedClubs = event.getCoHostRelations().stream()
+                    .map(rel -> new EventResponse.SimpleClub(
+                            rel.getClub().getClubId(),
+                            rel.getClub().getName(),
+                            rel.getStatus()
+                    ))
+                    .collect(Collectors.toList());
+        }
+
         return EventResponse.builder()
                 .id(event.getEventId())
                 .name(event.getName())
                 .description(event.getDescription())
                 .type(event.getType())
-                // 🔥 ADD: Multi-Day range
+
                 .startDate(event.getStartDate())
                 .endDate(event.getEndDate())
 
-                // 🔥 ADD: List of days
-                .days(event.getDays() == null ? List.of() :
-                        event.getDays().stream()
-                                .map(day -> EventDayResponse.builder()
-                                        .id(day.getId())
-                                        .date(day.getDate())
-                                        .startTime(day.getStartTime().toString())
-                                        .endTime(day.getEndTime().toString())
-                                        .build()
-                                ).toList()
-                )
+                .days(dayResponses)
+
                 .status(event.getStatus())
                 .checkInCode(event.getCheckInCode())
                 .commitPointCost(event.getCommitPointCost())
                 .budgetPoints(event.getBudgetPoints())
-                .locationName(event.getLocation() != null ? event.getLocation().getName() : null)
-                .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(
-                        (int) eventRegistrationRepo.countByEvent_EventIdAndStatus(
-                                event.getEventId(),
-                                RegistrationStatusEnum.REWARDED
-                        )
+                .locationName(
+                        event.getLocation() != null
+                                ? event.getLocation().getName()
+                                : null
                 )
 
-
+                .maxCheckInCount(event.getMaxCheckInCount())
+                .currentCheckInCount(event.getCurrentCheckInCount())
 
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
                         event.getHostClub().getName(),
                         EventCoHostStatusEnum.APPROVED
                 ))
-                .coHostedClubs(event.getCoHostRelations() == null ? List.of() :
-                        event.getCoHostRelations().stream()
-                                .map(rel -> new EventResponse.SimpleClub(
-                                        rel.getClub().getClubId(),
-                                        rel.getClub().getName(),
-                                        rel.getStatus()))
-                                .toList())
+
+                .coHostedClubs(coHostedClubs)
+
                 .build();
     }
+
 
     // =================================================================
     // 🔹 TẠO SỰ KIỆN
@@ -555,6 +572,17 @@ public class EventServiceImpl implements EventService {
                 .map(this::mapToResponse)
                 .toList();
     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventResponse> getEventsByLocation(Long locationId) {
+
+        List<Event> events = eventRepo.findEventsByLocationWithDays(locationId);
+
+        return events.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
 
     @Override
     public List<EventResponse> getUpcomingEvents() {

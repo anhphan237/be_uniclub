@@ -906,6 +906,18 @@ public class EventController {
     public List<EventRegisteredUserResponse> getEventRegistrations(@PathVariable Long eventId) {
         return attendanceService.getRegisteredUsers(eventId);
     }
+    @Operation(
+            summary = "Get events by location",
+            description = "Lấy toàn bộ sự kiện theo locationId, trả về đầy đủ thông tin event"
+    )
+    @GetMapping("/by-location/{locationId}")
+    public ResponseEntity<ApiResponse<List<EventResponse>>> getEventsByLocation(
+            @PathVariable Long locationId
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(eventService.getEventsByLocation(locationId))
+        );
+    }
 
     @Operation(
             summary = "Kiểm tra trạng thái check-in của tôi theo từng sự kiện",
