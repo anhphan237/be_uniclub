@@ -164,6 +164,31 @@ public class EmailServiceImpl implements EmailService {
 
         sendEmail(to, "Club creation request rejected", content);
     }
+    @Override
+    public void sendFullAttendanceCongratsEmail(
+            String toEmail,
+            String fullName,
+            String eventName
+    ) {
+        String subject = "🎉 Congratulations! You have completed event check-in";
+
+        String content = """
+        Dear %s,
+
+        🎉 Congratulations! You have successfully completed all three check-in phases
+        (START, MID, and END) for the event "%s".
+
+        ⏳ Your reward points will be automatically credited to your wallet
+        after the event is officially completed and confirmed by the organizers.
+
+        Please stay tuned for further notifications.
+
+        Best regards,
+        UniClub Team
+        """.formatted(fullName, eventName);
+
+        sendEmail(toEmail, subject, content);
+    }
 
     @Override
     public void sendClubApplicationApprovedEmail(String to, String fullName, String clubName) {

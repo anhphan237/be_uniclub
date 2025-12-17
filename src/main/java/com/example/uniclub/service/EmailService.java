@@ -18,6 +18,11 @@ public interface EmailService {
     void sendClubApplicationRejectedEmail(String to, String clubName, String reason);
 
     void sendClubApplicationApprovedEmail(String to, String fullName, String clubName);
+    void sendFullAttendanceCongratsEmail(
+            String toEmail,
+            String fullName,
+            String eventName
+    );
 
     void sendClubCreationCompletedEmail(
             String to,

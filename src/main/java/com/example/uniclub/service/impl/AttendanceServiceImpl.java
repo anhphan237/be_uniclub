@@ -125,9 +125,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
                 reg.setCheckinAt(now);
 
-                // ===============================
-                // ✅ FIX: tăng currentCheckInCount
-                // ===============================
+                // ✅ increase currentCheckInCount (only once at START)
                 Integer current = Optional
                         .ofNullable(event.getCurrentCheckInCount())
                         .orElse(0);
@@ -159,6 +157,17 @@ public class AttendanceServiceImpl implements AttendanceService {
 
                 updateAttendanceLevel(record, reg);
 
+                // =================================================
+                // ✅ NEW: send email when FULL attendance completed
+                // =================================================
+                if (record.getAttendanceLevel() == AttendanceLevelEnum.FULL) {
+                    emailService.sendFullAttendanceCongratsEmail(
+                            user.getEmail(),
+                            user.getFullName(),
+                            event.getName()
+                    );
+                }
+
                 log.info(
                         "User {} completed END check-out for event '{}'",
                         user.getEmail(),
@@ -171,6 +180,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reg.setUpdatedAt(now);
         regRepo.save(reg);
     }
+
 
 
 
