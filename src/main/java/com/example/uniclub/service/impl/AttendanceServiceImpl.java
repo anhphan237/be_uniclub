@@ -98,45 +98,72 @@ public class AttendanceServiceImpl implements AttendanceService {
     // 🔹 Core xử lý chung cho START / MID / END
     // =========================================================
     private void processAttendancePhase(User user, Event event, QRPhase phase) {
-        EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())
-                .orElseThrow(() -> new ApiException(HttpStatus.FORBIDDEN, "You have not registered for this event"));
 
-        AttendanceRecord record = attendanceRepo.findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
-                .orElseGet(() -> AttendanceRecord.builder().user(user).event(event).build());
+        EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(
+                event.getEventId(), user.getUserId()
+        ).orElseThrow(() ->
+                new ApiException(HttpStatus.FORBIDDEN, "You have not registered for this event")
+        );
+
+        AttendanceRecord record = attendanceRepo
+                .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
+                .orElseGet(() -> AttendanceRecord.builder()
+                        .user(user)
+                        .event(event)
+                        .build()
+                );
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
-
         switch (phase) {
+
             case START -> {
                 if (record.getStartCheckInTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked in (START)");
+
                 record.setStartCheckInTime(now);
                 reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
                 reg.setCheckinAt(now);
+
+                // ===============================
+                // ✅ FIX: tăng currentCheckInCount
+                // ===============================
+                Integer current = Optional
+                        .ofNullable(event.getCurrentCheckInCount())
+                        .orElse(0);
+
+                event.setCurrentCheckInCount(current + 1);
+                eventRepo.save(event);
             }
+
             case MID -> {
                 if (record.getMidCheckTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked in (MID)");
+
                 if (record.getStartCheckInTime() == null)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Must START before MID");
+
                 record.setMidCheckTime(now);
                 reg.setCheckMidAt(now);
             }
+
             case END -> {
                 if (record.getEndCheckOutTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked out (END)");
+
                 if (record.getStartCheckInTime() == null)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Must START before END");
 
                 record.setEndCheckOutTime(now);
                 reg.setCheckoutAt(now);
+
                 updateAttendanceLevel(record, reg);
 
-                // ❌ Không tính thưởng tại đây nữa — phần thưởng được xử lý trong endEvent()
-                // applyReward(user, event);
-
-                log.info("User {} completed END check-out for event '{}'", user.getEmail(), event.getName());
+                log.info(
+                        "User {} completed END check-out for event '{}'",
+                        user.getEmail(),
+                        event.getName()
+                );
             }
         }
 
@@ -145,9 +172,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         regRepo.save(reg);
     }
 
-    // =========================================================
-    // 🔹 Logic tính điểm thưởng (tạm giữ, không gọi trực tiếp)
-    // =========================================================
+
+
     // =========================================================
 // 🔹 Logic tính điểm thưởng (cập nhật chuẩn với multiplier mới)
 // =========================================================
