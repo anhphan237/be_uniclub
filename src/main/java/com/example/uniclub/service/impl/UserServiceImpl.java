@@ -35,15 +35,17 @@ public class UserServiceImpl implements UserService {
     private final StudentRegistryService studentRegistryService;
 
     // ===================== Helper =====================
+    // ===================== Helper =====================
     private UserResponse toResp(User u) {
 
-        List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(u.getUserId());
+        List<Membership> memberships =
+                membershipRepo.findActiveMembershipsByUserId(u.getUserId());
 
-        // ⭐ Xác định user đã từng làm staff chưa
+        // ✅ CHỈ staff đang ACTIVE
         boolean isStaff = memberships.stream()
                 .anyMatch(m -> eventStaffRepository.existsByMembership_MembershipIdAndStateIn(
                         m.getMembershipId(),
-                        List.of(EventStaffStateEnum.ACTIVE, EventStaffStateEnum.EXPIRED)
+                        List.of(EventStaffStateEnum.ACTIVE)
                 ));
 
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
@@ -66,12 +68,10 @@ public class UserServiceImpl implements UserService {
                 .backgroundUrl(u.getBackgroundUrl())
                 .avatarUrl(u.getAvatarUrl())
                 .clubs(clubInfos)
-
-                // ⭐ Trả về staff = true/false
                 .staff(isStaff)
-
                 .build();
     }
+
 
     // ===================== Helper: Wallet =====================
     private WalletResponse mapWallet(User user) {
@@ -247,18 +247,21 @@ public class UserServiceImpl implements UserService {
     }
 
     // ===================== Profile =====================
+    // ===================== Profile =====================
     @Override
     public UserResponse getProfileResponse(String email) {
+
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found."));
 
-        List<Membership> memberships = membershipRepo.findActiveMembershipsByUserId(user.getUserId());
+        List<Membership> memberships =
+                membershipRepo.findActiveMembershipsByUserId(user.getUserId());
 
-        // ⭐ Check đã từng làm staff chưa
+        // ✅ CHỈ staff đang ACTIVE
         boolean isStaff = memberships.stream()
                 .anyMatch(m -> eventStaffRepository.existsByMembership_MembershipIdAndStateIn(
                         m.getMembershipId(),
-                        List.of(EventStaffStateEnum.ACTIVE, EventStaffStateEnum.EXPIRED)
+                        List.of(EventStaffStateEnum.ACTIVE)
                 ));
 
         List<UserResponse.ClubInfo> clubInfos = memberships.stream()
@@ -291,12 +294,10 @@ public class UserServiceImpl implements UserService {
                 .wallet(wallet)
                 .clubs(clubInfos)
                 .needCompleteProfile(needComplete)
-
-                // ⭐ ADD staff field
                 .staff(isStaff)
-
                 .build();
     }
+
 
     @Override
     public UserResponse updateProfileResponse(String email, ProfileUpdateRequest req) {

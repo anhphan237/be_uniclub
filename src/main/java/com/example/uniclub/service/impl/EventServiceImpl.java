@@ -503,6 +503,15 @@ public class EventServiceImpl implements EventService {
                 user.getEmail(),
                 roleName
         );
+// 🔥 EXPIRE ALL STAFF WHEN EVENT COMPLETED
+        List<EventStaff> staffs = eventStaffRepo.findByEvent_EventId(eventId);
+        for (EventStaff s : staffs) {
+            if (s.getState() == EventStaffStateEnum.ACTIVE) {
+                s.setState(EventStaffStateEnum.EXPIRED);
+                s.setUnassignedAt(LocalDateTime.now());
+            }
+        }
+        eventStaffRepo.saveAll(staffs);
 
         return result;
     }
