@@ -209,12 +209,21 @@ public class EventServiceImpl implements EventService {
         List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
+        // -------------------------------------------------------------
+        // 🔒 Validate commit point cost (all event types)
+        // -------------------------------------------------------------
+        if (req.commitPointCost() != null && req.commitPointCost() < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    "Commit point cost must be >= 0");
+        }
 
         // -------------------------------------------------------------
         // 💰 Commit Point Cost
         // -------------------------------------------------------------
-        int commitCost = (req.type() == EventTypeEnum.PUBLIC) ? 0 :
-                (req.commitPointCost() != null ? req.commitPointCost() : 0);
+        int commitCost = req.commitPointCost() != null
+                ? req.commitPointCost()
+                : 0;
+
 
         // -------------------------------------------------------------
         // 🧱 Tạo EVENT
@@ -241,10 +250,10 @@ public class EventServiceImpl implements EventService {
         // 🎯 Validate theo loại sự kiện
         // -------------------------------------------------------------
         if (req.type() == EventTypeEnum.PUBLIC) {
-            event.setCommitPointCost(0);
+            // ✅ PUBLIC: cho phép commitPointCost >= 0
             event.setRegistrationDeadline(null);
-
-        } else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
+        }
+        else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
 
             if (req.commitPointCost() == null || req.commitPointCost() <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Commit points required.");

@@ -35,9 +35,11 @@ public record EventCreateRequest(
 
         // ✅ SPECIAL / PRIVATE: điểm cam kết (PUBLIC = 0)
         @Schema(
-                description = "Commit points required for PRIVATE/SPECIAL events. "
-                        + "This field is ignored and automatically set to 0 for PUBLIC events."
+                description = "Commit points required to join the event. "
+                        + "Applicable for PUBLIC, PRIVATE, and SPECIAL events. "
+                        + "Value must be >= 0."
         )
+
         @PositiveOrZero(message = "commitPointCost must be >= 0")
         Integer commitPointCost,
 
