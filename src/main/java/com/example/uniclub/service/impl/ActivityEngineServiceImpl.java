@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -401,20 +402,24 @@ private int resolveBaseScore(
     // GET CLUB MONTHLY ACTIVITIES  ❗ (Bạn nói thiếu — đã thêm đầy đủ)
     // =========================================================================
     @Override
-    public List<MemberMonthlyActivity> getClubMonthlyActivities(Long clubId, int year, int month) {
+    public List<MemberMonthlyActivity> getClubMonthlyActivities(
+            Long clubId, int year, int month) {
 
         validateMonth(year, month);
 
         List<Membership> members = membershipRepo.findByClub_ClubIdAndStateIn(
                 clubId,
-                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED));
+                List.of(MembershipStateEnum.ACTIVE, MembershipStateEnum.APPROVED)
+        );
 
         return members.stream()
                 .map(m -> monthlyRepo
                         .findByMembershipAndYearAndMonth(m, year, month)
-                        .orElseGet(() -> autoCreateIfMissing(m, year, month)))
+                        .orElse(null))        // ❗ KHÔNG auto-create
+                .filter(Objects::nonNull)     // ❗ bỏ member chưa có record
                 .toList();
     }
+
 
     // =========================================================================
     // CLUB RANKING
