@@ -401,6 +401,9 @@ public class WalletServiceImpl implements WalletService {
             WalletTransactionTypeEnum type,
             String reason
     ) {
+        if (amount == 0) {
+            return;
+        }
         WalletTransaction tx = WalletTransaction.builder()
                 .wallet(wallet)
                 .type(type)
