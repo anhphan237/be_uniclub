@@ -121,10 +121,14 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .findByClubAndYearAndMonth(club, year, month)
                 .orElse(null);
 
-        if (record != null && record.isLocked())
+        if (record != null && record.isLocked()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Month is locked");
+        }
 
+        // ===== DATE RANGE =====
         LocalDate[] r = range(year, month);
+        LocalDateTime start = r[0].atStartOfDay();
+        LocalDateTime end = r[1].atTime(23, 59, 59);
 
         // =====================================================
         // 1️⃣ EVENT DATA
@@ -148,7 +152,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         avgCheckinRate = round(avgCheckinRate, 2);
 
         double avgFeedback = Optional.ofNullable(
-                feedbackRepo.avgRatingByClub(clubId, r[0], r[1])
+                feedbackRepo.avgRatingByClub(clubId, start, end)
         ).orElse(0.0);
         avgFeedback = round(avgFeedback, 2);
 
@@ -173,7 +177,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         }
 
         // =====================================================
-        // 4️⃣ MULTIPLIER (KHÔNG ÁP DỤNG KHI KHÔNG CÓ EVENT)
+        // 4️⃣ MULTIPLIER
         // =====================================================
         double activityMultiplier = totalEvents == 0
                 ? 1
@@ -201,7 +205,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         finalScore = round(finalScore, 2);
 
         // =====================================================
-        // 6️⃣ AWARD SCORE (LOG MEMBER – KHÔNG NHÂN THÔ)
+        // 6️⃣ AWARD SCORE
         // =====================================================
         long memberCount = membershipRepo.countByClub_ClubIdAndState(
                 clubId, MembershipStateEnum.ACTIVE);
@@ -251,6 +255,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         clubMonthlyRepo.save(record);
         return map(record);
     }
+
 
 
 
@@ -767,8 +772,12 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         validate(year, month);
 
-        LocalDate start = LocalDate.of(year, month, 1);
-        LocalDate end = start.plusMonths(1).minusDays(1);
+        // ===== DATE RANGE (FIX LocalDate vs LocalDateTime) =====
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.atTime(23, 59, 59);
 
         List<ClubMonthlySummaryResponse> result = new ArrayList<>();
 
@@ -776,24 +785,33 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
             Long clubId = club.getClubId();
 
-            int totalEvents = eventRepo.countEventsInRange(clubId, start, end);
+            // ===== EVENT =====
+            int totalEvents = eventRepo.countEventsInRange(clubId, startDate, endDate);
             int completedEvents = eventRepo.countCompletedInRange(
-                    clubId, EventStatusEnum.COMPLETED, start, end);
+                    clubId, EventStatusEnum.COMPLETED, startDate, endDate
+            );
 
-            double successRate = totalEvents == 0
+            double eventSuccessRate = totalEvents == 0
                     ? 0
                     : (completedEvents * 1.0 / totalEvents);
-            successRate = round(successRate, 2);
+            eventSuccessRate = round(eventSuccessRate, 2);
 
+            // ===== ATTENDANCE =====
             long totalCheckins = Optional.ofNullable(
-                    eventRepo.sumTotalCheckinByClubInRange(clubId, start, end)
+                    eventRepo.sumTotalCheckinByClubInRange(clubId, startDate, endDate)
             ).orElse(0L);
+
+            // ===== FEEDBACK =====
+            long totalFeedbacks = feedbackRepo.countByClubInRange(
+                    clubId, start, end
+            );
 
             double avgFeedback = Optional.ofNullable(
                     feedbackRepo.avgRatingByClub(clubId, start, end)
             ).orElse(0.0);
             avgFeedback = round(avgFeedback, 2);
 
+            // ===== BUILD RESPONSE =====
             result.add(
                     ClubMonthlySummaryResponse.builder()
                             .clubId(clubId)
@@ -802,8 +820,9 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                             .month(month)
                             .totalEvents(totalEvents)
                             .completedEvents(completedEvents)
-                            .successRate(successRate)
+                            .eventSuccessRate(eventSuccessRate)
                             .totalCheckins(totalCheckins)
+                            .totalFeedbacks(totalFeedbacks)
                             .avgFeedback(avgFeedback)
                             .build()
             );
@@ -811,5 +830,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         return result;
     }
+
+
 
 }

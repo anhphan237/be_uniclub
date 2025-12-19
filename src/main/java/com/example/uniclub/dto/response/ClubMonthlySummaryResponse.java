@@ -15,10 +15,15 @@ public class ClubMonthlySummaryResponse {
     private int year;
     private int month;
 
+    // ===== EVENT =====
     private int totalEvents;
     private int completedEvents;
-    private double successRate;
+    private double eventSuccessRate;
 
+    // ===== ATTENDANCE =====
     private long totalCheckins;
+
+    // ===== FEEDBACK =====
+    private long totalFeedbacks;   // ❗ THIẾU
     private double avgFeedback;
 }

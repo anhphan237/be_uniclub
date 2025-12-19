@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,6 +33,24 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
     WHERE f.event.eventId = :eventId
 """)
     Double getAverageRatingForEvent(@Param("eventId") Long eventId);
+
+    @Query("""
+    SELECT COUNT(f)
+    FROM EventFeedback f
+    JOIN f.event e
+    LEFT JOIN e.coHostRelations ec
+    WHERE (e.hostClub.clubId = :clubId
+        OR ec.club.clubId = :clubId)
+      AND f.createdAt >= :start
+      AND f.createdAt <= :end
+""")
+    long countByClubInRange(
+            @Param("clubId") Long clubId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+
 
 
     // ⭐ Đếm số feedback của event
@@ -67,12 +87,19 @@ public interface EventFeedbackRepository extends JpaRepository<EventFeedback, Lo
     @Query("""
     SELECT AVG(f.rating)
     FROM EventFeedback f
-    WHERE f.event.hostClub.clubId = :clubId
-      AND f.event.endDate BETWEEN :start AND :end
+    JOIN f.event e
+    LEFT JOIN e.coHostRelations ec
+    WHERE (e.hostClub.clubId = :clubId
+        OR ec.club.clubId = :clubId)
+      AND f.createdAt >= :start
+      AND f.createdAt <= :end
 """)
-    Double avgRatingByClub(@Param("clubId") Long clubId,
-                           @Param("start") java.time.LocalDate start,
-                           @Param("end") java.time.LocalDate end);
+    Double avgRatingByClub(
+            @Param("clubId") Long clubId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
     @Query("""
     SELECT AVG(f.rating)
     FROM EventFeedback f
