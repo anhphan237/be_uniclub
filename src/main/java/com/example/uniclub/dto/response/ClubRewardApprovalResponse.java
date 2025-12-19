@@ -24,5 +24,9 @@ public class ClubRewardApprovalResponse {
     private String lockedBy;
 
     private long walletBalance;
+
+    private boolean approved;
+    private String approvedBy;
+    private LocalDateTime approvedAt;
 }
 

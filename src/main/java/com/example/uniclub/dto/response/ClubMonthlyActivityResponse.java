@@ -4,8 +4,11 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ClubMonthlyActivityResponse {
 
     private Long clubId;
@@ -14,18 +17,20 @@ public class ClubMonthlyActivityResponse {
     private int year;
     private int month;
 
-    private int totalEvents;
-    private double avgFeedback;
-    private double avgCheckinRate;
+    // ===== ACTIVITY METRICS =====
+    private int totalEvents;              // số event tổ chức
+    private double eventSuccessRate;      // tỉ lệ event hoàn thành
+    private double avgFeedback;            // feedback trung bình
 
-    private double avgMemberActivityScore;
-    private double staffPerformanceScore;
-    private double awardScore;
+    // ===== SCORE =====
+    private double finalScore;             // điểm tổng kết
+    private double awardScore;             // điểm nhân quy mô
     private String awardLevel;
+
+    private long rewardPoints;             // điểm thưởng CLB nhận
+
+    // ===== LOCK STATUS =====
     private boolean locked;
     private LocalDateTime lockedAt;
     private String lockedBy;
-    private long rewardPoints;
-
-    private double finalScore;
 }

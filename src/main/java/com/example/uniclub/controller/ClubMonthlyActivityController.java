@@ -266,6 +266,27 @@ public class ClubMonthlyActivityController {
     ) {
         return service.approveRewardPoints(clubId, year, month);
     }
+    @GetMapping("/monthly-summary")
+    @PreAuthorize("hasAnyRole('ADMIN','UNIVERSITY_STAFF')")
+    @Operation(
+            summary = "Tổng quan hoạt động các CLB trong tháng",
+            description = """
+        Trả về danh sách tất cả CLB cùng thống kê hoạt động trong tháng:
+        - Số lượng sự kiện đã tổ chức
+        - Số sự kiện hoàn thành
+        - Tỉ lệ thành công
+        - Tổng lượt check-in
+        - Điểm feedback trung bình
+
+        Dùng cho UniStaff theo dõi tình hình hoạt động CLB theo tháng.
+        """
+    )
+    public List<ClubMonthlySummaryResponse> monthlySummary(
+            @RequestParam int year,
+            @RequestParam int month
+    ) {
+        return service.getMonthlySummary(year, month);
+    }
 
 
 }

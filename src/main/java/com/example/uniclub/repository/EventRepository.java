@@ -268,5 +268,28 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+    @Query("""
+    SELECT COUNT(e)
+    FROM Event e
+    WHERE e.hostClub.clubId = :clubId
+      AND e.startDate BETWEEN :start AND :end
+""")
+    int countEventsInRange(
+            @Param("clubId") Long clubId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
+
+    @Query("""
+    SELECT COALESCE(SUM(e.currentCheckInCount), 0)
+    FROM Event e
+    WHERE e.hostClub.clubId = :clubId
+      AND e.endDate BETWEEN :start AND :end
+""")
+    Long sumTotalCheckinByClubInRange(
+            @Param("clubId") Long clubId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end
+    );
 
 }

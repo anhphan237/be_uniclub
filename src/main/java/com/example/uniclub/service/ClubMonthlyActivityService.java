@@ -1,7 +1,6 @@
 package com.example.uniclub.service;
 
 import com.example.uniclub.dto.response.*;
-import com.example.uniclub.dto.response.*;
 
 import java.util.List;
 
@@ -35,5 +34,6 @@ public interface ClubMonthlyActivityService {
 
     void distributeRewardToMembers(Long clubId, int year, int month);
 
+    List<ClubMonthlySummaryResponse> getMonthlySummary(int year, int month);
 
 }

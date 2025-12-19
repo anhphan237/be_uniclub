@@ -19,6 +19,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -50,15 +52,25 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid year");
     }
 
-    private LocalDate[] calcRange(int year, int month) {
+    private LocalDate[] range(int year, int month) {
         LocalDate start = LocalDate.of(year, month, 1);
-        LocalDate end = start.plusMonths(1).minusDays(1);
-        return new LocalDate[]{start, end};
+        return new LocalDate[]{start, start.plusMonths(1).minusDays(1)};
     }
 
-    private double normalize(int value, int max) {
-        return Math.min((value * 1.0) / max, 1.0) * 100.0;
+    private String operator() {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        return a != null ? a.getName() : "system";
     }
+
+
+
+    private double round(double value, int scale) {
+        return BigDecimal.valueOf(value)
+                .setScale(scale, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+
 
     private String getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -77,41 +89,21 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .month(m.getMonth())
 
                 .totalEvents(m.getTotalEvents())
+                .eventSuccessRate(m.getAvgCheckinRate()) // bản chất là successRate
                 .avgFeedback(m.getAvgFeedback())
-                .avgCheckinRate(m.getAvgCheckinRate())
-                .avgMemberActivityScore(m.getAvgMemberActivityScore())
-                .staffPerformanceScore(m.getStaffPerformanceScore())
 
                 .finalScore(m.getFinalScore())
                 .awardScore(m.getAwardScore())
                 .awardLevel(m.getAwardLevel())
-
                 .rewardPoints(m.getRewardPoints())
 
                 .locked(m.isLocked())
                 .lockedAt(m.getLockedAt())
                 .lockedBy(m.getLockedBy())
-
                 .build();
     }
 
-    private ClubMonthlyBreakdownResponse mapBreakdown(ClubMonthlyActivity m) {
-        return ClubMonthlyBreakdownResponse.builder()
-                .clubId(m.getClub().getClubId())
-                .clubName(m.getClub().getName())
-                .year(m.getYear())
-                .month(m.getMonth())
-                .totalEvents(m.getTotalEvents())
-                .avgFeedback(m.getAvgFeedback())
-                .avgCheckinRate(m.getAvgCheckinRate())
-                .avgMemberActivityScore(m.getAvgMemberActivityScore())
-                .staffPerformanceScore(m.getStaffPerformanceScore())
-                .finalScore(m.getFinalScore())
-                .awardScore(m.getAwardScore())
-                .awardLevel(m.getAwardLevel())
-                .rewardPoints(m.getRewardPoints())
-                .build();
-    }
+
 
     // =========================================================================
     // 1. RECALCULATE A CLUB
@@ -125,93 +117,119 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        ClubMonthlyActivity existing = clubMonthlyRepo
+        ClubMonthlyActivity record = clubMonthlyRepo
                 .findByClubAndYearAndMonth(club, year, month)
                 .orElse(null);
 
-        if (existing != null && existing.isLocked()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "This month is locked. Cannot recalculate.");
+        if (record != null && record.isLocked())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Month is locked");
+
+        LocalDate[] r = range(year, month);
+
+        // =====================================================
+        // 1️⃣ EVENT DATA
+        // =====================================================
+        int totalEvents = eventRepo.countEventsInRange(clubId, r[0], r[1]);
+        int completedEvents = eventRepo.countCompletedInRange(
+                clubId, EventStatusEnum.COMPLETED, r[0], r[1]);
+
+        double eventSuccessRate = totalEvents == 0
+                ? 0
+                : (completedEvents * 1.0 / totalEvents);
+        eventSuccessRate = round(eventSuccessRate, 2);
+
+        long totalCheckins = Optional.ofNullable(
+                eventRepo.sumTotalCheckinByClubInRange(clubId, r[0], r[1])
+        ).orElse(0L);
+
+        double avgCheckinRate = totalEvents == 0
+                ? 0
+                : (double) totalCheckins / totalEvents;
+        avgCheckinRate = round(avgCheckinRate, 2);
+
+        double avgFeedback = Optional.ofNullable(
+                feedbackRepo.avgRatingByClub(clubId, r[0], r[1])
+        ).orElse(0.0);
+        avgFeedback = round(avgFeedback, 2);
+
+        // =====================================================
+        // 2️⃣ VOLUME SCORE
+        // =====================================================
+        double volumeScore = totalEvents * 10;
+
+        // =====================================================
+        // 3️⃣ QUALITY SCORE
+        // =====================================================
+        double qualityScore =
+                (eventSuccessRate * 100 * 0.4)
+                        + (avgFeedback * 20 * 0.4)
+                        + (avgCheckinRate * 100 * 0.2);
+
+        qualityScore = round(qualityScore, 2);
+
+        // ❌ PHẠT NẶNG: CÓ EVENT NHƯNG FAIL HẾT
+        if (totalEvents > 0 && eventSuccessRate == 0) {
+            qualityScore = qualityScore * 0.3;
         }
 
-        LocalDate[] range = calcRange(year, month);
-        LocalDate start = range[0];
-        LocalDate end = range[1];
-
-        // ==================== EVENT METRICS ====================
-        int totalEvents = eventRepo.countCompletedInRange(
-                clubId, EventStatusEnum.COMPLETED, start, end);
-
-        Double avgFeedback = Optional.ofNullable(
-                feedbackRepo.avgRatingByClub(clubId, start, end)
-        ).orElse(0.0);
-
-        Double avgCheckinRate = Optional.ofNullable(
-                eventRepo.avgCheckinRateByClub(clubId)
-        ).orElse(0.0);
-
-        // ================== MEMBER ACTIVITY ====================
-        Double avgMemberScore = Optional.ofNullable(
-                memberMonthlyRepo.avgFinalScoreByClub(clubId, year, month)
-        ).orElse(0.0);
-
-        // ================== STAFF PERFORMANCE ==================
-        Double staffScore = Optional.ofNullable(
-                staffPerformanceRepo.avgPerformanceByClub(clubId, start, end)
-        ).orElse(0.0);
-
-        // ================== FINAL SCORE ========================
-        double finalScore =
-                0.30 * normalize(totalEvents, 10) +
-                        0.25 * (avgFeedback * 20) +
-                        0.15 * (avgCheckinRate * 100) +
-                        0.20 * avgMemberScore +
-                        0.10 * staffScore;
-
-        // =====================================================================
-        // 1) MEMBER COUNT → Capacity Factor
-        // =====================================================================
-        int memberCount = membershipRepo
-                .findByClub_ClubIdAndStateIn(
-                        clubId, List.of(MembershipStateEnum.ACTIVE)
-                ).size();
-
-        double capacityFactor = policyService.resolveMultiplier(
+        // =====================================================
+        // 4️⃣ MULTIPLIER (KHÔNG ÁP DỤNG KHI KHÔNG CÓ EVENT)
+        // =====================================================
+        double activityMultiplier = totalEvents == 0
+                ? 1
+                : policyService.resolveMultiplier(
                 PolicyTargetTypeEnum.CLUB,
-                PolicyActivityTypeEnum.CLUB_MEMBER_SIZE,
-                memberCount
+                PolicyActivityTypeEnum.CLUB_EVENT_ACTIVITY,
+                totalEvents
         );
 
-        // =====================================================================
-        // 2) ACTIVITY QUALITY → based on finalScore
-        // =====================================================================
-        double activityQualityFactor = policyService.resolveMultiplier(
+        double qualityMultiplier = totalEvents == 0
+                ? 1
+                : policyService.resolveMultiplier(
                 PolicyTargetTypeEnum.CLUB,
                 PolicyActivityTypeEnum.CLUB_ACTIVITY_QUALITY,
-                (int) Math.round(finalScore)
+                (int) qualityScore
         );
 
-        // =====================================================================
-        // 3) AWARD SCORE
-        // =====================================================================
-        double awardScore = finalScore * capacityFactor * activityQualityFactor;
+        // =====================================================
+        // 5️⃣ FINAL SCORE
+        // =====================================================
+        double finalScore = (volumeScore + qualityScore)
+                * activityMultiplier
+                * qualityMultiplier;
 
-        // =====================================================================
-        // 4) AWARD LEVEL
-        // =====================================================================
+        finalScore = round(finalScore, 2);
+
+        // =====================================================
+        // 6️⃣ AWARD SCORE (LOG MEMBER – KHÔNG NHÂN THÔ)
+        // =====================================================
+        long memberCount = membershipRepo.countByClub_ClubIdAndState(
+                clubId, MembershipStateEnum.ACTIVE);
+
+        double impactFactor = Math.log10(memberCount + 1) + 1;
+        double awardScore = round(finalScore * impactFactor, 2);
+
+        // =====================================================
+        // 7️⃣ AWARD LEVEL & REWARD
+        // =====================================================
         String awardLevel = policyService.resolveRuleName(
                 PolicyTargetTypeEnum.CLUB,
                 PolicyActivityTypeEnum.CLUB_AWARD_LEVEL,
-                (int) Math.round(awardScore)
+                (int) awardScore
         );
 
-        // =====================================================================
-        // 5) REWARD POINTS → SỐ ĐIỂM THẬT CHO CLB
-        // =====================================================================
-        long rewardPoints = Math.round(awardScore * 50); // baseRate 50
+        long rewardPoints = Math.max(0, Math.round(
+                awardScore *
+                        policyService.resolveMultiplier(
+                                PolicyTargetTypeEnum.CLUB,
+                                PolicyActivityTypeEnum.CLUB_MEMBER_SIZE,
+                                (int) memberCount
+                        )
+        ));
 
-        // ====================== SAVE RECORD =====================
-        ClubMonthlyActivity record = existing;
+        // =====================================================
+        // 8️⃣ SAVE
+        // =====================================================
         if (record == null) {
             record = ClubMonthlyActivity.builder()
                     .club(club)
@@ -221,20 +239,22 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         }
 
         record.setTotalEvents(totalEvents);
-        record.setAvgFeedback(avgFeedback);
+        record.setEventSuccessRate(eventSuccessRate);
         record.setAvgCheckinRate(avgCheckinRate);
-        record.setAvgMemberActivityScore(avgMemberScore);
-        record.setStaffPerformanceScore(staffScore);
-        record.setFinalScore(finalScore);
+        record.setAvgFeedback(avgFeedback);
 
+        record.setFinalScore(finalScore);
         record.setAwardScore(awardScore);
         record.setAwardLevel(awardLevel);
         record.setRewardPoints(rewardPoints);
 
         clubMonthlyRepo.save(record);
-
         return map(record);
     }
+
+
+
+
 
     // =========================================================================
     // 2. RECALCULATE ALL CLUBS
@@ -377,6 +397,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
     // =========================================================================
     @Override
     public ClubMonthlyBreakdownResponse getBreakdown(Long clubId, int year, int month) {
+
         validate(year, month);
 
         Club club = clubRepo.findById(clubId)
@@ -386,7 +407,29 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .findByClubAndYearAndMonth(club, year, month)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Record not found"));
 
-        return mapBreakdown(record);
+        return ClubMonthlyBreakdownResponse.builder()
+                .clubId(club.getClubId())
+                .clubName(club.getName())
+
+                .year(year)
+                .month(month)
+
+                // ===== EVENT METRICS =====
+                .totalEvents(record.getTotalEvents())
+                .avgFeedback(record.getAvgFeedback())
+                .avgCheckinRate(record.getAvgCheckinRate())
+
+                // ===== KHÔNG DÙNG TRONG LOGIC CLB → SET 0 =====
+                .avgMemberActivityScore(0)
+                .staffPerformanceScore(0)
+
+                // ===== FINAL =====
+                .finalScore(record.getFinalScore())
+                .awardScore(record.getAwardScore())
+                .rewardPoints(record.getRewardPoints())
+                .awardLevel(record.getAwardLevel())
+
+                .build();
     }
 
     // =========================================================================
@@ -408,7 +451,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         validate(year, month);
 
-        LocalDate[] range = calcRange(year, month);
+        LocalDate[] range = range(year, month);
         LocalDate start = range[0];
         LocalDate end = range[1];
 
@@ -516,23 +559,45 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         ClubMonthlyActivity record = clubMonthlyRepo
                 .findByClubAndYearAndMonth(club, year, month)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "Monthly record not found"));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND, "Monthly record not found"));
 
-        if (record.isLocked()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "This month is already locked.");
+        // ✅ BẮT BUỘC PHẢI LOCK TRƯỚC
+        if (!record.isLocked()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Monthly record must be locked before approval"
+            );
+        }
+
+        // ✅ KHÔNG DUYỆT 2 LẦN
+        if (record.isApproved()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reward already approved"
+            );
         }
 
         long rewardPoints = record.getRewardPoints();
+        if (rewardPoints <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reward points must be greater than 0"
+            );
+        }
 
         Wallet clubWallet = club.getWallet();
-        if (clubWallet == null)
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Club has no wallet");
+        if (clubWallet == null) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Club has no wallet"
+            );
+        }
 
         String operator = getCurrentUser();
 
         // =====================================================
-        // ⭐ 1) UNI → CLUB TOPUP + transaction log (ĐÚNG CHUẨN)
+        // ⭐ 1) UNI → CLUB TOPUP + TRANSACTION LOG
         // =====================================================
         walletService.topupPointsFromUniversityWithOperator(
                 clubWallet.getWalletId(),
@@ -541,18 +606,18 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 operator
         );
 
-        // =====================================================
-        // 2) LOCK RECORD
-        // =====================================================
-        record.setLocked(true);
-        record.setLockedBy(operator);
-        record.setLockedAt(LocalDateTime.now());
-        clubMonthlyRepo.save(record);
-
         long newBalance = clubWallet.getBalancePoints();
 
         // =====================================================
-        // 3) EMAIL
+        // ⭐ 2) MARK APPROVED (KHÔNG ĐỤNG LOCK)
+        // =====================================================
+        record.setApproved(true);
+        record.setApprovedAt(LocalDateTime.now());
+        record.setApprovedBy(operator);
+        clubMonthlyRepo.save(record);
+
+        // =====================================================
+        // ⭐ 3) EMAIL LEADER
         // =====================================================
         if (club.getMemberships() != null) {
             for (Membership m : club.getMemberships()) {
@@ -571,7 +636,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         }
 
         // =====================================================
-        // 4) RETURN
+        // ⭐ 4) RESPONSE
         // =====================================================
         return ClubRewardApprovalResponse.builder()
                 .clubId(clubId)
@@ -579,12 +644,13 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .year(year)
                 .month(month)
                 .rewardPoints(rewardPoints)
-                .locked(true)
-                .lockedBy(operator)
-                .lockedAt(record.getLockedAt())
+                .approved(true)
+                .approvedBy(operator)
+                .approvedAt(record.getApprovedAt())
                 .walletBalance(newBalance)
                 .build();
     }
+
 
 
     @Override
@@ -694,6 +760,56 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
         log.info("Distributed {} reward points for club {} in {}/{}",
                 totalDistributed, club.getName(), month, year);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClubMonthlySummaryResponse> getMonthlySummary(int year, int month) {
+
+        validate(year, month);
+
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.plusMonths(1).minusDays(1);
+
+        List<ClubMonthlySummaryResponse> result = new ArrayList<>();
+
+        for (Club club : clubRepo.findAll()) {
+
+            Long clubId = club.getClubId();
+
+            int totalEvents = eventRepo.countEventsInRange(clubId, start, end);
+            int completedEvents = eventRepo.countCompletedInRange(
+                    clubId, EventStatusEnum.COMPLETED, start, end);
+
+            double successRate = totalEvents == 0
+                    ? 0
+                    : (completedEvents * 1.0 / totalEvents);
+            successRate = round(successRate, 2);
+
+            long totalCheckins = Optional.ofNullable(
+                    eventRepo.sumTotalCheckinByClubInRange(clubId, start, end)
+            ).orElse(0L);
+
+            double avgFeedback = Optional.ofNullable(
+                    feedbackRepo.avgRatingByClub(clubId, start, end)
+            ).orElse(0.0);
+            avgFeedback = round(avgFeedback, 2);
+
+            result.add(
+                    ClubMonthlySummaryResponse.builder()
+                            .clubId(clubId)
+                            .clubName(club.getName())
+                            .year(year)
+                            .month(month)
+                            .totalEvents(totalEvents)
+                            .completedEvents(completedEvents)
+                            .successRate(successRate)
+                            .totalCheckins(totalCheckins)
+                            .avgFeedback(avgFeedback)
+                            .build()
+            );
+        }
+
+        return result;
     }
 
 }
