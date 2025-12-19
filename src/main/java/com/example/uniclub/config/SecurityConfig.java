@@ -121,6 +121,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/attendance/generate/**").hasAnyRole("CLUB_LEADER", "ADMIN")
 
+
+                        .requestMatchers("/api/club-activity/**")
+                        .hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
+
+
                         // 🔒 All other endpoints
                         .anyRequest().authenticated()
                 )
