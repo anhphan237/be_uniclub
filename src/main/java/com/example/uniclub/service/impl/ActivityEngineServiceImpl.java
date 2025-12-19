@@ -94,16 +94,22 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     // CORE CALCULATION
     // =========================================================================
     @Transactional
-    protected MemberMonthlyActivity calculateMonthlyRecord(Membership membership, int year, int month) {
+    protected MemberMonthlyActivity calculateMonthlyRecord(
+            Membership membership,
+            int year,
+            int month
+    ) {
 
         Long membershipId = membership.getMembershipId();
 
         LocalDate start = LocalDate.of(year, month, 1);
-        LocalDate end   = start.plusMonths(1).minusDays(1);
+        LocalDate end = start.plusMonths(1).minusDays(1);
 
-        // ================= ATTENDANCE =======================
+        // ================= ATTENDANCE =================
         int totalSessions = attendanceRepo
-                .countByMembership_MembershipIdAndSession_DateBetween(membershipId, start, end);
+                .countByMembership_MembershipIdAndSession_DateBetween(
+                        membershipId, start, end
+                );
 
         int presentSessions = attendanceRepo
                 .countByMembership_MembershipIdAndStatusInAndSession_DateBetween(
@@ -112,68 +118,93 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
                         start, end
                 );
 
-        double attendanceRate = totalSessions == 0 ? 0 :
-                (double) presentSessions / totalSessions;
+        double attendanceRate = totalSessions == 0
+                ? 0
+                : (double) presentSessions / totalSessions;
 
-        int attendanceBase = 100;
+        // 🔑 BASE từ POLICY
+        int attendanceBase = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.ATTENDANCE_BASE
+        );
 
-        double attendanceMultiplier =
-                resolveMultiplier(PolicyTargetTypeEnum.MEMBER,
-                        PolicyActivityTypeEnum.SESSION_ATTENDANCE,
-                        (int) (attendanceRate * 100));
+        double attendanceMultiplier = resolveMultiplier(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.SESSION_ATTENDANCE,
+                (int) (attendanceRate * 100)
+        );
 
-        int attendanceTotal = (int) Math.round(attendanceBase * attendanceMultiplier);
+        int attendanceTotal =
+                (int) Math.round(attendanceBase * attendanceMultiplier);
 
-        // ================= STAFF PERFORMANCE =================
+        // ================= STAFF =================
         List<StaffPerformance> staffList =
-                staffPerformanceRepo.findPerformanceInRange(membershipId, start, end);
-
-        PerformanceLevelEnum bestEvaluation = resolveBestStaffEvaluation(staffList);
-
-        int staffBase = 100;
-        double staffMultiplier = resolveStaffMultiplier(bestEvaluation.name());
-        int staffTotal = (int) Math.round(staffBase * staffMultiplier);
-
-        int finalScore = attendanceTotal + staffTotal;
-
-        // ================= SAVE ACTIVITY ======================
-        MemberMonthlyActivity act = monthlyRepo
-                .findByMembershipAndYearAndMonth(membership, year, month)
-                .orElse(MemberMonthlyActivity.builder()
-                        .membership(membership)
-                        .year(year)
-                        .month(month)
-                        .build()
+                staffPerformanceRepo.findPerformanceInRange(
+                        membershipId, start, end
                 );
 
+        PerformanceLevelEnum bestEvaluation =
+                resolveBestStaffEvaluation(staffList);
+
+        // 🔑 STAFF BASE từ POLICY
+        int staffBase = resolveBaseScore(
+                PolicyTargetTypeEnum.MEMBER,
+                PolicyActivityTypeEnum.STAFF_POINT
+        );
+
+        double staffMultiplier =
+                resolveStaffMultiplier(bestEvaluation.name());
+
+        int staffScore = staffBase; // điểm cho 1 lần
+        int staffTotal =
+                (int) Math.round(staffBase * staffMultiplier);
+
+        // ================= FINAL SCORE =================
+        int finalScore = attendanceTotal + staffTotal;
+
+        // ================= SAVE / UPDATE =================
+        MemberMonthlyActivity act = monthlyRepo
+                .findByMembershipAndYearAndMonth(membership, year, month)
+                .orElse(
+                        MemberMonthlyActivity.builder()
+                                .membership(membership)
+                                .year(year)
+                                .month(month)
+                                .build()
+                );
+
+        // ===== CLUB / SESSION =====
         act.setTotalClubSessions(totalSessions);
         act.setTotalClubPresent(presentSessions);
         act.setSessionAttendanceRate(attendanceRate);
 
+        // ===== ATTENDANCE =====
         act.setAttendanceBaseScore(attendanceBase);
         act.setAttendanceMultiplier(attendanceMultiplier);
         act.setAttendanceTotalScore(attendanceTotal);
 
+        // ===== STAFF =====
         act.setStaffBaseScore(staffBase);
-        act.setStaffMultiplier(1.0);
-
-        act.setStaffScore(staffTotal);
-        act.setTotalStaffCount(staffList.size());
-        act.setStaffEvaluation(bestEvaluation.name());
+        act.setStaffMultiplier(staffMultiplier);
+        act.setStaffScore(staffScore);
         act.setStaffTotalScore(staffTotal);
+        act.setTotalStaffCount(staffList.size());
+        act.setStaffEvaluation(bestEvaluation.name()); // ❗ NOT NULL
 
-        act.setActivityLevel(classifyLevelByFinalScore(finalScore));
-
-
+        // ===== EVENT (CHƯA TÍNH) =====
         act.setTotalEventRegistered(0);
         act.setTotalEventAttended(0);
         act.setEventAttendanceRate(0);
         act.setTotalPenaltyPoints(0);
 
+        // ===== FINAL =====
+        act.setActivityLevel(classifyLevelByFinalScore(finalScore));
         act.setFinalScore(finalScore);
 
         return monthlyRepo.save(act);
     }
+
+
 
     // =========================================================================
     // BEST STAFF LEVEL
