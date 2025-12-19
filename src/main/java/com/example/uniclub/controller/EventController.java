@@ -1011,5 +1011,67 @@ public class EventController {
         );
     }
 
+    @Operation(
+            summary = "Kiểm tra tôi đã check-in sự kiện PUBLIC hay chưa",
+            description = """
+        Dành cho **STUDENT**.
+
+        📌 API này **KHÔNG thực hiện check-in**.<br>
+        Chỉ dùng để:
+        <ul>
+            <li>Kiểm tra user hiện tại đã check-in sự kiện PUBLIC hay chưa</li>
+            <li>Phục vụ UI (ẩn/hiện nút check-in)</li>
+        </ul>
+
+        🔐 Xác thực bằng JWT<br>
+        🔑 Dùng <b>checkInCode</b> của sự kiện PUBLIC
+        """
+    )
+    @GetMapping("/public/attendance/status")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getPublicCheckInStatus(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String checkInCode
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        attendanceService.getPublicCheckInStatus(
+                                principal.getUser(),
+                                checkInCode
+                        )
+                )
+        );
+    }
+    @Operation(
+            summary = "Kiểm tra trạng thái check-in của tôi theo checkInCode",
+            description = """
+        Dành cho **STUDENT**.
+
+        📌 API sử dụng **JWT token** để xác định user hiện tại.<br>
+        📌 Chỉ cần truyền **checkInCode** (từ QR).<br>
+        📌 Dùng cho **PRIVATE / SPECIAL event** để:
+        <ul>
+            <li>Kiểm tra đã đăng ký hay chưa</li>
+            <li>Kiểm tra đã check-in START / MID / END</li>
+            <li>Ngăn check-in trùng lặp</li>
+        </ul>
+        """
+    )
+    @GetMapping("/attendance/status")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<ApiResponse<MyEventAttendanceStatusResponse>> getMyAttendanceStatusByCode(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @RequestParam String checkInCode
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        attendanceService.getMyAttendanceStatusByCheckInCode(
+                                principal.getUser(), // 👈 từ JWT
+                                checkInCode
+                        )
+                )
+        );
+    }
+
 
 }

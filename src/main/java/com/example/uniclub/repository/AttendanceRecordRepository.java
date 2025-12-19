@@ -147,5 +147,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findMyCheckedInEvents(
             @Param("userId") Long userId
     );
-
+    Optional<AttendanceRecord> findByEvent_EventIdAndUser_UserId(
+            Long eventId,
+            Long userId
+    );
 }

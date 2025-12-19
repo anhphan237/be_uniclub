@@ -36,7 +36,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final JwtEventTokenService jwtEventTokenService;
     private final EmailService emailService;
     private static final int QR_EXP_SECONDS = 120;
-
+    private final EventRegistrationRepository registrationRepo;
     // =========================================================
     // 1️⃣ Leader tạo QR token
     // =========================================================
@@ -628,6 +628,152 @@ public class AttendanceServiceImpl implements AttendanceService {
                 user.getUserId(),
                 event.getEventId()
         );
+    }
+    @Override
+    public Map<String, Object> getPublicCheckInStatus(User user, String checkInCode) {
+
+        Event event = eventRepo.findByCheckInCode(checkInCode)
+                .orElseThrow(() ->
+                        new ApiException(HttpStatus.NOT_FOUND, "Invalid check-in code")
+                );
+
+        if (event.getType() != EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "This event is not a PUBLIC event"
+            );
+        }
+
+        AttendanceRecord record =
+                attendanceRepo.findByEvent_EventIdAndUser_UserId(
+                        event.getEventId(),
+                        user.getUserId()
+                ).orElse(null);
+
+        return Map.of(
+                "eventId", event.getEventId(),
+                "eventType", EventTypeEnum.PUBLIC,
+                "checkedIn", record != null && record.getStartCheckInTime() != null,
+                "checkedAt", record != null ? record.getStartCheckInTime() : null
+        );
+    }
+    @Override
+    public MyEventAttendanceStatusResponse getMyAttendanceStatusByCheckInCode(
+            User user,
+            String checkInCode
+    ) {
+
+        Event event = eventRepo.findByCheckInCode(checkInCode)
+                .orElseThrow(() ->
+                        new ApiException(HttpStatus.NOT_FOUND, "Invalid check-in code")
+                );
+
+        // ❌ Nếu không muốn áp dụng cho PUBLIC
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Use public attendance status API for PUBLIC event"
+            );
+        }
+
+        Long eventId = event.getEventId();
+        Long userId = user.getUserId();
+
+        // 1️⃣ Kiểm tra đăng ký
+        EventRegistration registration =
+                registrationRepo.findByEvent_EventIdAndUser_UserId(
+                        eventId,
+                        userId
+                ).orElse(null);
+
+        if (registration == null) {
+            return MyEventAttendanceStatusResponse.builder()
+                    .eventId(eventId)
+                    .eventType(event.getType())
+                    .registered(false)
+                    .checkedInStart(false)
+                    .checkedInMid(false)
+                    .checkedInEnd(false)
+                    .fullyCheckedIn(false)
+                    .build();
+        }
+
+        // 2️⃣ Attendance record
+        AttendanceRecord record =
+                attendanceRepo.findByEvent_EventIdAndUser_UserId(
+                        eventId,
+                        userId
+                ).orElse(null);
+
+        boolean start = record != null && record.getStartCheckInTime() != null;
+        boolean mid   = record != null && record.getMidCheckTime() != null;
+        boolean end   = record != null && record.getEndCheckOutTime() != null;
+
+        return MyEventAttendanceStatusResponse.builder()
+                .eventId(eventId)
+                .eventType(event.getType())
+                .registered(true)
+                .checkedInStart(start)
+                .checkedInMid(mid)
+                .checkedInEnd(end)
+                .fullyCheckedIn(start && mid && end)
+                .build();
+    }
+
+    @Override
+    public MyEventAttendanceStatusResponse getMyAttendanceStatus(User user, Long eventId) {
+
+        Event event = eventRepo.findById(eventId)
+                .orElseThrow(() ->
+                        new ApiException(HttpStatus.NOT_FOUND, "Event not found")
+                );
+
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Use public attendance status API for PUBLIC event"
+            );
+        }
+
+        // 1️⃣ Kiểm tra đăng ký
+        EventRegistration registration =
+                registrationRepo.findByEvent_EventIdAndUser_UserId(
+                        eventId,
+                        user.getUserId()
+                ).orElse(null);
+
+        if (registration == null) {
+            return MyEventAttendanceStatusResponse.builder()
+                    .eventId(eventId)
+                    .eventType(event.getType())
+                    .registered(false)
+                    .checkedInStart(false)
+                    .checkedInMid(false)
+                    .checkedInEnd(false)
+                    .fullyCheckedIn(false)
+                    .build();
+        }
+
+        // 2️⃣ Lấy attendance record
+        AttendanceRecord record =
+                attendanceRepo.findByEvent_EventIdAndUser_UserId(
+                        eventId,
+                        user.getUserId()
+                ).orElse(null);
+
+        boolean start = record != null && record.getStartCheckInTime() != null;
+        boolean mid   = record != null && record.getMidCheckTime() != null;
+        boolean end   = record != null && record.getEndCheckOutTime() != null;
+
+        return MyEventAttendanceStatusResponse.builder()
+                .eventId(eventId)
+                .eventType(event.getType())
+                .registered(true)
+                .checkedInStart(start)
+                .checkedInMid(mid)
+                .checkedInEnd(end)
+                .fullyCheckedIn(start && mid && end)
+                .build();
     }
 
 }
