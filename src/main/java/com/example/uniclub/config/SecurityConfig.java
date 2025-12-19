@@ -115,6 +115,8 @@ public class SecurityConfig {
                                 ).hasAnyRole("ADMIN", "UNIVERSITY_STAFF")
 
                         // 🧩 Specialized API access
+                        .requestMatchers("/api/admin/cashouts/**")
+                        .hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/university/**").hasAnyRole("UNIVERSITY_STAFF", "ADMIN")
                         .requestMatchers("/api/club/**").hasAnyRole("CLUB_LEADER", "UNIVERSITY_STAFF", "ADMIN")

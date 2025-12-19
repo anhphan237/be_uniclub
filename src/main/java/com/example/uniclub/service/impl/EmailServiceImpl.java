@@ -1114,6 +1114,130 @@ Your Reward = (FinalScore / TotalClubScore) × ClubRewardPool
         sendEmail(to, "[UniClub] Monthly Reward Received", content);
     }
 
+    @Override
+    public void sendCashoutApprovedEmail(
+            String toEmail,
+            String leaderName,
+            String clubName,
+            Long points,
+            Long cashAmount,
+            String appointmentNote
+    ) {
+        String subject = "Cashout Request Approved – " + clubName;
+
+        String content = """
+        <h2 style="color:#1E88E5; margin-top:0;">
+            Cashout Request Approved
+        </h2>
+
+        <p>Dear <b>%s</b>,</p>
+
+        <p>
+            Your cashout request for the club
+            <b>%s</b> has been <b style="color:green;">approved</b>.
+        </p>
+
+        <table style="
+            width:100%%;
+            border-collapse:collapse;
+            margin:16px 0;
+            font-size:14px;
+        ">
+            <tr>
+                <td style="padding:10px;border:1px solid #E0E7F1;">Points requested</td>
+                <td style="padding:10px;border:1px solid #E0E7F1;"><b>%d</b> points</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #E0E7F1;">Cash equivalent</td>
+                <td style="padding:10px;border:1px solid #E0E7F1;"><b>%d VND</b></td>
+            </tr>
+        </table>
+
+        <p><b>Appointment details:</b></p>
+
+        <div style="
+            background:#F5F9FF;
+            padding:14px;
+            border-left:4px solid #1E88E5;
+            border-radius:8px;
+            margin-bottom:16px;
+        ">
+            %s
+        </div>
+
+        <p>
+            Please bring the necessary documents and arrive on time
+            to complete the cashout procedure.
+        </p>
+
+        <p style="margin-top:24px;">
+            If you have any questions, please contact UniClub University Staff.
+        </p>
+        """.formatted(
+                leaderName,
+                clubName,
+                points,
+                cashAmount,
+                (appointmentNote == null || appointmentNote.isBlank())
+                        ? "UniStaff will contact you to arrange the appointment."
+                        : appointmentNote
+        );
+
+        sendEmail(toEmail, subject, content);
+    }
+
+    @Override
+    public void sendCashoutRejectedEmail(
+            String toEmail,
+            String leaderName,
+            String clubName,
+            String rejectReason
+    ) {
+        String subject = "Cashout Request Rejected – " + clubName;
+
+        String content = """
+        <h2 style="color:#D32F2F; margin-top:0;">
+            Cashout Request Rejected
+        </h2>
+
+        <p>Dear <b>%s</b>,</p>
+
+        <p>
+            We regret to inform you that your cashout request
+            for the club <b>%s</b> has been <b style="color:#D32F2F;">rejected</b>.
+        </p>
+
+        <p><b>Reason:</b></p>
+
+        <div style="
+            background:#FFF4F4;
+            padding:14px;
+            border-left:4px solid #D32F2F;
+            border-radius:8px;
+            margin-bottom:16px;
+        ">
+            %s
+        </div>
+
+        <p>
+            You may submit a new cashout request after resolving
+            the issue stated above.
+        </p>
+
+        <p style="margin-top:24px;">
+            If you need further clarification, please contact UniClub University Staff.
+        </p>
+        """.formatted(
+                leaderName,
+                clubName,
+                (rejectReason == null || rejectReason.isBlank())
+                        ? "No specific reason was provided."
+                        : rejectReason
+        );
+
+        sendEmail(toEmail, subject, content);
+    }
+
 
 
 }

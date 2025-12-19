@@ -228,7 +228,21 @@ public interface EmailService {
             int newBalance
     );
 
+    void sendCashoutApprovedEmail(
+            String toEmail,
+            String leaderName,
+            String clubName,
+            Long points,
+            Long cashAmount,
+            String appointmentNote
+    );
 
+    void sendCashoutRejectedEmail(
+            String toEmail,
+            String leaderName,
+            String clubName,
+            String rejectReason
+    );
 
 
 }
