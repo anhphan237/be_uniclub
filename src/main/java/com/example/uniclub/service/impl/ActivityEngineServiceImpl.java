@@ -199,7 +199,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         act.setTotalPenaltyPoints(0);
 
         // ===== FINAL =====
-        act.setActivityLevel(classifyLevelByFinalScore(finalScore));
+        act.setActivityLevel(resolveLevelByFinalScore(finalScore));
         act.setFinalScore(finalScore);
 
         return monthlyRepo.save(act);
@@ -219,12 +219,12 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         return best;
     }
 
-    private String classifyLevelByFinalScore(int finalScore) {
-        if (finalScore >= 180) return "LEVEL_EXCELLENT";
-        if (finalScore >= 120) return "LEVEL_GOOD";
-        if (finalScore >= 80)  return "LEVEL_AVERAGE";
-        return "LEVEL_LOW";
-    }
+//    private String classifyLevelByFinalScore(int finalScore) {
+//        if (finalScore >= 180) return "LEVEL_EXCELLENT";
+//        if (finalScore >= 120) return "LEVEL_GOOD";
+//        if (finalScore >= 80)  return "LEVEL_AVERAGE";
+//        return "LEVEL_LOW";
+//    }
 
     // =========================================================================
     // STAFF MULTIPLIER FROM POLICY
@@ -257,8 +257,37 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         }
         return 1.0;
     }
+    private String resolveLevelByFinalScore(int finalScore) {
 
-//    // =========================================================================
+        List<MultiplierPolicy> list =
+                policyRepo.findByTargetTypeAndActivityTypeAndActiveTrueOrderByMinThresholdAsc(
+                        PolicyTargetTypeEnum.MEMBER,
+                        PolicyActivityTypeEnum.FINAL_SCORE
+                );
+
+        for (MultiplierPolicy p : list) {
+
+            if (p.getConditionType() != PolicyConditionTypeEnum.ABSOLUTE) {
+                continue;
+            }
+
+            boolean okMin = finalScore >= p.getMinThreshold();
+            boolean okMax = p.getMaxThreshold() == null
+                    || finalScore <= p.getMaxThreshold();
+
+            if (okMin && okMax) {
+                return p.getRuleName();
+            }
+        }
+
+        throw new ApiException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Missing FINAL_SCORE ABSOLUTE policy mapping"
+        );
+    }
+
+
+    //    // =========================================================================
 //    // CLASSIFY LEVEL (LEVEL_FULL / NORMAL / LOW...)
 //    // =========================================================================
 //    private String classifyActivityLevel(double rate) {
@@ -587,7 +616,7 @@ private int resolveBaseScore(
                             .eventAttendanceRate(0)
                             .totalPenaltyPoints(0)
 
-                            .activityLevel(classifyLevelByFinalScore(finalScore))
+                            .activityLevel(resolveLevelByFinalScore(finalScore))
 
                             .attendanceBaseScore(attendanceBase)
                             .attendanceMultiplier(attMul)

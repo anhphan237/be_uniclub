@@ -8,6 +8,7 @@ public enum PolicyActivityTypeEnum {
     CLUB_ACTIVITY_QUALITY,
     CLUB_AWARD_LEVEL,
     ATTENDANCE_BASE,
-    STAFF_POINT
+    STAFF_POINT,
+    FINAL_SCORE
 }
 
