@@ -112,6 +112,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             // 🔐 Sinh JWT token
             String token = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
+            log.info("Generated JWT for email={}, role={}, token={}",
+                    user.getEmail(), user.getRole() != null ? user.getRole().getRoleName() : null, token);
+
             // ⭐ Chỉ trả về ID CLB để giảm tải entity
             List<Long> clubIds = membershipRepo.findActiveClubIds(user.getUserId());
             boolean isStaff = membershipRepo.findActiveStaffClubId(user.getUserId()) != null;
