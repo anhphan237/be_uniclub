@@ -16,4 +16,15 @@ public interface ClubCashoutRequestRepository
     List<ClubCashoutRequest> findByStatusOrderByRequestedAtAsc(CashoutStatusEnum status);
 
     Optional<ClubCashoutRequest> findByClubAndStatus(Club club, CashoutStatusEnum status);
+
+    List<ClubCashoutRequest> findByClubAndStatusOrderByRequestedAtDesc(
+            Club club,
+            CashoutStatusEnum status
+    );
+
+    List<ClubCashoutRequest> findByStatusOrderByReviewedAtDesc(
+            CashoutStatusEnum status
+    );
+
+    List<ClubCashoutRequest> findAllByOrderByRequestedAtDesc();
 }

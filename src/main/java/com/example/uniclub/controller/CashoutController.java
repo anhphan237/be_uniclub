@@ -2,6 +2,7 @@ package com.example.uniclub.controller;
 
 import com.example.uniclub.dto.ApiResponse;
 import com.example.uniclub.dto.response.CashoutResponse;
+import com.example.uniclub.enums.CashoutStatusEnum;
 import com.example.uniclub.service.ClubCashoutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -77,4 +78,56 @@ public class CashoutController {
         cashoutService.rejectCashout(id, reason);
         return ApiResponse.ok();
     }
+
+
+    @Operation(summary = "Xem lịch sử đơn rút điểm (approved / rejected)")
+    @GetMapping("/api/cashouts/my-club/{clubId}/history")
+    @PreAuthorize("hasRole('CLUB_LEADER')")
+    public ApiResponse<List<CashoutResponse>> history(
+            @PathVariable Long clubId,
+            @RequestParam CashoutStatusEnum status
+    ) {
+        return ApiResponse.ok(
+                cashoutService.getCashoutsByClubAndStatus(clubId, status)
+        );
+    }
+
+    @Operation(summary = "Xem chi tiết đơn rút điểm")
+    @GetMapping("/api/cashouts/{id}")
+    @PreAuthorize("hasAnyRole('CLUB_LEADER','UNIVERSITY_STAFF','ADMIN')")
+    public ApiResponse<CashoutResponse> detail(
+            @PathVariable Long id
+    ) {
+        return ApiResponse.ok(
+                cashoutService.getCashoutDetail(id)
+        );
+    }
+
+    @Operation(summary = "Xem danh sách đơn đã duyệt")
+    @GetMapping("/api/admin/cashouts/approved")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ApiResponse<List<CashoutResponse>> approved() {
+        return ApiResponse.ok(
+                cashoutService.getApprovedCashouts()
+        );
+    }
+
+    @Operation(summary = "Xem danh sách đơn bị từ chối")
+    @GetMapping("/api/admin/cashouts/rejected")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ApiResponse<List<CashoutResponse>> rejected() {
+        return ApiResponse.ok(
+                cashoutService.getRejectedCashouts()
+        );
+    }
+
+    @Operation(summary = "Xem tất cả đơn rút điểm CLB")
+    @GetMapping("/api/admin/cashouts")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
+    public ApiResponse<List<CashoutResponse>> allCashouts() {
+        return ApiResponse.ok(
+                cashoutService.getAllCashouts()
+        );
+    }
+
 }

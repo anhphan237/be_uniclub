@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import com.example.uniclub.enums.CashoutStatusEnum;
 
 @Service
 @RequiredArgsConstructor
@@ -268,6 +269,58 @@ public class ClubCashoutServiceImpl implements ClubCashoutService {
         return cashoutRepo.findByStatusOrderByRequestedAtAsc(
                         CashoutStatusEnum.PENDING
                 )
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+    @Override
+    public List<CashoutResponse> getCashoutsByClubAndStatus(
+            Long clubId,
+            CashoutStatusEnum status
+    ) {
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND, "Club not found"
+                ));
+
+        return cashoutRepo
+                .findByClubAndStatusOrderByRequestedAtDesc(club, status)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+    @Override
+    public CashoutResponse getCashoutDetail(Long id) {
+        ClubCashoutRequest request = cashoutRepo.findById(id)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.NOT_FOUND, "Cashout request not found"
+                ));
+
+        return mapToResponse(request);
+    }
+    @Override
+    public List<CashoutResponse> getApprovedCashouts() {
+        return cashoutRepo
+                .findByStatusOrderByReviewedAtDesc(
+                        CashoutStatusEnum.APPROVED
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+    @Override
+    public List<CashoutResponse> getRejectedCashouts() {
+        return cashoutRepo
+                .findByStatusOrderByReviewedAtDesc(
+                        CashoutStatusEnum.REJECTED
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+    @Override
+    public List<CashoutResponse> getAllCashouts() {
+        return cashoutRepo.findAllByOrderByRequestedAtDesc()
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
