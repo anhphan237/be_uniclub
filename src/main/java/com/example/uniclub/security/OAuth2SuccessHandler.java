@@ -135,7 +135,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                     "%s?token=%s&role=%s&clubIds=%s&staff=%s&newUser=%s&firstLogin=%s&needCompleteProfile=%s",
                     redirectSuccessUrl,
                     token,
-                    user.getRole().getRoleName(),
+                    roleName,
                     clubIdsParam,
                     isStaff,
                     isNewUser,
