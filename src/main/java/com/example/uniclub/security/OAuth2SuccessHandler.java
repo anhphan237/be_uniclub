@@ -109,8 +109,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             // =============================
             boolean needCompleteProfile = (user.getStudentCode() == null);
 
+            String roleName = (user.getRole() != null && user.getRole().getRoleName() != null)
+                    ? user.getRole().getRoleName()
+                    : "STUDENT";
+
             // 🔐 Sinh JWT token
-            String token = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+            String token = jwtUtil.generateToken(user.getEmail(), roleName);
 
             log.info("Generated JWT for email={}, role={}, token={}",
                     user.getEmail(), user.getRole() != null ? user.getRole().getRoleName() : null, token);

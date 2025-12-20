@@ -2,17 +2,19 @@ package com.example.uniclub.security;
 
 import com.example.uniclub.entity.User;
 import com.example.uniclub.repository.UserRepository;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.WeakKeyException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.WeakKeyException;
 
 import java.security.Key;
 import java.util.Date;
-import java.util.Map;
 import java.util.logging.Logger;
 
 @Component
@@ -55,8 +57,8 @@ public class JwtUtil {
         Date exp = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
-                .setClaims(Map.of("role", role))  // <─ LƯU ROLE VÀO JWT
-                .setSubject(email)                // email
+                .setSubject(email)
+                .claim("role", role)
                 .setIssuedAt(now)
                 .setExpiration(exp)
                 .signWith(key, SignatureAlgorithm.HS256)
