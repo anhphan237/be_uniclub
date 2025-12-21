@@ -151,4 +151,12 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             Long eventId,
             Long userId
     );
+    @Query("""
+    SELECT COUNT(ar)
+    FROM AttendanceRecord ar
+    WHERE ar.event.eventId = :eventId
+      AND ar.startCheckInTime IS NOT NULL
+""")
+    long countPublicCheckedIn(@Param("eventId") Long eventId);
+
 }

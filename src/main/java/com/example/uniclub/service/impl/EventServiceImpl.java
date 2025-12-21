@@ -50,6 +50,7 @@ public class EventServiceImpl implements EventService {
     private final EventPointsService eventPointsService;
     private final EmailService emailService;
     private final EventDayRepository eventDayRepo;
+    private final AttendanceRecordRepository attendanceRepo;
 
 
     // =================================================================
@@ -1107,23 +1108,39 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getEventAttendanceSummary(Long eventId) {
+
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
-        List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
+        long totalRegistered = 0;
+        long checkedInCount = 0;
+        long refundedCount = 0;
+        long totalCommitPoints = 0;
 
-        long totalRegistered = regs.size();
-        long checkedInCount = regs.stream()
-                .filter(r -> r.getAttendanceLevel() != null && r.getAttendanceLevel() != AttendanceLevelEnum.NONE)
-                .count();
+        if (event.getType() == EventTypeEnum.PUBLIC) {
 
-        long refundedCount = regs.stream()
-                .filter(r -> r.getStatus() == RegistrationStatusEnum.REWARDED)
-                .count();
+            // ✅ PUBLIC: chỉ đếm attendance_records
+            checkedInCount = attendanceRepo.countPublicCheckedIn(eventId);
 
-        long totalCommitPoints = regs.stream()
-                .mapToLong(r -> Optional.ofNullable(r.getCommittedPoints()).orElse(0))
-                .sum();
+        } else {
+
+            List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
+
+            totalRegistered = regs.size();
+
+            checkedInCount = regs.stream()
+                    .filter(r -> r.getAttendanceLevel() != null
+                            && r.getAttendanceLevel() != AttendanceLevelEnum.NONE)
+                    .count();
+
+            refundedCount = regs.stream()
+                    .filter(r -> r.getStatus() == RegistrationStatusEnum.REWARDED)
+                    .count();
+
+            totalCommitPoints = regs.stream()
+                    .mapToLong(r -> Optional.ofNullable(r.getCommittedPoints()).orElse(0))
+                    .sum();
+        }
 
         return Map.of(
                 "eventId", event.getEventId(),
@@ -1135,6 +1152,8 @@ public class EventServiceImpl implements EventService {
                 "totalCommitPoints", totalCommitPoints
         );
     }
+
+
 
     @Override
     @Transactional

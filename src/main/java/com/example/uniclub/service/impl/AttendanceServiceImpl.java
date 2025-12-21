@@ -99,6 +99,14 @@ public class AttendanceServiceImpl implements AttendanceService {
     // =========================================================
     private void processAttendancePhase(User user, Event event, QRPhase phase) {
 
+        // ❌ PUBLIC event không có multi-phase attendance
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PUBLIC event does not support multi-phase attendance"
+            );
+        }
+
         EventRegistration reg = regRepo.findByEvent_EventIdAndUser_UserId(
                 event.getEventId(), user.getUserId()
         ).orElseThrow(() ->
@@ -116,7 +124,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
         switch (phase) {
-
             case START -> {
                 if (record.getStartCheckInTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked in (START)");
@@ -125,11 +132,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
                 reg.setCheckinAt(now);
 
-                // ✅ increase currentCheckInCount (only once at START)
                 Integer current = Optional
                         .ofNullable(event.getCurrentCheckInCount())
                         .orElse(0);
-
                 event.setCurrentCheckInCount(current + 1);
                 eventRepo.save(event);
             }
@@ -137,7 +142,6 @@ public class AttendanceServiceImpl implements AttendanceService {
             case MID -> {
                 if (record.getMidCheckTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked in (MID)");
-
                 if (record.getStartCheckInTime() == null)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Must START before MID");
 
@@ -148,7 +152,6 @@ public class AttendanceServiceImpl implements AttendanceService {
             case END -> {
                 if (record.getEndCheckOutTime() != null)
                     throw new ApiException(HttpStatus.CONFLICT, "Already checked out (END)");
-
                 if (record.getStartCheckInTime() == null)
                     throw new ApiException(HttpStatus.BAD_REQUEST, "Must START before END");
 
@@ -156,23 +159,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                 reg.setCheckoutAt(now);
 
                 updateAttendanceLevel(record, reg);
-
-                // =================================================
-                // ✅ NEW: send email when FULL attendance completed
-                // =================================================
-                if (record.getAttendanceLevel() == AttendanceLevelEnum.FULL) {
-                    emailService.sendFullAttendanceCongratsEmail(
-                            user.getEmail(),
-                            user.getFullName(),
-                            event.getName()
-                    );
-                }
-
-                log.info(
-                        "User {} completed END check-out for event '{}'",
-                        user.getEmail(),
-                        event.getName()
-                );
             }
         }
 
@@ -180,6 +166,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         reg.setUpdatedAt(now);
         regRepo.save(reg);
     }
+
 
 
 
@@ -262,9 +249,34 @@ public class AttendanceServiceImpl implements AttendanceService {
     // =========================================================
     @Override
     public EventStatsResponse getEventStats(Long eventId) {
+
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        // ✅ PUBLIC event
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            int checkedIn = Optional
+                    .ofNullable(event.getCurrentCheckInCount())
+                    .orElse(0);
+
+            return EventStatsResponse.builder()
+                    .eventId(event.getEventId())
+                    .eventName(event.getName())
+                    .totalRegistered(0)
+                    .checkinCount(checkedIn)
+                    .midCount(0)
+                    .checkoutCount(0)
+                    .noneCount(0)
+                    .halfCount(0)
+                    .fullCount(0)
+                    .suspiciousCount(0)
+                    .participationRate(0)
+                    .midComplianceRate(0)
+                    .fraudRate(0)
+                    .build();
+        }
+
+        // ===== PRIVATE / SPECIAL giữ nguyên =====
         List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
         int total = regs.size();
 
@@ -275,6 +287,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (r.getCheckinAt() != null) checkin++;
             if (r.getCheckMidAt() != null) mid++;
             if (r.getCheckoutAt() != null) checkout++;
+
             AttendanceLevelEnum lv = r.getAttendanceLevel();
             if (lv == null) none++;
             else switch (lv) {
@@ -305,6 +318,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .fraudRate(round2(fraudRate))
                 .build();
     }
+
 
     @Override
     public List<FraudCaseResponse> getFraudCases(Long eventId) {
@@ -450,24 +464,6 @@ public class AttendanceServiceImpl implements AttendanceService {
         attendanceRepo.save(record);
 
         // =====================================================
-        // 4️⃣ EVENT REGISTRATION (PUBLIC AUTO – CHỈ ĐỂ THỐNG KÊ)
-        // =====================================================
-        EventRegistration reg = regRepo
-                .findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())
-                .orElseGet(() -> EventRegistration.builder()
-                        .event(event)
-                        .user(user)
-                        .committedPoints(0)
-                        .attendanceLevel(AttendanceLevelEnum.NONE)
-                        .status(RegistrationStatusEnum.CHECKED_IN)
-                        .build()
-                );
-
-        reg.setCheckinAt(now);
-        reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
-        regRepo.save(reg);
-
-        // =====================================================
         // 5️⃣ TĂNG CHECK-IN COUNT
         // =====================================================
         int nextCount = current + 1;
@@ -537,10 +533,19 @@ public class AttendanceServiceImpl implements AttendanceService {
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
+        // ❌ PUBLIC event không có attendee list
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PUBLIC event does not support attendee listing"
+            );
+        }
+
+        // PRIVATE / SPECIAL
         List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
 
         return regs.stream()
-                .filter(r -> r.getCheckinAt() != null) // chỉ lấy người đã check-in
+                .filter(r -> r.getCheckinAt() != null)
                 .map(r -> new EventAttendeeResponse(
                         r.getUser().getUserId(),
                         r.getUser().getFullName(),
@@ -552,6 +557,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 ))
                 .toList();
     }
+
 
     @Override
     @Transactional
