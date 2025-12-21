@@ -54,6 +54,21 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     ORDER BY e.startDate ASC
 """)
     List<Event> findFullEventsByLocationId(@Param("locationId") Long locationId);
+    @Query("""
+    SELECT DISTINCT e FROM Event e
+    LEFT JOIN FETCH e.days d
+    LEFT JOIN FETCH e.coHostRelations rel
+    LEFT JOIN FETCH rel.club
+    LEFT JOIN FETCH e.hostClub hc
+    LEFT JOIN FETCH e.location l
+    WHERE l.locationId = :locationId
+      AND e.status IN (
+          com.example.uniclub.enums.EventStatusEnum.APPROVED,
+          com.example.uniclub.enums.EventStatusEnum.ONGOING
+      )
+    ORDER BY e.startDate ASC
+""")
+    List<Event> findFullActiveEventsByLocationId(@Param("locationId") Long locationId);
 
     @Query("""
     SELECT DISTINCT e FROM Event e
@@ -206,9 +221,9 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     SELECT e FROM Event e
     JOIN e.days d
     WHERE e.location.locationId = :locationId
-      AND e.status IN (
-          com.example.uniclub.enums.EventStatusEnum.APPROVED,
-          com.example.uniclub.enums.EventStatusEnum.ONGOING
+      AND e.status NOT IN (
+          com.example.uniclub.enums.EventStatusEnum.CANCELLED,
+          com.example.uniclub.enums.EventStatusEnum.REJECTED
       )
       AND d.date = :date
       AND d.startTime < :endTime
