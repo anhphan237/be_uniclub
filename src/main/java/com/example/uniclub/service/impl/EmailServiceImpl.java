@@ -700,21 +700,47 @@ public class EmailServiceImpl implements EmailService {
             String fullName,
             String eventName,
             LocalTime startTime,
-            String location
+            String location,
+            Long rewardPoints
     ) {
 
-        String formattedTime = (startTime != null) ? startTime.toString() : "Not specified";
+        String formattedTime =
+                (startTime != null) ? startTime.toString() : "Not specified";
+
+        String rewardText =
+                (rewardPoints != null && rewardPoints > 0)
+                        ? "<p><b>🎁 Reward:</b> <span style='color:#2E7D32;'><b>"
+                        + rewardPoints + " points</b></span></p>"
+                        : "<p><b>🎁 Reward:</b> No reward for this event.</p>";
 
         String content = """
-            <h2 style="color:#1E88E5;">Check-in Successful 🎉</h2>
-            <p>Hello <b>%s</b>,</p>
-            <p>You checked in to <b>%s</b>.</p>
-            <p><b>Time:</b> %s<br><b>Location:</b> %s</p>
-        """.formatted(fullName, eventName, formattedTime,
-                location != null ? location : "Not specified");
+        <h2 style="color:#1E88E5;">Check-in Successful 🎉</h2>
+        <p>Hello <b>%s</b>,</p>
+        <p>You have successfully checked in to <b>%s</b>.</p>
+        <p>
+            <b> Time:</b> %s<br>
+            <b> Location:</b> %s
+        </p>
+        %s
+        <hr>
+        <p style="font-size:12px;color:#777;">
+            Points have been added to your UniClub wallet immediately after check-in.
+        </p>
+    """.formatted(
+                fullName,
+                eventName,
+                formattedTime,
+                location != null ? location : "Not specified",
+                rewardText
+        );
 
-        sendEmail(to, "Successfully Checked In: " + eventName, content);
+        sendEmail(
+                to,
+                "🎉 Check-in & Reward Received: " + eventName,
+                content
+        );
     }
+
 
     @Override
     public void sendUpcomingEventReminderEmail(

@@ -119,13 +119,15 @@ public interface EmailService {
             String location
     );
 
-    void sendPublicEventCheckinEmail(
+    public void sendPublicEventCheckinEmail(
             String to,
             String fullName,
             String eventName,
             LocalTime startTime,
-            String location
+            String location,
+            Long rewardPoints
     );
+
 
     void sendEventAwaitingUniStaffReviewEmail(
             String to,

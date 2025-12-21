@@ -400,56 +400,17 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Transactional
     public void handlePublicCheckin(User user, Event event) {
 
-        if (event.getType() != EventTypeEnum.PUBLIC) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "Public check-in only for PUBLIC events."
-            );
-        }
-
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
         // =====================================================
-        // 1️⃣ EVENT PHẢI ĐANG ACTIVE
-        // =====================================================
-        boolean insideAnyDay = event.getDays().stream().anyMatch(day -> {
-            LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
-            LocalDateTime end   = LocalDateTime.of(day.getDate(), day.getEndTime());
-            return !now.isBefore(start) && !now.isAfter(end);
-        });
-
-        if (!insideAnyDay) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "Event is not active at this time."
-            );
-        }
-
-        // =====================================================
-        // 2️⃣ CHẶN VƯỢT QUOTA (BẮT BUỘC)
-        // =====================================================
-        int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
-        Integer max = event.getMaxCheckInCount();
-
-        if (max != null && max > 0 && current >= max) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "This event has reached the maximum number of check-ins."
-            );
-        }
-
-        // =====================================================
-        // 3️⃣ KHÔNG CHO CHECK-IN TRÙNG
+        // 1️⃣ FIND OR CREATE ATTENDANCE RECORD
         // =====================================================
         AttendanceRecord record = attendanceRepo
                 .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
                 .orElse(null);
 
         if (record != null && record.getStartCheckInTime() != null) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "You have already checked in."
-            );
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
         }
 
         if (record == null) {
@@ -458,27 +419,21 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .event(event)
                     .attendanceLevel(AttendanceLevelEnum.NONE)
                     .build();
+        } else if (record.getAttendanceLevel() == null) {
+            record.setAttendanceLevel(AttendanceLevelEnum.NONE);
         }
 
         record.setStartCheckInTime(now);
         attendanceRepo.save(record);
 
         // =====================================================
-        // 5️⃣ TĂNG CHECK-IN COUNT
-        // =====================================================
-        int nextCount = current + 1;
-        event.setCurrentCheckInCount(nextCount);
-        eventRepo.save(event);
-
-        // =====================================================
-        // 6️⃣ PHÁT THƯỞNG (PUBLIC = CHECK-IN LÀ CÓ THƯỞNG)
+        // 2️⃣ CỘNG ĐIỂM THƯỞNG NGAY (PUBLIC)
         // =====================================================
         Long reward = event.getRewardPerParticipant();
 
         if (reward != null && reward > 0) {
 
             Wallet eventWallet = event.getWallet();
-
             if (eventWallet == null || eventWallet.getStatus() == WalletStatusEnum.CLOSED) {
                 throw new ApiException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -489,7 +444,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (eventWallet.getBalancePoints() < reward) {
                 throw new ApiException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Event wallet does not have enough points for reward."
+                        "Event wallet does not have enough points."
                 );
             }
 
@@ -499,31 +454,38 @@ public class AttendanceServiceImpl implements AttendanceService {
                     eventWallet,
                     userWallet,
                     reward,
-                    "Public event reward: " + event.getName(),
+                    "Public event check-in reward: " + event.getName(),
                     WalletTransactionTypeEnum.BONUS_REWARD
             );
         }
 
         // =====================================================
-        // 7️⃣ EMAIL
+        // 3️⃣ GỬI EMAIL (KHÔNG ĐƯỢC ROLLBACK ĐIỂM)
         // =====================================================
-        emailService.sendPublicEventCheckinEmail(
-                user.getEmail(),
-                user.getFullName(),
-                event.getName(),
-                now.toLocalTime(),
-                event.getLocation() != null
-                        ? event.getLocation().getName()
-                        : "Unknown"
-        );
+        try {
+            emailService.sendPublicEventCheckinEmail(
+                    user.getEmail(),
+                    user.getFullName(),
+                    event.getName(),
+                    now.toLocalTime(),
+                    event.getLocation() != null
+                            ? event.getLocation().getName()
+                            : "Unknown",
+                    reward
+            );
+        } catch (Exception e) {
+            log.error("❌ Failed to send check-in email, reward already granted", e);
+        }
 
         log.info(
-                "✅ PUBLIC check-in success: user={} event={} count={}",
+                "✅ PUBLIC CHECK-IN SUCCESS user={} event={} reward={}",
                 user.getEmail(),
                 event.getName(),
-                nextCount
+                reward
         );
     }
+
+
 
 
 
@@ -629,17 +591,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event is not active now");
         }
 
-        // 4️⃣ AttendanceRecord (PUBLIC chỉ cần START)
+        // 4️⃣ AttendanceRecord
         AttendanceRecord record = attendanceRepo
                 .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
-                .orElseGet(() -> AttendanceRecord.builder()
-                        .user(user)
-                        .event(event)
-                        .attendanceLevel(AttendanceLevelEnum.NONE)
-                        .build()
-                );
+                .orElse(null);
 
-        if (record.getStartCheckInTime() != null) {
+        if (record != null && record.getStartCheckInTime() != null) {
             return Map.of(
                     "eventId", event.getEventId(),
                     "checkedIn", false,
@@ -647,8 +604,17 @@ public class AttendanceServiceImpl implements AttendanceService {
             );
         }
 
+        if (record == null) {
+            record = AttendanceRecord.builder()
+                    .user(user)
+                    .event(event)
+                    .attendanceLevel(AttendanceLevelEnum.NONE)
+                    .build();
+        } else if (record.getAttendanceLevel() == null) {
+            record.setAttendanceLevel(AttendanceLevelEnum.NONE);
+        }
+
         record.setStartCheckInTime(now);
-        record.setAttendanceLevel(AttendanceLevelEnum.NONE);
         attendanceRepo.save(record);
 
         // 5️⃣ Update event counter
@@ -656,20 +622,58 @@ public class AttendanceServiceImpl implements AttendanceService {
         event.setCurrentCheckInCount(current + 1);
         eventRepo.save(event);
 
-        // 6️⃣ Email
-        emailService.sendPublicEventCheckinEmail(
-                user.getEmail(),
-                user.getFullName(),
-                event.getName(),
-                now.toLocalTime(),
-                event.getLocation() != null ? event.getLocation().getName() : "Unknown"
-        );
+        // ===============================
+        // 🔥 6️⃣ PHÁT ĐIỂM NGAY KHI CHECK-IN
+        // ===============================
+        Long reward = event.getRewardPerParticipant();
+
+        if (reward != null && reward > 0) {
+
+            Wallet eventWallet = event.getWallet();
+            if (eventWallet == null || eventWallet.getStatus() == WalletStatusEnum.CLOSED) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event wallet invalid");
+            }
+
+            if (eventWallet.getBalancePoints() < reward) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Event wallet insufficient");
+            }
+
+            Wallet userWallet = walletService.getOrCreateUserWallet(user);
+
+            walletService.transferPointsWithType(
+                    eventWallet,
+                    userWallet,
+                    reward,
+                    "Public event reward (QR): " + event.getName(),
+                    WalletTransactionTypeEnum.BONUS_REWARD
+            );
+        }
+
+        // ===============================
+        // 7️⃣ EMAIL – KHÔNG ĐƯỢC ROLLBACK
+        // ===============================
+        try {
+            emailService.sendPublicEventCheckinEmail(
+                    user.getEmail(),
+                    user.getFullName(),
+                    event.getName(),
+                    now.toLocalTime(),
+                    event.getLocation() != null
+                            ? event.getLocation().getName()
+                            : "Unknown",
+                    reward
+            );
+        } catch (Exception e) {
+            log.error("Email failed but reward already granted", e);
+        }
 
         return Map.of(
                 "eventId", event.getEventId(),
-                "checkedIn", true
+                "checkedIn", true,
+                "reward", reward
         );
     }
+
     @Override
     public boolean checkPublicEventCheckedIn(User user, String checkInCode) {
 
