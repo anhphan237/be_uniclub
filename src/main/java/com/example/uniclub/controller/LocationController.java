@@ -118,7 +118,7 @@ public class LocationController {
     @GetMapping("/{id}/conflicts")
     @Operation(summary = "Kiểm tra trùng lịch tại địa điểm")
     public ResponseEntity<?> checkConflicts(
-            @RequestParam Long locationId,
+            @PathVariable("id") Long locationId,   // ✅ FIX: dùng PathVariable
 
             @RequestParam
             @DateTimeFormat(pattern = "dd-MM-yyyy")
@@ -150,6 +150,8 @@ public class LocationController {
                 locationService.checkConflict(locationId, date, startTime, endTime)
         );
     }
+
+
 
 
 
