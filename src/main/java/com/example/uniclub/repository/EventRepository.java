@@ -218,17 +218,19 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     );
 
     @Query("""
-    SELECT e FROM Event e
-    JOIN e.days d
-    WHERE e.location.locationId = :locationId
-      AND e.status NOT IN (
-          com.example.uniclub.enums.EventStatusEnum.CANCELLED,
-          com.example.uniclub.enums.EventStatusEnum.REJECTED
-      )
-      AND d.date = :date
-      AND d.startTime < :endTime
-      AND d.endTime > :startTime
+SELECT e FROM Event e
+JOIN e.days d
+WHERE e.location.locationId = :locationId
+  AND e.status NOT IN (
+      com.example.uniclub.enums.EventStatusEnum.CANCELLED,
+      com.example.uniclub.enums.EventStatusEnum.REJECTED,
+      com.example.uniclub.enums.EventStatusEnum.COMPLETED
+  )
+  AND d.date = :date
+  AND d.startTime < :endTime
+  AND d.endTime > :startTime
 """)
+
     List<Event> findConflictedEvents(
             @Param("locationId") Long locationId,
             @Param("date") LocalDate date,
