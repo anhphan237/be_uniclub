@@ -495,30 +495,29 @@ public class AttendanceServiceImpl implements AttendanceService {
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        // ❌ PUBLIC event không có attendee list
-        if (event.getType() == EventTypeEnum.PUBLIC) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "PUBLIC event does not support attendee listing"
-            );
-        }
+        List<AttendanceRecord> records =
+                attendanceRepo.findByEvent_EventIdAndStartCheckInTimeNotNull(eventId);
 
-        // PRIVATE / SPECIAL
-        List<EventRegistration> regs = regRepo.findByEvent_EventId(eventId);
+        return records.stream()
+                .map(ar -> {
+                    AttendanceLevelEnum level =
+                            event.getType() == EventTypeEnum.PUBLIC
+                                    ? AttendanceLevelEnum.NONE
+                                    : ar.getAttendanceLevel();
 
-        return regs.stream()
-                .filter(r -> r.getCheckinAt() != null)
-                .map(r -> new EventAttendeeResponse(
-                        r.getUser().getUserId(),
-                        r.getUser().getFullName(),
-                        r.getUser().getEmail(),
-                        r.getAttendanceLevel(),
-                        r.getCheckinAt(),
-                        r.getCheckMidAt(),
-                        r.getCheckoutAt()
-                ))
+                    return new EventAttendeeResponse(
+                            ar.getUser().getUserId(),
+                            ar.getUser().getFullName(),
+                            ar.getUser().getEmail(),
+                            level,
+                            ar.getStartCheckInTime(),
+                            ar.getMidCheckTime(),
+                            ar.getEndCheckOutTime()
+                    );
+                })
                 .toList();
     }
+
 
 
     @Override
