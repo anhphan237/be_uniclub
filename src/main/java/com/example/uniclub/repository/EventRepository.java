@@ -54,6 +54,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     ORDER BY e.startDate ASC
 """)
     List<Event> findFullEventsByLocationId(@Param("locationId") Long locationId);
+
     @Query("""
     SELECT DISTINCT e FROM Event e
     LEFT JOIN FETCH e.days d
@@ -62,12 +63,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     WHERE l.locationId = :locationId
       AND e.status IN (
         com.example.uniclub.enums.EventStatusEnum.APPROVED,
-        com.example.uniclub.enums.EventStatusEnum.ONGOING,
-        com.example.uniclub.enums.EventStatusEnum.COMPLETED
+        com.example.uniclub.enums.EventStatusEnum.ONGOING
       )
     ORDER BY e.startDate ASC
 """)
     List<Event> findEventsByLocationWithDays(@Param("locationId") Long locationId);
+
 
 
     // ============================================================
@@ -202,19 +203,24 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     );
 
     @Query("""
-        SELECT e FROM Event e
-        JOIN e.days d
-        WHERE e.location.locationId = :locationId
-          AND d.date = :date
-          AND d.startTime < :endTime
-          AND d.endTime > :startTime
-    """)
+    SELECT e FROM Event e
+    JOIN e.days d
+    WHERE e.location.locationId = :locationId
+      AND e.status IN (
+          com.example.uniclub.enums.EventStatusEnum.APPROVED,
+          com.example.uniclub.enums.EventStatusEnum.ONGOING
+      )
+      AND d.date = :date
+      AND d.startTime < :endTime
+      AND d.endTime > :startTime
+""")
     List<Event> findConflictedEvents(
             @Param("locationId") Long locationId,
             @Param("date") LocalDate date,
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+
     @Query("""
     SELECT DISTINCT e FROM Event e
     JOIN e.days d
