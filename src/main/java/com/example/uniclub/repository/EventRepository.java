@@ -2,9 +2,11 @@ package com.example.uniclub.repository;
 
 import com.example.uniclub.entity.Event;
 import com.example.uniclub.enums.EventStatusEnum;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -291,5 +293,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("start") LocalDate start,
             @Param("end") LocalDate end
     );
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select e from Event e where e.eventId = :id")
+    Event findByIdForPublicCheckin(@Param("id") Long id);
 
 }

@@ -212,15 +212,18 @@ public class EventPointsServiceImpl implements EventPointsService {
             );
         }
 
-        // ===================== 2️⃣ Load event =====================
-        Event event = eventRepo.findById(eventId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
-
         User user = principal.getUser();
+
+        // ===================== 2️⃣ Load event WITH LOCK =====================
+        Event event = eventRepo.findByIdForPublicCheckin(eventId);
+        if (event == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Event not found");
+        }
 
         // ===================== 3️⃣ PUBLIC event =====================
         if (event.getType() == EventTypeEnum.PUBLIC) {
 
+            // ❌ Status không hợp lệ
             if (!(event.getStatus() == EventStatusEnum.APPROVED
                     || event.getStatus() == EventStatusEnum.ONGOING)) {
                 throw new ApiException(
@@ -229,8 +232,21 @@ public class EventPointsServiceImpl implements EventPointsService {
                 );
             }
 
+            // ❌ ĐÃ ĐỦ SLOT → CHẶN LUÔN
+            int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+            int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(0);
+
+            if (max > 0 && current >= max) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "This event has reached the maximum number of check-ins."
+                );
+            }
+
+            // ✅ Handle PUBLIC check-in (check trùng + phát điểm)
             attendanceService.handlePublicCheckin(user, event);
 
+            // 📝 Log
             eventLogService.logAction(
                     user.getUserId(),
                     user.getFullName(),
@@ -272,8 +288,8 @@ public class EventPointsServiceImpl implements EventPointsService {
         // ===================== 7️⃣ Handle check-in phase =====================
         switch (req.getLevel().toUpperCase()) {
             case "START" -> attendanceService.handleStartCheckin(user, event);
-            case "MID" -> attendanceService.handleMidCheckin(user, event);
-            case "END" -> attendanceService.handleEndCheckout(user, event);
+            case "MID"   -> attendanceService.handleMidCheckin(user, event);
+            case "END"   -> attendanceService.handleEndCheckout(user, event);
             default -> throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "Invalid check-in phase: " + req.getLevel()
@@ -294,6 +310,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         return "Check-in " + req.getLevel().toUpperCase() + " successful.";
     }
+
 
 
     // =========================================================
@@ -383,32 +400,69 @@ public class EventPointsServiceImpl implements EventPointsService {
         Event event = eventRepo.findByIdWithCoHostRelations(req.eventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found"));
 
-        if (event.getHostClub() == null)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Event must have a host club before ending.");
+        if (event.getHostClub() == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Event must have a host club before ending."
+            );
+        }
 
         Wallet eventWallet = ensureEventWallet(event);
 
-        List<EventRegistration> regs = regRepo.findByEvent_EventId(event.getEventId());
+        // =====================================================
+        // 🔥 PUBLIC EVENT: KHÔNG SETTLE THEO COMMIT
+        // =====================================================
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+
+            // ❌ PUBLIC không phát thưởng ở đây
+            // ❌ Không xử lý commit / attendance level
+
+            // 👉 Chỉ cần:
+            // - đóng ví
+            // - refund leftover
+            // - set COMPLETED
+
+            rewardService.autoSettleEvent(event);
+
+            eventWallet.setStatus(WalletStatusEnum.CLOSED);
+            walletRepo.save(eventWallet);
+
+            event.setStatus(EventStatusEnum.COMPLETED);
+            event.setCompletedAt(LocalDateTime.now());
+            eventRepo.save(event);
+
+            return "Public event completed. Rewards were distributed during check-in.";
+        }
+
+        // =====================================================
+        // 🔒 PRIVATE / SPECIAL EVENT (GIỮ LOGIC CŨ)
+        // =====================================================
+        List<EventRegistration> regs =
+                regRepo.findByEvent_EventId(event.getEventId());
+
         long totalReward = 0L;
 
         for (EventRegistration reg : regs) {
 
-            AttendanceLevelEnum level = Optional.ofNullable(reg.getAttendanceLevel())
-                    .orElse(AttendanceLevelEnum.NONE);
+            AttendanceLevelEnum level =
+                    Optional.ofNullable(reg.getAttendanceLevel())
+                            .orElse(AttendanceLevelEnum.NONE);
 
-            long commit = Optional.ofNullable(reg.getCommittedPoints())
-                    .map(Integer::longValue)
-                    .orElse(0L);
+            long commit =
+                    Optional.ofNullable(reg.getCommittedPoints())
+                            .map(Integer::longValue)
+                            .orElse(0L);
 
-            // ❌ Không commit → không thưởng
+            // ❌ Không commit → NO_SHOW
             if (commit <= 0) {
                 reg.setStatus(RegistrationStatusEnum.NO_SHOW);
                 regRepo.save(reg);
                 continue;
             }
 
-            // ❌ SUSPICIOUS → không thưởng + gửi email
+            // ❌ SUSPICIOUS → NO_SHOW + EMAIL
             if (level == AttendanceLevelEnum.SUSPICIOUS) {
+
                 emailService.sendSuspiciousAttendanceEmail(
                         reg.getUser().getEmail(),
                         reg.getUser().getFullName(),
@@ -420,30 +474,32 @@ public class EventPointsServiceImpl implements EventPointsService {
                 continue;
             }
 
-            // ❌ NONE → không thưởng
+            // ❌ NONE → NO_SHOW
             if (level == AttendanceLevelEnum.NONE) {
                 reg.setStatus(RegistrationStatusEnum.NO_SHOW);
                 regRepo.save(reg);
                 continue;
             }
 
-            // 🎯 Attendance factor (only commit points)
-            double attendanceFactor = (level == AttendanceLevelEnum.FULL) ? 2.0 : 1.0;
+            // 🎯 Attendance factor
+            double attendanceFactor =
+                    (level == AttendanceLevelEnum.FULL) ? 2.0 : 1.0;
 
-            // 🎯 Reward = commit * attendance factor
             long finalReward = Math.round(commit * attendanceFactor);
 
             if (finalReward > 0) {
-                Wallet memberWallet = walletService.getOrCreateUserWallet(reg.getUser());
 
-                // 💰 chuyển điểm thưởng
+                Wallet memberWallet =
+                        walletService.getOrCreateUserWallet(reg.getUser());
+
                 walletService.transferPointsWithType(
-                        eventWallet, memberWallet, finalReward,
+                        eventWallet,
+                        memberWallet,
+                        finalReward,
                         "Event reward for " + event.getName(),
                         WalletTransactionTypeEnum.BONUS_REWARD
                 );
 
-                // 📧 gửi email tóm tắt
                 emailService.sendEventSummaryEmail(
                         reg.getUser().getEmail(),
                         reg.getUser().getFullName(),
@@ -453,26 +509,26 @@ public class EventPointsServiceImpl implements EventPointsService {
                 );
 
                 reg.setStatus(RegistrationStatusEnum.REWARDED);
+                totalReward += finalReward;
+
             } else {
                 reg.setStatus(RegistrationStatusEnum.NO_SHOW);
             }
 
             regRepo.save(reg);
-            totalReward += finalReward;
         }
 
-        // Flush
         walletRepo.flush();
         regRepo.flush();
 
-        // Reload event
+        // =====================================================
+        // REFUND + CLOSE
+        // =====================================================
         Event refreshed = eventRepo.findByIdWithCoHostRelations(event.getEventId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event disappeared"));
 
-        // Hoàn leftover
         rewardService.autoSettleEvent(refreshed);
 
-        // Đóng ví sự kiện
         Wallet refreshedWallet = refreshed.getWallet();
         refreshedWallet.setStatus(WalletStatusEnum.CLOSED);
         walletRepo.save(refreshedWallet);
@@ -483,6 +539,7 @@ public class EventPointsServiceImpl implements EventPointsService {
 
         return "Event completed. Total reward " + totalReward + " pts; leftover refunded.";
     }
+
 
     private Wallet ensureEventWallet(Event event) {
         Wallet w = event.getWallet();

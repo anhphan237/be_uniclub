@@ -21,6 +21,7 @@ public enum WalletTransactionTypeEnum {
     REFUND_COMMIT,
     BONUS_REWARD,
     RETURN_SURPLUS,
+    PUBLIC_EVENT_REWARD,
 
     // ===== PRODUCT =====
     REDEEM_PRODUCT,

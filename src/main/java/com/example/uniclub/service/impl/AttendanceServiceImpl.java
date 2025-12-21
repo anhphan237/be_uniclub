@@ -387,33 +387,17 @@ public class AttendanceServiceImpl implements AttendanceService {
     public void handlePublicCheckin(User user, Event event) {
 
         if (event.getType() != EventTypeEnum.PUBLIC) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Public check-in only for PUBLIC events.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Public check-in only for PUBLIC events."
+            );
         }
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
 
         // =====================================================
-        // ✅ NEW: AttendanceRecord cho PUBLIC event
+        // 1️⃣ EVENT PHẢI ĐANG ACTIVE
         // =====================================================
-        AttendanceRecord record = attendanceRepo
-                .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
-                .orElseGet(() -> AttendanceRecord.builder()
-                        .user(user)
-                        .event(event)
-                        .build()
-                );
-
-        if (record.getStartCheckInTime() != null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
-        }
-
-        record.setStartCheckInTime(now);
-        record.setAttendanceLevel(AttendanceLevelEnum.NONE); // PUBLIC chỉ dùng START
-        attendanceRepo.save(record);
-        // =====================================================
-
-        // 🔍 Kiểm tra event đang active trong bất kỳ EventDay nào
         boolean insideAnyDay = event.getDays().stream().anyMatch(day -> {
             LocalDateTime start = LocalDateTime.of(day.getDate(), day.getStartTime());
             LocalDateTime end   = LocalDateTime.of(day.getDate(), day.getEndTime());
@@ -421,55 +405,130 @@ public class AttendanceServiceImpl implements AttendanceService {
         });
 
         if (!insideAnyDay) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Event is not active at this time.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Event is not active at this time."
+            );
         }
 
+        // =====================================================
+        // 2️⃣ CHẶN VƯỢT QUOTA (BẮT BUỘC)
+        // =====================================================
         int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+        Integer max = event.getMaxCheckInCount();
 
-        // 🔹 Kiểm tra đã check-in chưa (EventRegistration)
-        Optional<EventRegistration> opt =
-                regRepo.findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId());
-
-        if (opt.isPresent()) {
-            EventRegistration reg = opt.get();
-
-            if (reg.getCheckinAt() != null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "You have already checked in.");
-            }
-
-            reg.setCheckinAt(now);
-            reg.setAttendanceLevel(AttendanceLevelEnum.NONE);
-            reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
-            regRepo.save(reg);
-
-        } else {
-            regRepo.save(EventRegistration.builder()
-                    .event(event)
-                    .user(user)
-                    .attendanceLevel(AttendanceLevelEnum.NONE)
-                    .status(RegistrationStatusEnum.CHECKED_IN)
-                    .checkinAt(now)
-                    .committedPoints(0)
-                    .build());
+        if (max != null && max > 0 && current >= max) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "This event has reached the maximum number of check-ins."
+            );
         }
 
-        // 🔢 Cập nhật tổng lượt check-in
-        event.setCurrentCheckInCount(current + 1);
+        // =====================================================
+        // 3️⃣ KHÔNG CHO CHECK-IN TRÙNG
+        // =====================================================
+        AttendanceRecord record = attendanceRepo
+                .findByUser_UserIdAndEvent_EventId(user.getUserId(), event.getEventId())
+                .orElse(null);
+
+        if (record != null && record.getStartCheckInTime() != null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "You have already checked in."
+            );
+        }
+
+        if (record == null) {
+            record = AttendanceRecord.builder()
+                    .user(user)
+                    .event(event)
+                    .attendanceLevel(AttendanceLevelEnum.NONE)
+                    .build();
+        }
+
+        record.setStartCheckInTime(now);
+        attendanceRepo.save(record);
+
+        // =====================================================
+        // 4️⃣ EVENT REGISTRATION (PUBLIC AUTO – CHỈ ĐỂ THỐNG KÊ)
+        // =====================================================
+        EventRegistration reg = regRepo
+                .findByEvent_EventIdAndUser_UserId(event.getEventId(), user.getUserId())
+                .orElseGet(() -> EventRegistration.builder()
+                        .event(event)
+                        .user(user)
+                        .committedPoints(0)
+                        .attendanceLevel(AttendanceLevelEnum.NONE)
+                        .status(RegistrationStatusEnum.CHECKED_IN)
+                        .build()
+                );
+
+        reg.setCheckinAt(now);
+        reg.setStatus(RegistrationStatusEnum.CHECKED_IN);
+        regRepo.save(reg);
+
+        // =====================================================
+        // 5️⃣ TĂNG CHECK-IN COUNT
+        // =====================================================
+        int nextCount = current + 1;
+        event.setCurrentCheckInCount(nextCount);
         eventRepo.save(event);
 
-        // 📩 Gửi email
+        // =====================================================
+        // 6️⃣ PHÁT THƯỞNG (PUBLIC = CHECK-IN LÀ CÓ THƯỞNG)
+        // =====================================================
+        Long reward = event.getRewardPerParticipant();
+
+        if (reward != null && reward > 0) {
+
+            Wallet eventWallet = event.getWallet();
+
+            if (eventWallet == null || eventWallet.getStatus() == WalletStatusEnum.CLOSED) {
+                throw new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Event wallet is not available for reward distribution."
+                );
+            }
+
+            if (eventWallet.getBalancePoints() < reward) {
+                throw new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Event wallet does not have enough points for reward."
+                );
+            }
+
+            Wallet userWallet = walletService.getOrCreateUserWallet(user);
+
+            walletService.transferPointsWithType(
+                    eventWallet,
+                    userWallet,
+                    reward,
+                    "Public event reward: " + event.getName(),
+                    WalletTransactionTypeEnum.BONUS_REWARD
+            );
+        }
+
+        // =====================================================
+        // 7️⃣ EMAIL
+        // =====================================================
         emailService.sendPublicEventCheckinEmail(
                 user.getEmail(),
                 user.getFullName(),
                 event.getName(),
                 now.toLocalTime(),
-                event.getLocation() != null ? event.getLocation().getName() : "Unknown"
+                event.getLocation() != null
+                        ? event.getLocation().getName()
+                        : "Unknown"
         );
 
-        log.info("User {} checked in for PUBLIC event {}",
-                user.getEmail(), event.getName());
+        log.info(
+                "✅ PUBLIC check-in success: user={} event={} count={}",
+                user.getEmail(),
+                event.getName(),
+                nextCount
+        );
     }
+
 
 
     @Override

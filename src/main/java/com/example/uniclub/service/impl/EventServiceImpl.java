@@ -135,7 +135,6 @@ public class EventServiceImpl implements EventService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Event must have at least 1 day.");
         }
 
-        // Lọc các ngày và validate từng ngày
         for (EventDayRequest day : req.days()) {
 
             if (day.getDate().isBefore(today)) {
@@ -154,7 +153,10 @@ public class EventServiceImpl implements EventService {
                         "Start time for today must be in the future.");
             }
         }
-// 🔥 CHECK LOCATION–TIME CONFLICT
+
+        // -------------------------------------------------------------
+        // 🔥 CHECK LOCATION–TIME CONFLICT
+        // -------------------------------------------------------------
         for (EventDayRequest d : req.days()) {
             List<Event> conflicts = eventRepo.findConflictedEvents(
                     req.locationId(),
@@ -209,24 +211,21 @@ public class EventServiceImpl implements EventService {
         List<Club> coHosts = (req.coHostClubIds() != null && !req.coHostClubIds().isEmpty())
                 ? clubRepo.findAllById(req.coHostClubIds())
                 : List.of();
+
         // -------------------------------------------------------------
-        // 🔒 Validate commit point cost (all event types)
+        // 🔒 Validate commit point cost (base rule)
         // -------------------------------------------------------------
         if (req.commitPointCost() != null && req.commitPointCost() < 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "Commit point cost must be >= 0");
         }
 
-        // -------------------------------------------------------------
-        // 💰 Commit Point Cost
-        // -------------------------------------------------------------
         int commitCost = req.commitPointCost() != null
                 ? req.commitPointCost()
                 : 0;
 
-
         // -------------------------------------------------------------
-        // 🧱 Tạo EVENT
+        // 🧱 Tạo EVENT (base)
         // -------------------------------------------------------------
         Event event = Event.builder()
                 .hostClub(hostClub)
@@ -236,7 +235,9 @@ public class EventServiceImpl implements EventService {
                 .startDate(startDate)
                 .endDate(endDate)
                 .location(location)
-                .status(coHosts.isEmpty() ? EventStatusEnum.PENDING_UNISTAFF : EventStatusEnum.PENDING_COCLUB)
+                .status(coHosts.isEmpty()
+                        ? EventStatusEnum.PENDING_UNISTAFF
+                        : EventStatusEnum.PENDING_COCLUB)
                 .checkInCode("EVT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .maxCheckInCount(maxCheckIn)
                 .commitPointCost(commitCost)
@@ -247,26 +248,53 @@ public class EventServiceImpl implements EventService {
                 .build();
 
         // -------------------------------------------------------------
-        // 🎯 Validate theo loại sự kiện
+        // 🎯 Validate & SET theo loại sự kiện
         // -------------------------------------------------------------
         if (req.type() == EventTypeEnum.PUBLIC) {
-            // ✅ PUBLIC: cho phép commitPointCost >= 0
-            event.setRegistrationDeadline(null);
-        }
-        else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
 
+            // ❌ PUBLIC bắt buộc có rewardPerParticipant
+            if (req.rewardPerParticipant() == null || req.rewardPerParticipant() <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Public event requires rewardPerParticipant > 0");
+            }
+
+            // ❌ PUBLIC không được có commitPointCost
+            if (req.commitPointCost() != null && req.commitPointCost() > 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "commitPointCost is not allowed for PUBLIC event");
+            }
+
+            event.setRewardPerParticipant(req.rewardPerParticipant());
+            event.setCommitPointCost(0);
+            event.setRegistrationDeadline(null);
+
+        } else if (req.type() == EventTypeEnum.SPECIAL || req.type() == EventTypeEnum.PRIVATE) {
+
+            // ❌ PRIVATE / SPECIAL bắt buộc commit
             if (req.commitPointCost() == null || req.commitPointCost() <= 0) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Commit points required.");
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Commit points required.");
+            }
+
+            // ❌ PRIVATE / SPECIAL không được có rewardPerParticipant
+            if (req.rewardPerParticipant() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "rewardPerParticipant is only allowed for PUBLIC event");
             }
 
             if (req.registrationDeadline() == null) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "Registration deadline required.");
+                throw new ApiException(HttpStatus.BAD_REQUEST,
+                        "Registration deadline required.");
             }
 
             if (req.registrationDeadline().isAfter(startDate)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST,
                         "Registration deadline cannot be after the first event day.");
             }
+
+            event.setCommitPointCost(req.commitPointCost());
+            event.setRewardPerParticipant(null);
+            event.setRegistrationDeadline(req.registrationDeadline());
         }
 
         // -------------------------------------------------------------
@@ -285,13 +313,13 @@ public class EventServiceImpl implements EventService {
         }
 
         // -------------------------------------------------------------
-        // 💾 Lưu EVENT trước
+        // 💾 Lưu EVENT
         // -------------------------------------------------------------
         eventRepo.save(event);
         eventRepo.flush();
 
         // -------------------------------------------------------------
-        // 📆 Lưu danh sách EVENT DAYS
+        // 📆 Lưu EVENT DAYS
         // -------------------------------------------------------------
         List<EventDay> eventDays = req.days().stream()
                 .map(d -> EventDay.builder()
@@ -305,7 +333,6 @@ public class EventServiceImpl implements EventService {
         eventDayRepo.saveAll(eventDays);
         event.setDays(eventDays);
 
-
         // -------------------------------------------------------------
         // 💳 Tạo ví EVENT
         // -------------------------------------------------------------
@@ -316,22 +343,18 @@ public class EventServiceImpl implements EventService {
                 .status(WalletStatusEnum.ACTIVE)
                 .build();
 
-        // 3️⃣ Lưu ví
         walletRepo.save(wallet);
-
-        // 4️⃣ Gán ví vào event nhưng KHÔNG SAVE event lại (tránh lỗi UNIQUE)
         event.setWallet(wallet);
 
-        // ============================
-        // 📧 EMAIL THÔNG BÁO
-        // ============================
+        // -------------------------------------------------------------
+        // 📧 EMAIL
+        // -------------------------------------------------------------
         if (coHosts.isEmpty()) {
             emailService.sendEventAwaitingUniStaffReviewEmail(
                     "unistaff@uniclub.id.vn",
                     event.getName(),
                     startDate.toString()
             );
-
         } else {
             for (Club c : coHosts) {
                 String leaderEmail = membershipRepo.findLeaderEmailByClubId(c.getClubId());
@@ -352,6 +375,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
     // =================================================================
     // 🔹 CO-HOST PHẢN HỒI (MULTI-DAY FIXED)
@@ -849,76 +873,145 @@ public class EventServiceImpl implements EventService {
 
     @Override
     @Transactional
-    public EventResponse approveEventBudget(Long eventId, EventBudgetApproveRequest req, CustomUserDetails staff) {
+    public EventResponse approveEventBudget(
+            Long eventId,
+            EventBudgetApproveRequest req,
+            CustomUserDetails staff
+    ) {
 
         Event event = eventRepo.findById(eventId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Event not found."));
 
-        if (event.getStatus() == EventStatusEnum.REJECTED)
+        // ❌ Event đã bị reject
+        if (event.getStatus() == EventStatusEnum.REJECTED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "This event has already been rejected.");
+        }
 
+        // ❌ Sai trạng thái
         if (event.getStatus() != EventStatusEnum.PENDING_UNISTAFF
-                && event.getStatus() != EventStatusEnum.APPROVED)
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Only pending/approved events can be granted budget.");
+                && event.getStatus() != EventStatusEnum.APPROVED) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only pending/approved events can be granted budget."
+            );
+        }
 
-        if (req.getApprovedBudgetPoints() == null || req.getApprovedBudgetPoints() <= 0)
+        // ❌ Budget không hợp lệ
+        if (req.getApprovedBudgetPoints() == null || req.getApprovedBudgetPoints() <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Budget must be > 0.");
+        }
 
         long approvedPoints = req.getApprovedBudgetPoints();
 
+        // =========================================================
+        // 🔥 VALIDATE THEO LOẠI EVENT
+        // =========================================================
+
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+
+            // PUBLIC bắt buộc có rewardPerParticipant
+            if (event.getRewardPerParticipant() == null || event.getRewardPerParticipant() <= 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Public event must define rewardPerParticipant > 0"
+                );
+            }
+
+            // PUBLIC bắt buộc có maxCheckInCount
+            Integer max = event.getMaxCheckInCount();
+            if (max == null || max <= 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Public event must define maxCheckInCount"
+                );
+            }
+
+            long requiredBudget =
+                    (long) event.getRewardPerParticipant() * max;
+
+            if (approvedPoints < requiredBudget) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "Approved budget is insufficient for PUBLIC event. "
+                                + "Required: " + requiredBudget
+                );
+            }
+
+        } else {
+            // PRIVATE / SPECIAL không được có rewardPerParticipant
+            if (event.getRewardPerParticipant() != null && event.getRewardPerParticipant() > 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "rewardPerParticipant is only applicable for PUBLIC events"
+                );
+            }
+        }
+
+        // =========================================================
+        // 💳 EVENT WALLET
+        // =========================================================
         Wallet eventWallet = event.getWallet();
-        if (eventWallet == null)
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Event wallet missing unexpectedly.");
+        if (eventWallet == null) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Event wallet missing unexpectedly."
+            );
+        }
 
-        if (eventWallet.getStatus() == WalletStatusEnum.CLOSED)
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "Event wallet already closed.");
+        if (eventWallet.getStatus() == WalletStatusEnum.CLOSED) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Event wallet already closed."
+            );
+        }
 
-
-        // 1) UPDATE EVENT WALLET (FIX)
-
-
+        // 👉 APPROVE 1 LẦN → overwrite balance
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
 
-
-        // ============================================================
-        // 2) GET UNIVERSITY WALLET – ví nguồn cho giao dịch
-        // ============================================================
+        // =========================================================
+        // 🏦 UNIVERSITY WALLET (SOURCE)
+        // =========================================================
         Wallet uniWallet = walletRepo.findUniversityWallet()
-                .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                        "University wallet not found."));
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "University wallet not found."
+                ));
 
-        // ============================================================
-        // 3) CREATE TRANSACTION – nguồn là ví UNIVERSITY
-        // ============================================================
-        WalletTransaction tx = WalletTransaction.builder()
-                .wallet(uniWallet) // ✅ ví của UNIVERSITY, không phải ví EVENT
-                .amount(approvedPoints)
-                .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
-                .description("UniStaff approved " + approvedPoints + " points for event: " + event.getName())
-                .senderName(staff.getUser().getFullName())
-                .receiverName(event.getName())
-                .receiverClub(event.getHostClub())   // optional but recommended
-                .createdAt(LocalDateTime.now())
-                .build();
+        // =========================================================
+        // 🧾 TRANSACTION LOG
+        // =========================================================
+        walletTransactionRepo.save(
+                WalletTransaction.builder()
+                        .wallet(uniWallet)
+                        .amount(approvedPoints)
+                        .type(WalletTransactionTypeEnum.EVENT_BUDGET_GRANT)
+                        .description(
+                                "UniStaff approved " + approvedPoints
+                                        + " points for event: " + event.getName()
+                        )
+                        .senderName(staff.getUser().getFullName())
+                        .receiverName(event.getName())
+                        .receiverClub(event.getHostClub())
+                        .createdAt(LocalDateTime.now())
+                        .build()
+        );
 
-        walletTransactionRepo.save(tx);
-
-        // ============================================================
-        // UPDATE EVENT INFO
-        // ============================================================
+        // =========================================================
+        // UPDATE EVENT
+        // =========================================================
         event.setApprovedBy(staff.getUser());
         event.setApprovedAt(LocalDateTime.now());
         event.setStatus(EventStatusEnum.APPROVED);
         event.setBudgetPoints(approvedPoints);
         eventRepo.save(event);
 
+        // =========================================================
         // EMAIL
-        String leaderEmail = membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
+        // =========================================================
+        String leaderEmail =
+                membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
 
         emailService.sendEventApprovedEmail(
                 leaderEmail,
@@ -928,6 +1021,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
 
 

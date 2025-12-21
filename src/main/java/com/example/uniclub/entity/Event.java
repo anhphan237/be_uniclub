@@ -97,6 +97,9 @@ public class Event {
     private LocalDateTime completedAt;
     @Column(name = "registration_deadline")
     private LocalDate registrationDeadline;
+    // 💰 Điểm thưởng cho mỗi người (CHỈ PUBLIC)
+    @Column(name = "reward_per_participant")
+    private Long rewardPerParticipant;
 
     // 👤 Người duyệt (staff hoặc admin)
     @ManyToOne(fetch = FetchType.LAZY)

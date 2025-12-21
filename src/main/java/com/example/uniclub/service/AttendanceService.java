@@ -10,26 +10,41 @@ import java.util.Map;
 
 public interface AttendanceService {
     Map<String, Object> getQrTokenForEvent(Long eventId, String phase);
+
     void checkInWithToken(String token, String email);
+
     String verifyAttendance(Long eventId, Long userId);
+
     void verifyAndSaveAttendance(User user, Event event, String level);
+
     void scanEventPhase(String tokenValue, String email);
+
     EventStatsResponse getEventStats(Long eventId);
+
     List<FraudCaseResponse> getFraudCases(Long eventId);
+
     void handleStartCheckin(User user, Event event);
+
     void handleMidCheckin(User user, Event event);
+
     void handleEndCheckout(User user, Event event);
+
     void handlePublicCheckin(User user, Event event);
+
     List<EventAttendeeResponse> getEventAttendees(Long eventId);
+
     public List<EventRegisteredUserResponse> getRegisteredUsers(Long eventId);
+
     List<MyCheckedInEventResponse> getMyCheckedInEvents(Long userId);
+
     Map<String, Object> publicQrCheckIn(User user, String qrToken);
+
     boolean checkPublicEventCheckedIn(User user, String checkInCode);
+
     Map<String, Object> getPublicCheckInStatus(User user, String checkInCode);
+
     MyEventAttendanceStatusResponse getMyAttendanceStatus(User user, Long eventId);
-    MyEventAttendanceStatusResponse getMyAttendanceStatusByCheckInCode(
-            User user,
-            String checkInCode
-    );
+
+    MyEventAttendanceStatusResponse getMyAttendanceStatusByCheckInCode(User user, String checkInCode);
 
 }
