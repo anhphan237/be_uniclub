@@ -139,44 +139,66 @@ public class UniversityOverviewServiceImpl implements UniversityOverviewService 
     // ============================================================
     // 🔵 Tính AttendanceRate FULL=1, HALF=0.5, NONE=0
     // ============================================================
-    private Double calculateAttendanceRate(Long clubId, Long totalMember,
-                                           LocalDateTime start, LocalDateTime end) {
+    // ============================================================
+// 🔵 Tính AttendanceRate
+// FULL = 1.0
+// HALF = 0.5
+// NONE / SUSPICIOUS = 0.0
+// NULL (public / legacy) = 1.0
+// ============================================================
+    private Double calculateAttendanceRate(
+            Long clubId,
+            Long totalMember,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
 
         if (totalMember == null || totalMember == 0) return 0.0;
 
-        List<AttendanceRecord> att;
+        List<AttendanceRecord> records;
 
         if (start == null || end == null) {
-            att = attendanceRepo.findAttendanceByClub(clubId);
+            records = attendanceRepo.findAttendanceByClub(clubId);
         } else {
-            att = attendanceRepo.findAttendanceByClubAndDateRange(clubId, start, end);
+            records = attendanceRepo.findAttendanceByClubAndDateRange(clubId, start, end);
         }
 
-        if (att.isEmpty()) return 0.0;
+        if (records.isEmpty()) return 0.0;
 
-        // Tính điểm attendance từng record
+        // Tổng điểm attendance theo từng event
         Map<Long, Double> eventAttendanceScore = new HashMap<>();
 
-        for (AttendanceRecord ar : att) {
+        for (AttendanceRecord ar : records) {
 
-            Double score = switch (ar.getAttendanceLevel()) {
-                case FULL -> 1.0;
-                case HALF -> 0.5;
-                default -> 0.0;
-            };
+            AttendanceLevelEnum level = ar.getAttendanceLevel();
+
+            double score;
+            if (level == null) {
+                // ✅ Public event / legacy data / chưa finalize
+                score = 1.0;
+            } else {
+                score = switch (level) {
+                    case FULL -> 1.0;
+                    case HALF -> 0.5;
+                    case NONE, SUSPICIOUS -> 0.0;
+                };
+            }
 
             Long eventId = ar.getEvent().getEventId();
-
             eventAttendanceScore.merge(eventId, score, Double::sum);
         }
 
-        // Tính tỷ lệ từng event
+        // Tính attendance rate cho từng event
         List<Double> eventRates = eventAttendanceScore.values().stream()
-                .map(score -> score / totalMember) // score / total_member
+                .map(totalScore -> totalScore / totalMember)
                 .toList();
 
-        // Trả trung bình
-        return eventRates.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        // Trung bình toàn CLB
+        return eventRates.stream()
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0.0);
     }
+
 
 }
