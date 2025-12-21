@@ -98,6 +98,7 @@ public class EventServiceImpl implements EventService {
                 .status(event.getStatus())
                 .checkInCode(event.getCheckInCode())
                 .commitPointCost(event.getCommitPointCost())
+                .rewardPerParticipant(event.getRewardPerParticipant())
                 .budgetPoints(event.getBudgetPoints())
                 .locationName(
                         event.getLocation() != null

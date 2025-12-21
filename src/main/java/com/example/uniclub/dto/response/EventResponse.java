@@ -34,7 +34,7 @@ public class EventResponse {
     private Integer maxCheckInCount;
     private Integer currentCheckInCount;
     private Integer commitPointCost;
-
+    private Long rewardPerParticipant;
     private SimpleClub hostClub;
     private List<SimpleClub> coHostedClubs;
 
