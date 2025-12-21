@@ -33,14 +33,7 @@ class EventServiceImplTest {
     @Mock EventRepository eventRepo;
     @Mock ClubRepository clubRepo;
     @Mock LocationRepository locationRepo;
-    @Mock MembershipRepository membershipRepo;
     @Mock WalletRepository walletRepo;
-    @Mock EventStaffRepository eventStaffRepo;
-    @Mock EventRegistrationRepository eventRegistrationRepo;
-    @Mock WalletTransactionRepository walletTransactionRepo;
-    @Mock ProductRepository productRepo;
-    @Mock EventRegistrationRepository regRepo;
-    @Mock EventPointsService eventPointsService;
     @Mock EmailService emailService;
 
     @InjectMocks
@@ -87,8 +80,9 @@ class EventServiceImplTest {
                 days,
                 locationId,
                 120,
-                0,
-                null
+                0L,
+                null,
+                LocalDate.now().plusDays(1)
         );
     }
 
