@@ -463,38 +463,47 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         LocalDate end = range[1];
 
         List<Event> events = eventRepo.findCompletedEventsForClub(clubId, start, end);
-
         List<ClubEventContributionResponse> result = new ArrayList<>();
 
         for (Event e : events) {
 
+            // ===== FEEDBACK (0–5) =====
             double feedback = Optional.ofNullable(
                     feedbackRepo.avgRatingByEvent(e.getEventId())
             ).orElse(0.0);
+            feedback = round(feedback, 2);
 
-            double checkinRate = Optional.ofNullable(
+            // ===== CHECK-IN RATE (RAW, có thể > 1.0) =====
+            double checkinRateRaw = Optional.ofNullable(
                     (e.getMaxCheckInCount() == null || e.getMaxCheckInCount() == 0)
                             ? null
                             : (e.getCurrentCheckInCount() * 1.0 / e.getMaxCheckInCount())
             ).orElse(0.0);
 
-            double weight =
-                    (feedback * 20) * 0.6 +
-                            (checkinRate * 100) * 0.4;
+            // 👉 ĐỔI SANG % (CÓ THỂ > 100%), LÀM TRÒN 2 CHỮ SỐ
+            double checkinPercent = round(checkinRateRaw * 100, 2);
+
+            // ===== WEIGHT =====
+            // Weight = 60% chất lượng (feedback) + 40% mức độ tham gia (check-in %)
+            double weight = round(
+                    (feedback * 20) * 0.6 +   // feedback (0–5) → (0–100) → 60%
+                            (checkinPercent) * 0.4,   // check-in % → 40%
+                    2
+            );
 
             result.add(ClubEventContributionResponse.builder()
                     .eventId(e.getEventId())
                     .eventName(e.getName())
                     .feedback(feedback)
-                    .checkinRate(checkinRate)
+                    .checkinRate(checkinPercent) // VD: 133.33 nghĩa là 133.33%
                     .weight(weight)
                     .build());
         }
 
         result.sort((a, b) -> Double.compare(b.getWeight(), a.getWeight()));
-
         return result;
     }
+
 
     // =========================================================================
     // 12. LOCK RECORD
