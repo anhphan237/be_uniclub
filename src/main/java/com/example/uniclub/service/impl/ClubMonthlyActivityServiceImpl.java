@@ -89,7 +89,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .month(m.getMonth())
 
                 .totalEvents(m.getTotalEvents())
-                .eventSuccessRate(m.getAvgCheckinRate()) // bản chất là successRate
+                .eventSuccessRate(m.getEventSuccessRate())
                 .avgFeedback(m.getAvgFeedback())
 
                 .finalScore(m.getFinalScore())
@@ -159,7 +159,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
         // =====================================================
         // 2️⃣ VOLUME SCORE
         // =====================================================
-        double volumeScore = totalEvents * 10;
+        double volumeScore = totalEvents * 100;
 
         // =====================================================
         // 3️⃣ QUALITY SCORE
@@ -222,14 +222,16 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 (int) awardScore
         );
 
-        long rewardPoints = Math.max(0, Math.round(
-                awardScore *
-                        policyService.resolveMultiplier(
-                                PolicyTargetTypeEnum.CLUB,
-                                PolicyActivityTypeEnum.CLUB_MEMBER_SIZE,
-                                (int) memberCount
-                        )
-        ));
+        long rewardPoints =
+                totalEvents * 500L
+                        + completedEvents * 300L
+                        + totalCheckins * 2L
+                        + (avgFeedback >= 4.0 ? 1000L : 0L);
+
+        if (completedEvents >= 1) {
+            rewardPoints = Math.max(rewardPoints, 3000L);
+        }
+
 
         // =====================================================
         // 8️⃣ SAVE
@@ -662,7 +664,9 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
     @Transactional
     public void distributeRewardToMembers(Long clubId, int year, int month) {
 
-        // 1. Lấy dữ liệu đầu vào
+        // =========================
+        // 1. LOAD & VALIDATE
+        // =========================
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
@@ -671,50 +675,115 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Monthly record not found"));
 
         if (!record.isLocked()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Month must be locked before distributing.");
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Month must be locked before distributing."
+            );
         }
 
-        long clubRewards = record.getRewardPoints(); // Long
-        if (clubRewards <= 0)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Club has no reward points.");
+        // ❗ NEW: CHẶN DISTRIBUTE 2 LẦN
+        if (record.isDistributed()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reward already distributed for this month"
+            );
+        }
+
+        long clubRewards = record.getRewardPoints();
+        if (clubRewards <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Club has no reward points."
+            );
+        }
 
         Wallet clubWallet = club.getWallet();
-        if (clubWallet.getBalancePoints() < clubRewards)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Club wallet does not have enough points.");
+        if (clubWallet == null || clubWallet.getBalancePoints() < clubRewards) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Club wallet does not have enough points."
+            );
+        }
 
-        // 2. Lấy danh sách activity member
+        // =========================
+        // 2. LOAD MEMBER ACTIVITY
+        // =========================
         List<MemberMonthlyActivity> activities =
-                memberMonthlyRepo.findByMembership_Club_ClubIdAndYearAndMonth(clubId, year, month);
+                memberMonthlyRepo.findByMembership_Club_ClubIdAndYearAndMonth(
+                        clubId, year, month
+                );
 
-        if (activities.isEmpty())
-            throw new ApiException(HttpStatus.BAD_REQUEST, "No members to reward.");
+        if (activities.isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "No members to reward."
+            );
+        }
 
         int totalScore = activities.stream()
                 .mapToInt(MemberMonthlyActivity::getFinalScore)
                 .sum();
         if (totalScore <= 0) totalScore = 1;
 
+        // =========================
+        // 3. PASS 1 – CALC RAW REWARD
+        // =========================
+        Map<MemberMonthlyActivity, Long> rewardMap = new HashMap<>();
+        long sumReward = 0;
+
+        for (MemberMonthlyActivity m : activities) {
+
+            int memberScore = m.getFinalScore();
+
+            long reward = (memberScore * clubRewards) / totalScore;
+
+            // minimum reward cho member có đóng góp
+            if (memberScore > 0) {
+                reward = Math.max(reward, 50L);
+            }
+
+            rewardMap.put(m, reward);
+            sumReward += reward;
+        }
+
+        // =========================
+        // 4. PASS 2 – SCALE IF OVER BUDGET
+        // =========================
+        if (sumReward > clubRewards) {
+
+            double scale = (double) clubRewards / sumReward;
+            sumReward = 0;
+
+            for (Map.Entry<MemberMonthlyActivity, Long> e : rewardMap.entrySet()) {
+                long scaled = Math.max(1L, Math.round(e.getValue() * scale));
+                e.setValue(scaled);
+                sumReward += scaled;
+            }
+        }
+
+        // =========================
+        // 5. DISTRIBUTE
+        // =========================
         long totalDistributed = 0;
 
-        // 3. Loop qua từng member
-        for (MemberMonthlyActivity m : activities) {
+        for (Map.Entry<MemberMonthlyActivity, Long> entry : rewardMap.entrySet()) {
+
+            MemberMonthlyActivity m = entry.getKey();
+            long reward = entry.getValue();
 
             Membership membership = m.getMembership();
             User member = membership.getUser();
 
-            int memberScore = m.getFinalScore(); // final score
-
-            // reward = (score / totalScore) * rewardPool
-            long reward = (memberScore * clubRewards) / totalScore;
-            totalDistributed += reward;
-
             Wallet memberWallet = walletRepo.findByUser_UserId(member.getUserId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                            "Member wallet missing: " + member.getUserId()));
+                    .orElseThrow(() -> new ApiException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "Member wallet missing: " + member.getUserId()
+                    ));
 
-            String reason = "Monthly reward " + month + "/" + year + " from " + club.getName();
+            String reason = "Monthly reward " + month + "/" + year
+                    + " from " + club.getName();
 
-            // 3.1 Chuyển điểm CLB -> Member
+            // 5.1 TRANSFER CLUB -> MEMBER
             walletService.transferPointsWithType(
                     clubWallet,
                     memberWallet,
@@ -723,7 +792,7 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                     WalletTransactionTypeEnum.CLUB_TO_MEMBER
             );
 
-            // 3.2 Log thưởng riêng
+            // 5.2 BONUS LOG
             WalletTransaction bonusTx = WalletTransaction.builder()
                     .wallet(memberWallet)
                     .amount(reward)
@@ -738,9 +807,11 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
 
             walletTransactionRepo.save(bonusTx);
 
-            // 3.3 Gửi email
-            long newBalanceLong = memberWallet.getBalancePoints();
-            long oldBalanceLong = newBalanceLong - reward;
+            totalDistributed += reward;
+
+            // 5.3 EMAIL
+            long newBalance = memberWallet.getBalancePoints();
+            long oldBalance = newBalance - reward;
 
             emailService.sendMemberRewardEmail(
                     member.getEmail(),
@@ -748,24 +819,35 @@ public class ClubMonthlyActivityServiceImpl implements ClubMonthlyActivityServic
                     month,
                     year,
 
-                    memberScore,
+                    m.getFinalScore(),
                     m.getAttendanceTotalScore(),
                     m.getStaffTotalScore(),
                     m.getTotalClubSessions(),
                     m.getTotalClubPresent(),
                     m.getStaffEvaluation(),
 
-                    totalScore,                   // int
-                    (int) clubRewards,            // Long -> int
-                    (int) reward,                 // Long -> int
-                    (int) oldBalanceLong,         // Long -> int
-                    (int) newBalanceLong          // Long -> int
+                    totalScore,
+                    (int) clubRewards,
+                    (int) reward,
+                    (int) oldBalance,
+                    (int) newBalance
             );
         }
 
-        log.info("Distributed {} reward points for club {} in {}/{}",
-                totalDistributed, club.getName(), month, year);
+        // =========================
+        // 6. MARK DISTRIBUTED
+        // =========================
+        record.setDistributed(true);
+        record.setDistributedAt(LocalDateTime.now());
+        clubMonthlyRepo.save(record);
+
+        log.info(
+                "Distributed {} reward points for club {} in {}/{}",
+                totalDistributed, club.getName(), month, year
+        );
     }
+
+
     @Override
     @Transactional(readOnly = true)
     public List<ClubMonthlySummaryResponse> getMonthlySummary(int year, int month) {

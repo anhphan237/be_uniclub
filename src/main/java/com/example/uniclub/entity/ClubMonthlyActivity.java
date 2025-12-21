@@ -124,6 +124,14 @@ public class ClubMonthlyActivity {
     private LocalDateTime approvedAt;
 
     private String approvedBy;
+    // =========================================================================
+    //  DISTRIBUTION (CHIA THƯỞNG CHO MEMBER)
+    // =========================================================================
+
+    @Column(nullable = false)
+    private boolean distributed = false;
+
+    private LocalDateTime distributedAt;
 
     // =========================================================================
     //  AUDIT
