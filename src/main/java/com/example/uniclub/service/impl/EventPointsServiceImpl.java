@@ -39,7 +39,7 @@ public class EventPointsServiceImpl implements EventPointsService {
     private final AttendanceService attendanceService;
     private final EmailService emailService;
     private final RewardService rewardService;
-
+    private final AttendanceRecordRepository attendanceRepo;
     // =========================================================
     // 🔹 REGISTER
     // =========================================================
@@ -233,14 +233,27 @@ public class EventPointsServiceImpl implements EventPointsService {
             }
 
             // ❌ ĐÃ ĐỦ SLOT → CHẶN LUÔN
-            int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+//            int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+//            int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(0);
+//
+//            if (max > 0 && current >= max) {
+//                throw new ApiException(
+//                        HttpStatus.BAD_REQUEST,
+//                        "This event has reached the maximum number of check-ins."
+//                );
+//            }
             int max = Optional.ofNullable(event.getMaxCheckInCount()).orElse(0);
 
-            if (max > 0 && current >= max) {
-                throw new ApiException(
-                        HttpStatus.BAD_REQUEST,
-                        "This event has reached the maximum number of check-ins."
-                );
+            if (max > 0) {
+                long checkedIn =
+                        attendanceRepo.countPublicCheckedIn(event.getEventId());
+
+                if (checkedIn >= max) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "This event has reached the maximum number of check-ins."
+                    );
+                }
             }
 
             // ✅ Handle PUBLIC check-in (check trùng + phát điểm)

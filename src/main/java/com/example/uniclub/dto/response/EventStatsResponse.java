@@ -12,18 +12,18 @@ public class EventStatsResponse {
     private Long eventId;
     private String eventName;
 
-    private int totalRegistered;
+    private long totalRegistered;
 
-    private int checkinCount;
-    private int midCount;
-    private int checkoutCount;
+    private long checkinCount;
+    private long midCount;
+    private long checkoutCount;
 
-    private int noneCount;
-    private int halfCount;
-    private int fullCount;
-    private int suspiciousCount;
+    private long noneCount;
+    private long halfCount;
+    private long fullCount;
+    private long suspiciousCount;
 
-    private double participationRate;   // (half + full) / total
-    private double midComplianceRate;   // mid / checkin
-    private double fraudRate;           // suspicious / total
+    private double participationRate;
+    private double midComplianceRate;
+    private double fraudRate;
 }

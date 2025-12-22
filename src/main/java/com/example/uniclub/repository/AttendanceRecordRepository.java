@@ -167,5 +167,6 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
     List<AttendanceRecord> findByEvent_EventIdAndStartCheckInTimeNotNull(
             @Param("eventId") Long eventId
     );
+    long countByEvent_EventIdAndStartCheckInTimeNotNull(Long eventId);
 
 }
