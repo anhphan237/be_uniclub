@@ -31,6 +31,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
     private final StaffPerformanceRepository staffPerformanceRepo;
     private final MemberMonthlyActivityRepository monthlyRepo;
     private final MultiplierPolicyRepository policyRepo;
+    private final ClubPenaltyRepository clubPenaltyRepo;
 
     // =========================================================================
     // Validate Month
@@ -106,6 +107,13 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.plusMonths(1).minusDays(1);
 
+        // ================= LOAD PENALTY (REPORT ONLY) =================
+        int penaltyPoints = clubPenaltyRepo.sumPenaltyPoints(
+                membershipId,
+                start.atStartOfDay(),
+                end.plusDays(1).atStartOfDay()
+        );
+
         // ================= ATTENDANCE =================
         int totalSessions = attendanceRepo
                 .countByMembership_MembershipIdAndSession_DateBetween(
@@ -160,7 +168,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         int staffTotal =
                 (int) Math.round(staffBase * staffMultiplier);
 
-        // ================= FINAL SCORE =================
+        // ================= FINAL SCORE (KHÔNG TRỪ PENALTY) =================
         int finalScore = attendanceTotal + staffTotal;
 
         // ================= SAVE / UPDATE =================
@@ -190,13 +198,15 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
         act.setStaffScore(staffScore);
         act.setStaffTotalScore(staffTotal);
         act.setTotalStaffCount(staffList.size());
-        act.setStaffEvaluation(bestEvaluation.name()); // ❗ NOT NULL
+        act.setStaffEvaluation(bestEvaluation.name());
 
         // ===== EVENT (CHƯA TÍNH) =====
         act.setTotalEventRegistered(0);
         act.setTotalEventAttended(0);
         act.setEventAttendanceRate(0);
-        act.setTotalPenaltyPoints(0);
+
+        // ===== PENALTY (REPORT ONLY) =====
+        act.setTotalPenaltyPoints(penaltyPoints);
 
         // ===== FINAL =====
         act.setActivityLevel(resolveLevelByFinalScore(finalScore));
@@ -204,6 +214,7 @@ public class ActivityEngineServiceImpl implements ActivityEngineService {
 
         return monthlyRepo.save(act);
     }
+
 
 
 
@@ -567,6 +578,13 @@ private int resolveBaseScore(
                     LocalDate start = LocalDate.of(year, month, 1);
                     LocalDate end   = start.plusMonths(1).minusDays(1);
 
+                    // ================= LOAD PENALTY (REPORT ONLY) =================
+                    int penaltyPoints = clubPenaltyRepo.sumPenaltyPoints(
+                            membershipId,
+                            start.atStartOfDay(),
+                            end.plusDays(1).atStartOfDay()
+                    );
+
                     // ================= ATTENDANCE =================
                     int totalSessions = attendanceRepo
                             .countByMembership_MembershipIdAndSession_DateBetween(
@@ -579,8 +597,9 @@ private int resolveBaseScore(
                                     start, end
                             );
 
-                    double attendanceRate = totalSessions == 0 ? 0 :
-                            (double) presentSessions / totalSessions;
+                    double attendanceRate = totalSessions == 0
+                            ? 0
+                            : (double) presentSessions / totalSessions;
 
                     double attMul = resolveMultiplier(
                             PolicyTargetTypeEnum.MEMBER,
@@ -596,7 +615,7 @@ private int resolveBaseScore(
 
                     int staffTotal = staffList.size() * staffPointPerTask;
 
-                    // ================= FINAL =================
+                    // ================= FINAL (KHÔNG TRỪ PENALTY) =================
                     int finalScore = attendanceTotal + staffTotal;
 
                     return MemberMonthlyActivityResponse.builder()
@@ -611,32 +630,39 @@ private int resolveBaseScore(
                             .year(year)
                             .month(month)
 
+                            // ===== EVENT =====
                             .totalEventRegistered(0)
                             .totalEventAttended(0)
                             .eventAttendanceRate(0)
-                            .totalPenaltyPoints(0)
 
-                            .activityLevel(resolveLevelByFinalScore(finalScore))
+                            // ===== PENALTY (REPORT ONLY) =====
+                            .totalPenaltyPoints(penaltyPoints)
 
+                            // ===== ATTENDANCE =====
                             .attendanceBaseScore(attendanceBase)
                             .attendanceMultiplier(attMul)
                             .attendanceTotalScore(attendanceTotal)
 
-                            .staffBaseScore(staffPointPerTask)   // 50 điểm / lần
-                            .staffMultiplier(1.0)                // không dùng nữa
+                            // ===== STAFF =====
+                            .staffBaseScore(staffPointPerTask)
+                            .staffMultiplier(1.0)
                             .staffTotalScore(staffTotal)
                             .totalStaffCount(staffList.size())
 
+                            // ===== CLUB SESSION =====
                             .totalClubSessions(totalSessions)
                             .totalClubPresent(presentSessions)
                             .sessionAttendanceRate(attendanceRate)
 
+                            // ===== FINAL =====
+                            .activityLevel(resolveLevelByFinalScore(finalScore))
                             .finalScore(finalScore)
                             .build();
 
                 }).sorted((a, b) -> Double.compare(b.getFinalScore(), a.getFinalScore()))
                 .toList();
     }
+
 
 
 }
