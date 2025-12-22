@@ -30,7 +30,12 @@ public class AdminWalletController {
     public ResponseEntity<Page<AdminTransactionResponse>> getAllTransactions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("transactionId").descending());
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "createdAt", "id")
+        );
+
         return ResponseEntity.ok(adminWalletService.getAllTransactions(pageable));
     }
 
