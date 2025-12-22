@@ -10,13 +10,28 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.text.NumberFormat;
 import java.time.LocalTime;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
+    // ============================================================
+//  🔢 NUMBER FORMAT (1.000 – 1.000.000)
+// ============================================================
+    private static final NumberFormat NUMBER_FORMAT =
+            NumberFormat.getInstance(new Locale("vi", "VN"));
+
+    private static String fmt(long number) {
+        return NUMBER_FORMAT.format(number);
+    }
+
+    private static String fmt(int number) {
+        return NUMBER_FORMAT.format(number);
+    }
 
     // ============================================================
     //  🔥 TEMPLATE – LIGHT + DARK MODE (AUTO DETECT)
@@ -132,7 +147,7 @@ public class EmailServiceImpl implements EmailService {
         String content = """
             <h2 style="color:#1E88E5;">Welcome, %s! 🎉</h2>
             <p>You’ve successfully registered your UniClub account.</p>
-            <p>👉 Log in here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
+            <p>Log in here: <a href="https://uniclub.id.vn/login">https://uniclub.id.vn/login</a></p>
         """.formatted(fullName);
 
         sendEmail(to, "[UniClub] Welcome to the system 🎉", content);
@@ -157,7 +172,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendClubApplicationRejectedEmail(String to, String clubName, String reason) {
         String content = """
-            <h2 style="color:#D32F2F;">Club Creation Rejected ❌</h2>
+            <h2 style="color:#D32F2F;">Club Creation Rejected</h2>
             <p>The request to establish <b>%s</b> has been rejected.</p>
             <p><b>Reason:</b> %s</p>
         """.formatted(clubName, reason);
@@ -178,7 +193,7 @@ public class EmailServiceImpl implements EmailService {
         🎉 Congratulations! You have successfully completed all three check-in phases
         (START, MID, and END) for the event "%s".
 
-        ⏳ Your reward points will be automatically credited to your wallet
+        Your reward points will be automatically credited to your wallet
         after the event is officially completed and confirmed by the organizers.
 
         Please stay tuned for further notifications.
@@ -303,7 +318,7 @@ public class EmailServiceImpl implements EmailService {
 
         // ⚠ refundPoints giờ luôn = 0 khi user hủy đăng ký
         String content = """
-        <h2 style="color:#D32F2F;">Registration Cancelled ❌</h2>
+        <h2 style="color:#D32F2F;">Registration Cancelled</h2>
 
         <p>Hello <b>%s</b>,</p>
 
@@ -330,7 +345,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendSuspiciousAttendanceEmail(String to, String fullName, Event event) {
         String content = """
-            <h2 style="color:#D32F2F;">Suspicious Attendance Detected ⚠</h2>
+            <h2 style="color:#D32F2F;">Suspicious Attendance Detected </h2>
             <p>Hello %s,</p>
             <p>Your attendance for <b>%s</b> has been marked as suspicious.</p>
             <p>Please contact club leaders if this is incorrect.</p>
@@ -390,7 +405,7 @@ public class EmailServiceImpl implements EmailService {
                     <p>You are now a member of <b>%s</b>.</p>
                 """.formatted(fullName, clubName)
                 : """
-                    <h2 style="color:#D32F2F;">Application Rejected ❌</h2>
+                    <h2 style="color:#D32F2F;">Application Rejected </h2>
                     <p>Hi %s,</p>
                     <p>Your request to join <b>%s</b> has been rejected.</p>
                 """.formatted(fullName, clubName);
@@ -533,7 +548,7 @@ public class EmailServiceImpl implements EmailService {
                                     int quantity, long totalPoints, String orderCode, String qrUrl) {
 
         String content = """
-            <h2 style="color:#1E88E5;">Redeem Successful 🎁</h2>
+            <h2 style="color:#1E88E5;">Redeem Successful</h2>
             <p><b>Product:</b> %s</p>
             <p><b>Quantity:</b> %d</p>
             <p><b>Points Spent:</b> %d</p>
@@ -617,7 +632,7 @@ public class EmailServiceImpl implements EmailService {
                                      long bonusPoints, String reason, long totalPoints) {
 
         String content = """
-            <h2 style="color:#1E88E5;">Bonus Points Awarded 🎁</h2>
+            <h2 style="color:#1E88E5;">Bonus Points Awarded</h2>
             <p>Hello <b>%s</b>,</p>
             <p>You received <b>%d bonus points</b>.</p>
             <p><b>Reason:</b> %s</p>
@@ -633,7 +648,7 @@ public class EmailServiceImpl implements EmailService {
     public void sendMilestoneEmail(String to, String fullName, long milestone) {
 
         String content = """
-            <h2 style="color:#1E88E5;">Milestone Reached 🏆</h2>
+            <h2 style="color:#1E88E5;">Milestone Reached</h2>
             <p>Hello <b>%s</b>,</p>
             <p>You reached <b>%d UniPoints</b>!</p>
             <p>Keep participating to earn more!</p>
@@ -647,7 +662,7 @@ public class EmailServiceImpl implements EmailService {
                                    String clubName, long points, String reason) {
 
         String content = """
-            <h2 style="color:green;">Club Wallet Credited 💰</h2>
+            <h2 style="color:green;">Club Wallet Credited</h2>
             <p>Hello <b>%s</b>,</p>
             <p>Club <b>%s</b> has been credited <b>%d points</b>.</p>
             <p><b>Reason:</b> %s</p>
@@ -664,7 +679,7 @@ public class EmailServiceImpl implements EmailService {
                                              String clubName, long points, String reason) {
 
         String content = """
-            <h2 style="color:#D32F2F;">Club Wallet Deduction ⚠</h2>
+            <h2 style="color:#D32F2F;">Club Wallet Deduction </h2>
             <p>Hello <b>%s</b>,</p>
             <p>Club <b>%s</b> spent <b>%d points</b>.</p>
             <p><b>Reason:</b> %s</p>
@@ -682,7 +697,7 @@ public class EmailServiceImpl implements EmailService {
                                                    int memberCount, String reason) {
 
         String content = """
-            <h2 style="color:#1E88E5;">Batch Distribution Summary 📢</h2>
+            <h2 style="color:#1E88E5;">Batch Distribution Summary</h2>
             <p>Hello <b>%s</b>,</p>
             <p>Club <b>%s</b> distributed <b>%d points</b> to <b>%d members</b>.</p>
             <p><b>Reason:</b> %s</p>
@@ -709,9 +724,9 @@ public class EmailServiceImpl implements EmailService {
 
         String rewardText =
                 (rewardPoints != null && rewardPoints > 0)
-                        ? "<p><b>🎁 Reward:</b> <span style='color:#2E7D32;'><b>"
+                        ? "<p><b>Reward:</b> <span style='color:#2E7D32;'><b>"
                         + rewardPoints + " points</b></span></p>"
-                        : "<p><b>🎁 Reward:</b> No reward for this event.</p>";
+                        : "<p><b>Reward:</b> No reward for this event.</p>";
 
         String content = """
         <h2 style="color:#1E88E5;">Check-in Successful 🎉</h2>
@@ -752,7 +767,7 @@ public class EmailServiceImpl implements EmailService {
     ) {
 
         String content = """
-            <h2 style="color:#1E88E5;">Event Reminder ⏰</h2>
+            <h2 style="color:#1E88E5;">Event Reminder</h2>
             <p>Hello <b>%s</b>,</p>
             <p>Your event <b>%s</b> is happening soon.</p>
             <p><b>Time:</b> %s<br><b>Location:</b> %s</p>
@@ -782,7 +797,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendCoHostInviteEmail(String to, String clubName, String eventName) {
         String content = """
-            <h2 style="color:#1E88E5;">Co-host Invitation 🤝</h2>
+            <h2 style="color:#1E88E5;">Co-host Invitation</h2>
             <p>Your club <b>%s</b> was invited to co-host:</p>
             <p><b>%s</b></p>
         """.formatted(clubName, eventName);
@@ -793,7 +808,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendEventWaitingUniStaffEmail(String to, String eventName) {
         String content = """
-            <h2 style="color:#1E88E5;">Awaiting Co-Host Responses ⏳</h2>
+            <h2 style="color:#1E88E5;">Awaiting Co-Host Responses</h2>
             <p>The event <b>%s</b> is waiting for co-host responses.</p>
         """.formatted(eventName);
 
@@ -803,7 +818,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendHostEventRejectedByCoHostEmail(String to, String eventName, String rejectedClubName) {
         String content = """
-            <h2 style="color:#D32F2F;">Co-host Rejected Event ❌</h2>
+            <h2 style="color:#D32F2F;">Co-host Rejected Event</h2>
             <p>The co-host <b>%s</b> rejected your event:</p>
             <p><b>%s</b></p>
         """.formatted(rejectedClubName, eventName);
@@ -825,7 +840,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendEventRejectedEmail(String to, String eventName, String reason, String staffName) {
         String content = """
-            <h2 style="color:#D32F2F;">Event Rejected ❌</h2>
+            <h2 style="color:#D32F2F;">Event Rejected</h2>
             <p>Your event <b>%s</b> was rejected by <b>%s</b>.</p>
             <p><b>Reason:</b> %s</p>
         """.formatted(eventName, staffName, reason);
@@ -848,11 +863,11 @@ public class EmailServiceImpl implements EmailService {
                 border-radius:10px;
                 margin-top:16px;">
 
-                <p><b>📌 Violation:</b> %s</p>
-                <p><b>🏷 Reason:</b> %s</p>
-                <p><b>➖ Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
-                <p><b>👤 Issued by:</b> %s</p>
-                <p><b>🕒 Issued at:</b> %s</p>
+                <p><b>Violation:</b> %s</p>
+                <p><b>Reason:</b> %s</p>
+                <p><b>Points Deducted:</b> <span style="color:#D32F2F;">-%d</span></p>
+                <p><b>Issued by:</b> %s</p>
+                <p><b>Issued at:</b> %s</p>
             </div>
 
             <p style="margin-top:18px;">
@@ -930,7 +945,7 @@ public class EmailServiceImpl implements EmailService {
     public void sendEventCancelledEmail(String to, String eventName, String eventDate, String reason) {
 
         String content = """
-        <h2 style="color:#D32F2F;">Event Cancelled ❌</h2>
+        <h2 style="color:#D32F2F;">Event Cancelled</h2>
 
         <p>Hello,</p>
 
@@ -959,7 +974,7 @@ public class EmailServiceImpl implements EmailService {
     public void sendNewMembershipRequestToLeader(String to, String leaderName, String clubName, String applicantName) {
 
         String content = """
-        <h2 style="color:#1E88E5;">New Membership Request 🚀</h2>
+        <h2 style="color:#1E88E5;">New Membership Request</h2>
         <p>Dear %s,</p>
 
         <p><b>%s</b> has submitted a request to join <b>%s</b>.</p>
@@ -982,7 +997,7 @@ public class EmailServiceImpl implements EmailService {
     ) {
 
         String content = """
-        <h2 style="color:#1E88E5;">Member Redeemed a Reward 🎁</h2>
+        <h2 style="color:#1E88E5;">Member Redeemed a Reward</h2>
 
         <p>Dear <b>%s</b>,</p>
 
@@ -995,11 +1010,11 @@ public class EmailServiceImpl implements EmailService {
             border-left: 4px solid #1E88E5;
             border-radius: 10px;
         ">
-            <p><b>👤 Member:</b> %s (%s)</p>
-            <p><b>🎁 Product:</b> %s</p>
-            <p><b>🔢 Quantity:</b> %d</p>
-            <p><b>💰 Points spent:</b> %d</p>
-            <p><b>📦 Order Code:</b> %s</p>
+            <p><b>Member:</b> %s (%s)</p>
+            <p><b>Product:</b> %s</p>
+            <p><b>Quantity:</b> %d</p>
+            <p><b>Points spent:</b> %d</p>
+            <p><b>Order Code:</b> %s</p>
         </div>
 
         <p>You can track order details in your Leader Dashboard.</p>
@@ -1011,7 +1026,7 @@ public class EmailServiceImpl implements EmailService {
     public void sendClubMonthlyLockedEmail(String to, String clubName, int month, int year,  String lockedBy) {
 
         String content = """
-    <h2 style="color:#1E88E5;">Monthly Report Has Been Locked 🔒</h2>
+    <h2 style="color:#1E88E5;">Monthly Report Has Been Locked</h2>
 
     <p>The report for <b>%d/%d</b> of the club <b>%s</b> has been <b>locked</b> by UniStaff.</p>
 
@@ -1039,8 +1054,8 @@ public class EmailServiceImpl implements EmailService {
             border-left: 4px solid #1E88E5;
             border-radius: 10px;
     ">
-        <p><b>💰 Reward Points Granted:</b> %d</p>
-        <p><b>🏦 Club Wallet Balance After Approval:</b> %d</p>
+        <p><b>Reward Points Granted:</b> %d</p>
+        <p><b>Club Wallet Balance After Approval:</b> %d</p>
     </div>
 
     <p>The club can use these points for:</p>
@@ -1114,9 +1129,9 @@ Your Reward = (FinalScore / TotalClubScore) × ClubRewardPool
 
         <div style="background:#F5F9FF; padding:16px; border-radius:10px;
                     border-left:4px solid #1E88E5; margin-top:16px;">
-            <p><b>💰 Previous Balance:</b> %d</p>
-            <p><b>💵 Reward Points Added:</b> +%d</p>
-            <p><b>🏦 New Balance:</b> %d</p>
+            <p><b>Previous Balance:</b> %d</p>
+            <p><b>Reward Points Added:</b> +%d</p>
+            <p><b>New Balance:</b> %d</p>
         </div>
 
         <p>Thank you for your contributions this month 🎉</p>
@@ -1152,58 +1167,66 @@ Your Reward = (FinalScore / TotalClubScore) × ClubRewardPool
         String subject = "Cashout Request Approved – " + clubName;
 
         String content = """
-        <h2 style="color:#1E88E5; margin-top:0;">
-            Cashout Request Approved
-        </h2>
+    <h2 style="color:#1E88E5; margin-top:0;">
+        Cashout Request Approved
+    </h2>
 
-        <p>Dear <b>%s</b>,</p>
+    <p>Dear <b>%s</b>,</p>
 
-        <p>
-            Your cashout request for the club
-            <b>%s</b> has been <b style="color:green;">approved</b>.
-        </p>
+    <p>
+        Your cashout request for the club
+        <b>%s</b> has been <b style="color:green;">approved</b>.
+    </p>
 
-        <table style="
-            width:100%%;
-            border-collapse:collapse;
-            margin:16px 0;
-            font-size:14px;
-        ">
-            <tr>
-                <td style="padding:10px;border:1px solid #E0E7F1;">Points requested</td>
-                <td style="padding:10px;border:1px solid #E0E7F1;"><b>%d</b> points</td>
-            </tr>
-            <tr>
-                <td style="padding:10px;border:1px solid #E0E7F1;">Cash equivalent</td>
-                <td style="padding:10px;border:1px solid #E0E7F1;"><b>%d VND</b></td>
-            </tr>
-        </table>
+    <table style="
+        width:100%%;
+        border-collapse:collapse;
+        margin:16px 0;
+        font-size:14px;
+    ">
+        <tr>
+            <td style="padding:10px;border:1px solid #E0E7F1;">
+                Points requested
+            </td>
+            <td style="padding:10px;border:1px solid #E0E7F1;">
+                <b>%s</b> points
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px;border:1px solid #E0E7F1;">
+                Cash equivalent
+            </td>
+            <td style="padding:10px;border:1px solid #E0E7F1;">
+                <b>%s VND</b>
+            </td>
+        </tr>
+    </table>
 
-        <p><b>Appointment details:</b></p>
+    <p><b>Appointment details:</b></p>
 
-        <div style="
-            background:#F5F9FF;
-            padding:14px;
-            border-left:4px solid #1E88E5;
-            border-radius:8px;
-            margin-bottom:16px;
-        ">
-            %s
-        </div>
+    <div style="
+        background:#F5F9FF;
+        padding:14px;
+        border-left:4px solid #1E88E5;
+        border-radius:8px;
+        margin-bottom:16px;
+    ">
+        %s
+    </div>
 
-        <p>
-            Please bring the necessary documents and arrive on time
-            to complete the cashout procedure.
-        </p>
+    <p>
+        Please bring the necessary documents and arrive on time
+        to complete the cashout procedure.
+    </p>
 
-        <p style="margin-top:24px;">
-            If you have any questions, please contact UniClub University Staff.
-        </p>
-        """.formatted(
+    <p style="margin-top:24px;">
+        If you have any questions, please contact UniClub University Staff.
+    </p>
+    """.formatted(
                 leaderName,
                 clubName,
-                points,
-                cashAmount,
+                fmt(points),
+                fmt(cashAmount),
                 (appointmentNote == null || appointmentNote.isBlank())
                         ? "UniStaff will contact you to arrange the appointment."
                         : appointmentNote
@@ -1211,6 +1234,7 @@ Your Reward = (FinalScore / TotalClubScore) × ClubRewardPool
 
         sendEmail(toEmail, subject, content);
     }
+
 
     @Override
     public void sendCashoutRejectedEmail(
