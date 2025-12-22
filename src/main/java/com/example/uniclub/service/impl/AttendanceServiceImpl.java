@@ -255,9 +255,10 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         // ✅ PUBLIC event
         if (event.getType() == EventTypeEnum.PUBLIC) {
-            int checkedIn = Optional
-                    .ofNullable(event.getCurrentCheckInCount())
-                    .orElse(0);
+            long checkedIn =
+                    attendanceRepo.countByEvent_EventIdAndStartCheckInTimeNotNull(eventId);
+
+
 
             return EventStatsResponse.builder()
                     .eventId(event.getEventId())
@@ -617,9 +618,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         attendanceRepo.save(record);
 
         // 5️⃣ Update event counter
-        int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
-        event.setCurrentCheckInCount(current + 1);
-        eventRepo.save(event);
+//        int current = Optional.ofNullable(event.getCurrentCheckInCount()).orElse(0);
+//        event.setCurrentCheckInCount(current + 1);
+//        eventRepo.save(event);
 
         // ===============================
         // 🔥 6️⃣ PHÁT ĐIỂM NGAY KHI CHECK-IN
