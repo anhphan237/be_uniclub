@@ -58,6 +58,8 @@ public class EventServiceImpl implements EventService {
     // =================================================================
     private EventResponse mapToResponse(Event event) {
 
+        log.error("🔥 MAP TO RESPONSE EVENT_ID={}", event.getEventId());
+
         // ===== MAP EVENT DAYS (AN TOÀN GENERICS) =====
         List<EventDayResponse> dayResponses = Collections.emptyList();
         if (event.getDays() != null) {
@@ -83,6 +85,14 @@ public class EventServiceImpl implements EventService {
                     ))
                     .collect(Collectors.toList());
         }
+        Long currentCheckInCount = 0L;
+
+        if (event.getType() == EventTypeEnum.PUBLIC) {
+            currentCheckInCount =
+                    attendanceRepo.countPublicCheckedIn(event.getEventId());
+        }
+
+        log.error("🔥 COUNT CHECKIN={}", currentCheckInCount);
 
         return EventResponse.builder()
                 .id(event.getEventId())
@@ -107,8 +117,7 @@ public class EventServiceImpl implements EventService {
                 )
 
                 .maxCheckInCount(event.getMaxCheckInCount())
-                .currentCheckInCount(event.getCurrentCheckInCount())
-
+                .currentCheckInCount(currentCheckInCount)
                 .hostClub(new EventResponse.SimpleClub(
                         event.getHostClub().getClubId(),
                         event.getHostClub().getName(),
@@ -572,6 +581,7 @@ public class EventServiceImpl implements EventService {
     // 🔹 LOOKUP & FILTER
     // =================================================================
     @Override
+    @Transactional(readOnly = true)
     public EventResponse get(Long id) {
         return eventRepo.findById(id)
                 .map(this::mapToResponse)

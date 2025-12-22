@@ -32,7 +32,7 @@ public class EventResponse {
     private Long budgetPoints;
     private String locationName;
     private Integer maxCheckInCount;
-    private Integer currentCheckInCount;
+    private Long currentCheckInCount;
     private Integer commitPointCost;
     private Long rewardPerParticipant;
     private SimpleClub hostClub;

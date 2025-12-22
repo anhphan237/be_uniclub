@@ -76,6 +76,16 @@ public class AttendanceServiceImpl implements AttendanceService {
         validateTokenWindow(token);
 
         Event event = token.getEvent();
+        long checkedIn = attendanceRepo.countPublicCheckedIn(event.getEventId());
+
+        if (event.getMaxCheckInCount() != null
+                && checkedIn >= event.getMaxCheckInCount()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Check-in limit reached"
+            );
+        }
+
         QRPhase phase = token.getPhase();
 
         User user = userRepo.findByEmail(email)
@@ -572,6 +582,15 @@ public class AttendanceServiceImpl implements AttendanceService {
         validateTokenWindow(token);
 
         Event event = token.getEvent();
+        long checkedIn = attendanceRepo.countPublicCheckedIn(event.getEventId());
+
+        if (event.getMaxCheckInCount() != null
+                && checkedIn >= event.getMaxCheckInCount()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Check-in limit reached"
+            );
+        }
 
         // 2️⃣ Chỉ cho PUBLIC event
         if (event.getType() != EventTypeEnum.PUBLIC) {
