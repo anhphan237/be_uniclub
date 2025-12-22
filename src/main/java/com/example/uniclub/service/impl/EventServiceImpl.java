@@ -916,12 +916,42 @@ public class EventServiceImpl implements EventService {
         long approvedPoints = req.getApprovedBudgetPoints();
 
         // =========================================================
+        // 🔥 CHECK LOCATION–TIME CONFLICT BEFORE APPROVE (FIX)
+        // =========================================================
+        for (EventDay d : event.getDays()) {
+
+            List<Event> conflicts = eventRepo.findConflictedEvents(
+                            event.getLocation().getLocationId(),
+                            d.getDate(),
+                            d.getStartTime(),
+                            d.getEndTime()
+                    ).stream()
+                    .filter(e -> !e.getEventId().equals(event.getEventId()))
+                    .toList();
+
+            if (!conflicts.isEmpty()) {
+                Event c = conflicts.get(0);
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "Cannot approve event. Location '"
+                                + c.getLocation().getName()
+                                + "' is already booked by event '"
+                                + c.getName()
+                                + "' on "
+                                + d.getDate()
+                                + " from "
+                                + d.getStartTime()
+                                + " to "
+                                + d.getEndTime()
+                );
+            }
+        }
+
+        // =========================================================
         // 🔥 VALIDATE THEO LOẠI EVENT
         // =========================================================
-
         if (event.getType() == EventTypeEnum.PUBLIC) {
 
-            // PUBLIC bắt buộc có rewardPerParticipant
             if (event.getRewardPerParticipant() == null || event.getRewardPerParticipant() <= 0) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
@@ -929,7 +959,6 @@ public class EventServiceImpl implements EventService {
                 );
             }
 
-            // PUBLIC bắt buộc có maxCheckInCount
             Integer max = event.getMaxCheckInCount();
             if (max == null || max <= 0) {
                 throw new ApiException(
@@ -950,7 +979,6 @@ public class EventServiceImpl implements EventService {
             }
 
         } else {
-            // PRIVATE / SPECIAL không được có rewardPerParticipant
             if (event.getRewardPerParticipant() != null && event.getRewardPerParticipant() > 0) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
@@ -977,13 +1005,12 @@ public class EventServiceImpl implements EventService {
             );
         }
 
-        // 👉 APPROVE 1 LẦN → overwrite balance
         eventWallet.setBalancePoints(approvedPoints);
         eventWallet.setStatus(WalletStatusEnum.ACTIVE);
         walletRepo.save(eventWallet);
 
         // =========================================================
-        // 🏦 UNIVERSITY WALLET (SOURCE)
+        // 🧾 TRANSACTION LOG
         // =========================================================
         Wallet uniWallet = walletRepo.findUniversityWallet()
                 .orElseThrow(() -> new ApiException(
@@ -991,9 +1018,6 @@ public class EventServiceImpl implements EventService {
                         "University wallet not found."
                 ));
 
-        // =========================================================
-        // 🧾 TRANSACTION LOG
-        // =========================================================
         walletTransactionRepo.save(
                 WalletTransaction.builder()
                         .wallet(uniWallet)
@@ -1011,7 +1035,7 @@ public class EventServiceImpl implements EventService {
         );
 
         // =========================================================
-        // UPDATE EVENT
+        // ✅ APPROVE EVENT (CUỐI CÙNG)
         // =========================================================
         event.setApprovedBy(staff.getUser());
         event.setApprovedAt(LocalDateTime.now());
@@ -1020,7 +1044,7 @@ public class EventServiceImpl implements EventService {
         eventRepo.save(event);
 
         // =========================================================
-        // EMAIL
+        // 📧 EMAIL
         // =========================================================
         String leaderEmail =
                 membershipRepo.findLeaderEmailByClubId(event.getHostClub().getClubId());
@@ -1033,6 +1057,7 @@ public class EventServiceImpl implements EventService {
 
         return mapToResponse(event);
     }
+
 
 
 
