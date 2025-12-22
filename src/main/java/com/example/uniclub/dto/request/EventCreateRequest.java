@@ -29,14 +29,13 @@ public record EventCreateRequest(
         @NotNull(message = "Location ID is required")
         Long locationId,
 
-        // ✅ PUBLIC event: số người check-in tối đa (limit theo location)
-        @Positive(message = "maxCheckInCount must be > 0")
+
         Integer maxCheckInCount,
+
         @Schema(description = "Reward points for each participant (ONLY for PUBLIC events)")
-        @Positive(message = "rewardPerParticipant must be > 0")
         Long rewardPerParticipant,
 
-        // ✅ SPECIAL / PRIVATE: điểm cam kết (PUBLIC = 0)
+                // ✅ SPECIAL / PRIVATE: điểm cam kết (PUBLIC = 0)
         @Schema(
                 description = "Commit points required to join the event. "
                         + "Applicable for PUBLIC, PRIVATE, and SPECIAL events. "
