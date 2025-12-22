@@ -17,7 +17,7 @@ public class AdminUserController {
 
     private final AdminUserService adminUserService;
 
-    @Operation(summary = "👥 Lấy danh sách tất cả người dùng (phân trang + tìm kiếm)")
+    @Operation(summary = "Lấy danh sách tất cả người dùng (phân trang + tìm kiếm)")
     @GetMapping
     public ResponseEntity<Page<AdminUserResponse>> getAllUsers(
             @RequestParam(required = false) String keyword,
@@ -28,26 +28,26 @@ public class AdminUserController {
         return ResponseEntity.ok(adminUserService.getAllUsers(keyword, pageable));
     }
 
-    @Operation(summary = "🔍 Xem chi tiết thông tin người dùng")
+    @Operation(summary = "Xem chi tiết thông tin người dùng")
     @GetMapping("/{id}")
     public ResponseEntity<AdminUserResponse> getUserDetail(@PathVariable Long id) {
         return ResponseEntity.ok(adminUserService.getUserDetail(id));
     }
 
-    @Operation(summary = "🚫 Khóa tài khoản người dùng")
+    @Operation(summary = "Khóa tài khoản người dùng")
     @PutMapping("/{id}/ban")
     public ResponseEntity<Void> banUser(@PathVariable Long id) {
         adminUserService.banUser(id);
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "✅ Mở khóa tài khoản người dùng")
+    @Operation(summary = "Mở khóa tài khoản người dùng")
     @PutMapping("/{id}/unban")
     public ResponseEntity<Void> unbanUser(@PathVariable Long id) {
         adminUserService.unbanUser(id);
         return ResponseEntity.ok().build();
     }
-    @Operation(summary = "🧩 Admin đổi role của user")
+    @Operation(summary = "Admin đổi role của user")
     @PutMapping("/{id}/role")
     public ResponseEntity<Void> changeUserRole(
             @PathVariable Long id,

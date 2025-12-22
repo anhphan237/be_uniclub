@@ -14,7 +14,7 @@ public class AdminMonitorController {
 
     private final AdminMonitorService monitorService;
 
-    @Operation(summary = "🔔 Kiểm tra trạng thái hệ thống")
+    @Operation(summary = "Kiểm tra trạng thái hệ thống")
     @GetMapping("/status")
     public ResponseEntity<SystemStatusResponse> getSystemStatus() {
         return ResponseEntity.ok(monitorService.getSystemStatus());

@@ -40,7 +40,7 @@ public class AdminDashboardController {
                     • Tổng số lượt redeem
                     • Tổng số giao dịch ví điểm
                     
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/summary")
@@ -60,7 +60,7 @@ public class AdminDashboardController {
                     
                     Kết quả được sắp xếp giảm dần theo số lượng.
                     
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/students-by-major")
@@ -85,7 +85,7 @@ public class AdminDashboardController {
                     • year – Năm (bắt buộc)
                     • month – Tháng (bắt buộc)
 
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/clubs/ranking")
@@ -116,7 +116,7 @@ public class AdminDashboardController {
                     • month – tháng (tùy chọn)
                     Nếu không truyền tham số → trả về toàn bộ sự kiện đã hoàn thành.
 
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/events/popular")
@@ -144,8 +144,8 @@ public class AdminDashboardController {
                     • Điểm trung bình CLB
                     • Tỉ lệ check-in trung bình sự kiện
                     
-                    👉 Dùng cho dashboard tổng hợp cấp trường.
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Dùng cho dashboard tổng hợp cấp trường.
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/overview")
@@ -167,7 +167,7 @@ public class AdminDashboardController {
                     • Sự kiện có tỉ lệ check-in thấp
                     • Hoạt động toàn trường thấp
                     
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/recommendations")
@@ -190,8 +190,8 @@ public class AdminDashboardController {
                     • Kiểm tra sức khỏe hoạt động toàn trường
                     • Chỉ số HeatScore AI 2.0
 
-                    👉 Dùng cho phân tích chuyên sâu
-                    👉 Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
+                    Dùng cho phân tích chuyên sâu
+                    Đối tượng sử dụng: ADMIN, UNIVERSITY STAFF
                     """
     )
     @GetMapping("/ai-recommendations")

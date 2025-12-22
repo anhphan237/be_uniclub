@@ -37,22 +37,22 @@ public class AdminStudentRegistryController {
             description = """
                 API dùng để import danh sách sinh viên thật vào hệ thống.
                 
-                ✅ Hỗ trợ file: CSV, XLSX
+                Hỗ trợ file: CSV, XLSX
                 -- CSV format: 2 cột -> student_code, full_name
                 -- Excel format: 2 cột -> student_code, full_name
 
-                🧠 Hệ thống tự động phân tích student_code:
+                Hệ thống tự động phân tích student_code:
                 - majorCode (2 ký tự đầu)
                 - intake (2 ký tự tiếp theo, ví dụ 17 → khóa 2017)
                 - orderNumber (4 ký tự cuối)
 
-                ⚠ Các dòng sau sẽ bị bỏ qua tự động:
+                Các dòng sau sẽ bị bỏ qua tự động:
                 - Sai format MSSV (không đúng XXYYZZZZ)
                 - Mã ngành không tồn tại
                 - MSSV đã tồn tại trong registry
                 - Dòng trống hoặc không đủ cột
 
-                👍 Trả về:
+                Trả về:
                 - imported: số lượng dòng được import
                 - skipped: số dòng bị bỏ qua
                 - total: tổng số dòng
@@ -160,7 +160,7 @@ public class AdminStudentRegistryController {
                 - Sinh viên nghỉ học / không còn hợp lệ
                 - Dọn dẹp dữ liệu
                 
-                ⚠ Chỉ xóa trong student_registry, không ảnh hưởng user table.
+                Chỉ xóa trong student_registry, không ảnh hưởng user table.
                 """
     )
     public ResponseEntity<ApiResponse<Object>> delete(@PathVariable String code) {
@@ -182,8 +182,8 @@ public class AdminStudentRegistryController {
                 - Import dữ liệu hoàn toàn mới theo năm học
                 - Dọn dẹp data lỗi hoặc sai
                 
-                ⚠ Chỉ ADMIN mới được phép dùng API này.
-                ⚠ Cần cân nhắc vì hành động KHÔNG THỂ UNDO.
+                Chỉ ADMIN mới được phép dùng API này.
+                Cần cân nhắc vì hành động KHÔNG THỂ UNDO.
                 """
     )
     public ResponseEntity<ApiResponse<Object>> deleteAll() {

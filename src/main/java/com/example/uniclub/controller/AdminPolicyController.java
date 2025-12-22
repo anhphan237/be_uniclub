@@ -20,13 +20,13 @@ public class AdminPolicyController {
 
     private final AdminPolicyService adminPolicyService;
 
-    @Operation(summary = "📋 Lấy danh sách tất cả multiplier policies (CLUB / MEMBER)")
+    @Operation(summary = "Lấy danh sách tất cả multiplier policies (CLUB / MEMBER)")
     @GetMapping
     public ResponseEntity<ApiResponse<List<AdminPolicyResponse>>> getAllPolicies() {
         return ResponseEntity.ok(ApiResponse.ok(adminPolicyService.getAllPolicies()));
     }
 
-    @Operation(summary = "💾 Tạo mới hoặc cập nhật multiplier policy")
+    @Operation(summary = "Tạo mới hoặc cập nhật multiplier policy")
     @PostMapping
     public ResponseEntity<ApiResponse<AdminPolicyResponse>> savePolicy(
             @AuthenticationPrincipal CustomUserDetails me,
@@ -38,13 +38,13 @@ public class AdminPolicyController {
     }
 
 
-    @Operation(summary = "🗑️ Xóa multiplier policy theo ID")
+    @Operation(summary = "Xóa multiplier policy theo ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deletePolicy(@PathVariable Long id) {
         adminPolicyService.deletePolicy(id);
         return ResponseEntity.ok(ApiResponse.ok("Deleted successfully"));
     }
-    @Operation(summary = "⚙️ Chỉnh sửa hệ số multiplier của policy")
+    @Operation(summary = "Chỉnh sửa hệ số multiplier của policy")
     @PatchMapping("/{id}/multiplier")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<AdminPolicyResponse>> updateMultiplier(
@@ -55,7 +55,7 @@ public class AdminPolicyController {
                 adminPolicyService.updateMultiplier(id, newMultiplier, user.getUsername())
         ));
     }
-    @Operation(summary = "🔍 Lấy chi tiết một multiplier policy theo ID")
+    @Operation(summary = "Lấy chi tiết một multiplier policy theo ID")
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('UNIVERSITY_STAFF','ADMIN')")
     public ResponseEntity<ApiResponse<AdminPolicyResponse>> getPolicyById(@PathVariable Long id) {

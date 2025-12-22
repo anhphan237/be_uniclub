@@ -16,7 +16,7 @@ public class AdminNotificationController {
 
     private final ConnectionFactory connectionFactory;
 
-    @Operation(summary = "📬 Kiểm tra số message đang chờ trong RabbitMQ queue")
+    @Operation(summary = "Kiểm tra số message đang chờ trong RabbitMQ queue")
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getQueueStatus() {
         try (var connection = connectionFactory.createConnection();

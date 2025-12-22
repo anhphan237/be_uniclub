@@ -15,7 +15,7 @@ public class AdminEventController {
 
     private final AdminEventService adminEventService;
 
-    @Operation(summary = "🎉 Lấy danh sách sự kiện (phân trang + tìm kiếm)")
+    @Operation(summary = "Lấy danh sách sự kiện (phân trang + tìm kiếm)")
     @GetMapping
     public ResponseEntity<Page<AdminEventResponse>> getAllEvents(
             @RequestParam(required = false) String keyword,
@@ -25,20 +25,20 @@ public class AdminEventController {
         return ResponseEntity.ok(adminEventService.getAllEvents(keyword, pageable));
     }
 
-    @Operation(summary = "🔍 Xem chi tiết sự kiện")
+    @Operation(summary = "Xem chi tiết sự kiện")
     @GetMapping("/{id}")
     public ResponseEntity<AdminEventResponse> getEventDetail(@PathVariable Long id) {
         return ResponseEntity.ok(adminEventService.getEventDetail(id));
     }
 
-    @Operation(summary = "✅ Duyệt sự kiện")
+    @Operation(summary = "Duyệt sự kiện")
     @PutMapping("/{id}/approve")
     public ResponseEntity<Void> approveEvent(@PathVariable Long id) {
         adminEventService.approveEvent(id);
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "❌ Từ chối sự kiện")
+    @Operation(summary = "Từ chối sự kiện")
     @PutMapping("/{id}/reject")
     public ResponseEntity<Void> rejectEvent(
             @PathVariable Long id,

@@ -16,7 +16,7 @@ public class AdminWalletController {
 
     private final AdminWalletService adminWalletService;
 
-    @Operation(summary = "💳 Lấy danh sách ví (phân trang)")
+    @Operation(summary = "Lấy danh sách ví (phân trang)")
     @GetMapping
     public ResponseEntity<Page<AdminWalletResponse>> getAllWallets(
             @RequestParam(defaultValue = "0") int page,
@@ -25,7 +25,7 @@ public class AdminWalletController {
         return ResponseEntity.ok(adminWalletService.getAllWallets(pageable));
     }
 
-    @Operation(summary = "📜 Lấy danh sách giao dịch (phân trang)")
+    @Operation(summary = "Lấy danh sách giao dịch (phân trang)")
     @GetMapping("/transactions")
     public ResponseEntity<Page<AdminTransactionResponse>> getAllTransactions(
             @RequestParam(defaultValue = "0") int page,
@@ -34,13 +34,13 @@ public class AdminWalletController {
         return ResponseEntity.ok(adminWalletService.getAllTransactions(pageable));
     }
 
-    @Operation(summary = "🔍 Xem chi tiết giao dịch")
+    @Operation(summary = "Xem chi tiết giao dịch")
     @GetMapping("/transactions/{id}")
     public ResponseEntity<AdminTransactionResponse> getTransactionDetail(@PathVariable Long id) {
         return ResponseEntity.ok(adminWalletService.getTransactionDetail(id));
     }
 
-    @Operation(summary = "⚙️ Điều chỉnh số dư ví thủ công (ADMIN_ADJUST)")
+    @Operation(summary = "Điều chỉnh số dư ví thủ công (ADMIN_ADJUST)")
     @PostMapping("/{walletId}/adjust")
     public ResponseEntity<Void> adjustWalletBalance(
             @PathVariable Long walletId,

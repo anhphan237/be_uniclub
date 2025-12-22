@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/admin/logs")
 public class AdminLogController {
 
-    @Operation(summary = "🪵 Xem 100 dòng lỗi gần nhất từ file log")
+    @Operation(summary = "Xem 100 dòng lỗi gần nhất từ file log")
     @GetMapping("/errors")
     public ResponseEntity<List<String>> getRecentErrors() throws IOException {
         Path logPath = Paths.get("logs/app.log");

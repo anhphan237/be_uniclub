@@ -4,6 +4,7 @@ import com.example.uniclub.dto.response.AdminClubResponse;
 import com.example.uniclub.dto.response.AdminClubStatResponse;
 import com.example.uniclub.entity.*;
 import com.example.uniclub.enums.ClubActivityStatusEnum;
+import com.example.uniclub.enums.MembershipStateEnum;
 import com.example.uniclub.exception.ApiException;
 import com.example.uniclub.repository.*;
 import com.example.uniclub.service.AdminClubService;
@@ -54,7 +55,11 @@ public class AdminClubServiceImpl implements AdminClubService {
     }
 
     private AdminClubResponse toResponse(Club club) {
-        int memberCount = membershipRepo.countByClub_ClubId(club.getClubId());
+        long memberCount = membershipRepo.countByClub_ClubIdAndState(
+                club.getClubId(),
+                MembershipStateEnum.ACTIVE
+        );
+
         int eventCount = (int) eventRepo.countByHostClub_ClubId(club.getClubId());
 
         return AdminClubResponse.builder()
@@ -74,7 +79,11 @@ public class AdminClubServiceImpl implements AdminClubService {
         Club club = clubRepo.findById(clubId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Club not found"));
 
-        long memberCount = membershipRepo.countByClub_ClubId(clubId);
+        long memberCount = membershipRepo.countByClub_ClubIdAndState(
+                clubId,
+                MembershipStateEnum.ACTIVE
+        );
+
         long totalEvents = eventRepo.countByHostClub_ClubId(clubId);
         long activeEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, EventStatusEnum.ONGOING);
         long completedEvents = eventRepo.countByHostClub_ClubIdAndStatus(clubId, EventStatusEnum.COMPLETED);

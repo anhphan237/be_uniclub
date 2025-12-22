@@ -14,7 +14,7 @@ public class AdminClubResponse {
     private String majorName;
     private String leaderName;
     private String leaderEmail;
-    private int memberCount;
+    private Long memberCount;
     private int eventCount;
     private boolean active;
 }
